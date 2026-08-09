@@ -108,10 +108,49 @@ def cmd_init_config(repo: Path, detect_file: Path, overrides: list[str]) -> int:
     return 0
 
 
+# CodeQL analysis language per detected primary language (unsupported => "").
+CODEQL_LANGUAGES = {
+    "python": "python",
+    "node": "javascript-typescript",
+    "go": "go",
+    "java": "java-kotlin",
+    "ruby": "ruby",
+    "csharp": "csharp",
+}
+
+DEPENDABOT_ECOSYSTEMS = {
+    "python": "pip",
+    "node": "npm",
+    "go": "gomod",
+    "rust": "cargo",
+    "ruby": "bundler",
+    "java": "gradle",
+}
+
+
+def dependabot_updates(languages: list[str]) -> str:
+    """Build the dependabot `updates:` list body: GitHub Actions always,
+    plus one ecosystem per configured language that has one."""
+    ecosystems = ["github-actions"] + [
+        DEPENDABOT_ECOSYSTEMS[lang] for lang in languages if lang in DEPENDABOT_ECOSYSTEMS
+    ]
+    blocks = [
+        f'  - package-ecosystem: "{eco}"\n'
+        '    directory: "/"\n'
+        "    schedule:\n"
+        '      interval: "weekly"'
+        for eco in ecosystems
+    ]
+    return "\n".join(blocks)
+
+
 def build_tokens(config: dict) -> dict[str, str]:
     languages = config.get("languages", [])
     toolchain = config.get("toolchain", {})
+    primary = languages[0] if languages else "none"
     return {
+        "CODEQL_LANGUAGE": CODEQL_LANGUAGES.get(primary, ""),
+        "DEPENDABOT_UPDATES": dependabot_updates(languages),
         "PROJECT_NAME": config.get("project_name", ""),
         "KIT_VERSION": config.get("kit_version") or kit_version(),
         "DEFAULT_BRANCH": config.get("default_branch", "main"),
@@ -182,6 +221,7 @@ def compute_plan(repo: Path, config: dict) -> dict:
         "conflicts": [],
         "errors": [],
         "rendered": {},
+        "meta": {},
     }
     for entry in manifest["templates"]:
         if not entry_applies(entry, config):
@@ -193,6 +233,9 @@ def compute_plan(repo: Path, config: dict) -> dict:
             plan["ok"] = False
             continue
         plan["rendered"][dest] = rendered
+        # Applicable-entry metadata; keyed by dest so apply never picks up a
+        # sibling variant's template name for the same destination.
+        plan["meta"][dest] = {"template": entry["src"], "mode": entry.get("mode")}
         dest_path = repo / dest
         recorded = state["files"].get(dest)
         write_once = entry.get("overwrite_policy") == "write-once"
@@ -221,7 +264,7 @@ def compute_plan(repo: Path, config: dict) -> dict:
 
 
 def public_plan(plan: dict) -> dict:
-    return {key: value for key, value in plan.items() if key != "rendered"}
+    return {key: value for key, value in plan.items() if key not in ("rendered", "meta")}
 
 
 def cmd_plan(repo: Path, config: dict) -> int:
@@ -236,8 +279,6 @@ def cmd_apply(repo: Path, config: dict, force: list[str]) -> int:
         return 1
     state = load_state(repo)
     state["kit_version"] = kit_version()
-    manifest = load_json(TEMPLATES_DIR / "manifest.json")
-    template_by_dest = {e["dest"]: e["src"] for e in manifest["templates"]}
 
     to_write = [item["path"] for item in plan["writes"] + plan["regenerates"]]
     forced, refused = [], []
@@ -256,8 +297,11 @@ def cmd_apply(repo: Path, config: dict, force: list[str]) -> int:
         dest_path = repo / dest
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_text(content, encoding="utf-8")
+        mode = plan["meta"][dest]["mode"]
+        if mode:
+            dest_path.chmod(int(mode, 8))
         state["files"][dest] = {
-            "template": template_by_dest[dest],
+            "template": plan["meta"][dest]["template"],
             "sha256": sha256_text(content),
             "kit_version": state["kit_version"],
         }

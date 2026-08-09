@@ -46,6 +46,56 @@
       "when": { "primary_language_not_in": ["python", "node", "go"] },
       "pillar": "workflows",
       "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "hooks/secret-guard.sh.tmpl",
+      "dest": ".sdlc/hooks/secret-guard.sh",
+      "feature_flag": "secret_guard",
+      "mode": "755",
+      "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "hooks/install.sh.tmpl",
+      "dest": ".sdlc/hooks/install.sh",
+      "feature_flag": "secret_guard",
+      "mode": "755",
+      "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "precommit/pre-commit-config.yaml.tmpl",
+      "dest": ".pre-commit-config.yaml",
+      "feature_flag": "secret_guard",
+      "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/codeql.yml.tmpl",
+      "dest": ".github/workflows/codeql.yml",
+      "when": { "primary_language_in": ["python", "node", "go", "java", "ruby", "csharp"] },
+      "feature_flag": "codeql",
+      "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/dependabot.yml.tmpl",
+      "dest": ".github/dependabot.yml",
+      "feature_flag": "dependabot",
+      "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "security/SECURITY.md.tmpl",
+      "dest": "SECURITY.md",
+      "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "security/security-explainer.md.tmpl",
+      "dest": "docs/sdlc/security.md",
+      "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
     }
   ]
 }
