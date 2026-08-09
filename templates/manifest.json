@@ -1,0 +1,51 @@
+{
+  "comment": "Single source of truth for what shipshape writes into a target repo. Each entry: src (template under templates/), dest (path in target repo), optional when (all conditions must hold), optional feature_flag (config.features gate), pillar, overwrite_policy (ask-if-drifted | write-once).",
+  "templates": [
+    {
+      "src": "harness/sdlc-harness.md.tmpl",
+      "dest": "docs/sdlc/harness.md",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "adapters/CLAUDE.md.tmpl",
+      "dest": "CLAUDE.md",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "docs/design-doc.md.tmpl",
+      "dest": "docs/sdlc/design.md",
+      "pillar": "onboarding",
+      "overwrite_policy": "write-once"
+    },
+    {
+      "src": "github/workflows/ci-python.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language": "python" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/ci-node.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language": "node" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/ci-go.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language": "go" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/ci-generic.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language_not_in": ["python", "node", "go"] },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    }
+  ]
+}
