@@ -1,0 +1,50 @@
+{
+  "files": {
+    ".github/dependabot.yml": {
+      "kit_version": "0.1.0",
+      "sha256": "36c12fa5cec5e1d0321b000f1b8440e284fb662369e0da7f2f7cee5f147f0eb7",
+      "template": "github/dependabot.yml.tmpl"
+    },
+    ".github/workflows/codeql.yml": {
+      "kit_version": "0.1.0",
+      "sha256": "136c5ca826231ad9bc50859200b6ac71854c3dfa8fba95c88094ed341a2a7264",
+      "template": "github/workflows/codeql.yml.tmpl"
+    },
+    ".pre-commit-config.yaml": {
+      "kit_version": "0.1.0",
+      "sha256": "c9a658d470cd1708be68f728b8cb486f469fe4d4456b20784cdc1774d64385e9",
+      "template": "precommit/pre-commit-config.yaml.tmpl"
+    },
+    ".sdlc/hooks/install.sh": {
+      "kit_version": "0.1.0",
+      "sha256": "8fd50633e2a2e779ee18aa20e1a7a08b4246c5d70f6f050e968d0011ade6ad48",
+      "template": "hooks/install.sh.tmpl"
+    },
+    ".sdlc/hooks/secret-guard.sh": {
+      "kit_version": "0.1.0",
+      "sha256": "83297ec94409aff1f4271b4dd53d2ab005bcda3cc36ae36f5deb48945710f44e",
+      "template": "hooks/secret-guard.sh.tmpl"
+    },
+    "SECURITY.md": {
+      "kit_version": "0.1.0",
+      "sha256": "4ccfd316952f9a11b273fb5663a9f0af693a4500986262e548b0bf321382a2ce",
+      "template": "security/SECURITY.md.tmpl"
+    },
+    "docs/sdlc/design.md": {
+      "kit_version": "0.1.0",
+      "sha256": "0954b2bbbd340e2451aa504df51a14649ba48af6d990123fbdd4736362241903",
+      "template": "docs/design-doc.md.tmpl"
+    },
+    "docs/sdlc/harness.md": {
+      "kit_version": "0.1.0",
+      "sha256": "f6fa3e950389590bf081bac1b40e6d5271c04a2ae3c725c986b23200d60f8815",
+      "template": "harness/sdlc-harness.md.tmpl"
+    },
+    "docs/sdlc/security.md": {
+      "kit_version": "0.1.0",
+      "sha256": "8924070f1bd8d74dc5efb6d9c12cd0d172a630998879d17262d506d15d68b1cb",
+      "template": "security/security-explainer.md.tmpl"
+    }
+  },
+  "kit_version": "0.1.0"
+}
