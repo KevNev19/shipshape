@@ -346,6 +346,10 @@ def main() -> int:
     p_init.add_argument("--detect", required=True)
     p_init.add_argument("--set", action="append", default=[], dest="overrides")
 
+    p_set = sub.add_parser("set-config")
+    p_set.add_argument("repo")
+    p_set.add_argument("--set", action="append", default=[], dest="overrides", required=True)
+
     p_plan = sub.add_parser("plan")
     p_plan.add_argument("repo")
 
@@ -371,6 +375,15 @@ def main() -> int:
             "(or /shipshape-init from Claude Code)"
         )
     config = load_json(config_path)
+    if args.command == "set-config":
+        for override in args.overrides:
+            if "=" not in override:
+                return fail(f"--set expects key=value, got: {override}")
+            key, _, value = override.partition("=")
+            set_dotted(config, key, value)
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps({"ok": True, "config": config}, indent=2))
+        return 0
     if args.command == "plan":
         return cmd_plan(repo, config)
     return cmd_apply(repo, config, args.force)
