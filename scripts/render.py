@@ -82,6 +82,9 @@ def cmd_init_config(repo: Path, detect_file: Path, overrides: list[str]) -> int:
     git_info = detected.get("git", {})
     config["default_branch"] = git_info.get("default_branch") or "main"
     config["repo"]["owner_repo"] = git_info.get("owner_repo", "")
+    owner_repo = config["repo"]["owner_repo"]
+    if owner_repo and "/" in owner_repo:
+        config["owners"]["default"] = "@" + owner_repo.split("/")[0]
     config["commands"]["test"] = detected.get("test_command_guess") or NO_TESTS_CMD
 
     for override in overrides:
@@ -164,6 +167,7 @@ def build_tokens(config: dict) -> dict[str, str]:
         "NODE_VERSION": str(toolchain.get("node", "20")),
         "GO_VERSION": str(toolchain.get("go", "1.22")),
         "OWNER_REPO": config.get("repo", {}).get("owner_repo", ""),
+        "CODEOWNERS_DEFAULT": config.get("owners", {}).get("default", ""),
     }
 
 
@@ -173,6 +177,9 @@ def entry_applies(entry: dict, config: dict) -> bool:
         return False
     languages = config.get("languages", [])
     primary = languages[0] if languages else "none"
+    # Derived conditions: collaboration = anyone besides the owner is involved.
+    collaboration = config.get("profile") == "team" or config.get("workflow_style") == "pr"
+    has_owner = bool(config.get("owners", {}).get("default"))
     for key, expected in entry.get("when", {}).items():
         if key == "primary_language" and primary != expected:
             return False
@@ -183,6 +190,10 @@ def entry_applies(entry: dict, config: dict) -> bool:
         if key == "workflow_style" and config.get("workflow_style") != expected:
             return False
         if key == "profile" and config.get("profile") != expected:
+            return False
+        if key == "collaboration" and collaboration != expected:
+            return False
+        if key == "has_owner" and has_owner != expected:
             return False
     return True
 

@@ -96,6 +96,44 @@
       "dest": "docs/sdlc/security.md",
       "pillar": "security",
       "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/PULL_REQUEST_TEMPLATE.md.tmpl",
+      "dest": ".github/PULL_REQUEST_TEMPLATE.md",
+      "when": { "workflow_style": "pr" },
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/CODEOWNERS.tmpl",
+      "dest": ".github/CODEOWNERS",
+      "when": { "workflow_style": "pr", "has_owner": true },
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/ISSUE_TEMPLATE/bug.yml.tmpl",
+      "dest": ".github/ISSUE_TEMPLATE/bug.yml",
+      "when": { "collaboration": true },
+      "feature_flag": "issue_templates",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/ISSUE_TEMPLATE/task.yml.tmpl",
+      "dest": ".github/ISSUE_TEMPLATE/task.yml",
+      "when": { "collaboration": true },
+      "feature_flag": "issue_templates",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/ISSUE_TEMPLATE/config.yml.tmpl",
+      "dest": ".github/ISSUE_TEMPLATE/config.yml",
+      "when": { "collaboration": true },
+      "feature_flag": "issue_templates",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
     }
   ]
 }
