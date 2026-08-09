@@ -25,6 +25,8 @@ BASE_FILES = {
     ".sdlc/hooks/install.sh",
     ".pre-commit-config.yaml",
     ".github/dependabot.yml",
+    ".github/workflows/release.yml",
+    "docs/sdlc/glossary.md",
 }
 CODEQL = ".github/workflows/codeql.yml"
 
@@ -57,9 +59,12 @@ def test_full_apply(fixture, tmp_path):
     assert code == 0 and result["ok"]
     assert set(result["written"]) == expected_files(fixture)
 
+    # GitHub Actions' own ${{ ... }} expressions are legitimate output; only
+    # shipshape's uppercase {{TOKEN}} placeholders must not survive.
+    token_re = re.compile(r"\{\{[A-Z0-9_]+\}\}")
     for rel in expected_files(fixture):
         content = (repo / rel).read_text()
-        assert "{{" not in content, f"unsubstituted token left in {rel}"
+        assert not token_re.search(content), f"unsubstituted token left in {rel}"
         assert "managed-by: shipshape" in content, f"missing managed header in {rel}"
 
     ci = (repo / ".github/workflows/ci.yml").read_text()
@@ -119,6 +124,24 @@ def test_init_config_set_overrides(tmp_path):
     assert config["workflow_style"] == "pr"
     assert config["features"]["codeql"] is False
     assert config["commands"]["test"] == "pytest -q"
+
+
+def test_set_config_edits_in_place_and_replans(tmp_path):
+    repo = init_repo("repo-python", tmp_path)
+    run_script("render.py", "apply", repo)
+
+    code, result = run_script(
+        "render.py", "set-config", repo, "--set", "features.release_automation=false"
+    )
+    assert code == 0
+    assert result["config"]["features"]["release_automation"] is False
+    # Detection-derived values survive a set-config edit.
+    assert result["config"]["languages"] == ["python"]
+
+    code, plan = run_script("render.py", "plan", repo)
+    assert code == 0
+    planned = {p["path"] for group in ("writes", "regenerates", "skips") for p in plan[group]}
+    assert ".github/workflows/release.yml" not in planned
 
 
 def test_empty_repo_gets_fallback_test_command(tmp_path):
