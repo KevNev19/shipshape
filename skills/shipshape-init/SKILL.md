@@ -77,16 +77,27 @@ prints JSON — branch on the JSON, and translate it for the user.
    Report what was written. For each conflict the user wants replaced anyway,
    confirm per file, then re-run apply with `--force <path>`.
 
-7. **Finish the design doc.** Open `docs/sdlc/design.md`, write the "What
+7. **Activate the secret guard.** The files written in step 6 include the
+   commit-time secret scanner; make it live for this clone:
+
+   ```bash
+   bash .sdlc/hooks/install.sh
+   ```
+
+   Explain in one sentence what it does (checks every commit for passwords
+   and keys before it can be saved).
+
+8. **Finish the design doc.** Open `docs/sdlc/design.md`, write the "What
    this project is" and "Structure" sections from what you learned in the
    scan, in plain language. This file is written once and then belongs to
    the user.
 
-8. **Close.** Tell the user, in this order: what now protects them, where
-   the plan of record lives (`docs/sdlc/harness.md`), and the one next thing
-   to do (usually: commit these new files, or run `/shipshape-doctor` once it
-   ships). If the repo has a GitHub remote, mention the CI check will appear
-   on their next push.
+9. **Close.** Tell the user, in this order: what now protects them (secret
+   guard, CI, and — where written — CodeQL and Dependabot, one plain-English
+   line each), where the plan of record lives (`docs/sdlc/harness.md`), and
+   the one next thing to do (usually: commit these new files). Suggest
+   `/shipshape-doctor` as the anytime health check. If the repo has a GitHub
+   remote, mention the CI check will appear on their next push.
 
 ## Don't
 
