@@ -5,29 +5,45 @@ written output, every managed file self-identifies, and the right CI variant
 is chosen per detected stack.
 """
 
+import json
+import os
+import re
+import sys
 from pathlib import Path
 
 import pytest
 from conftest import init_repo, run_script
 
-M1_FILES = [
+BASE_FILES = {
     "docs/sdlc/harness.md",
     "CLAUDE.md",
     "docs/sdlc/design.md",
     ".github/workflows/ci.yml",
-]
+    "SECURITY.md",
+    "docs/sdlc/security.md",
+    ".sdlc/hooks/secret-guard.sh",
+    ".sdlc/hooks/install.sh",
+    ".pre-commit-config.yaml",
+    ".github/dependabot.yml",
+}
+CODEQL = ".github/workflows/codeql.yml"
 
-# fixture name -> marker expected inside the rendered CI workflow
-CI_MARKERS = {
-    "repo-python": "actions/setup-python",
-    "repo-node": "actions/setup-node",
-    "repo-go": "actions/setup-go",
-    "repo-mixed": "actions/setup-node",  # node sorts first among detected languages
-    "repo-empty": "No tests configured yet",
+# fixture name -> (has codeql, marker expected inside the rendered CI workflow)
+FIXTURE_EXPECT = {
+    "repo-python": (True, "actions/setup-python"),
+    "repo-node": (True, "actions/setup-node"),
+    "repo-go": (True, "actions/setup-go"),
+    "repo-mixed": (True, "actions/setup-node"),  # node sorts first among detected languages
+    "repo-empty": (False, "No tests configured yet"),
 }
 
 
-@pytest.mark.parametrize("fixture", sorted(CI_MARKERS))
+def expected_files(fixture: str) -> set[str]:
+    has_codeql, _ = FIXTURE_EXPECT[fixture]
+    return BASE_FILES | ({CODEQL} if has_codeql else set())
+
+
+@pytest.mark.parametrize("fixture", sorted(FIXTURE_EXPECT))
 def test_full_apply(fixture, tmp_path):
     repo = init_repo(fixture, tmp_path)
 
@@ -35,23 +51,55 @@ def test_full_apply(fixture, tmp_path):
     assert code == 0
     assert plan["ok"], plan.get("errors")
     assert not plan["conflicts"]
-    assert {w["path"] for w in plan["writes"]} == set(M1_FILES)
+    assert {w["path"] for w in plan["writes"]} == expected_files(fixture)
 
     code, result = run_script("render.py", "apply", repo)
     assert code == 0 and result["ok"]
-    assert set(result["written"]) == set(M1_FILES)
+    assert set(result["written"]) == expected_files(fixture)
 
-    for rel in M1_FILES:
+    for rel in expected_files(fixture):
         content = (repo / rel).read_text()
         assert "{{" not in content, f"unsubstituted token left in {rel}"
         assert "managed-by: shipshape" in content, f"missing managed header in {rel}"
 
     ci = (repo / ".github/workflows/ci.yml").read_text()
-    assert CI_MARKERS[fixture] in ci
+    assert FIXTURE_EXPECT[fixture][1] in ci
 
     state = (repo / ".sdlc/state.json").read_text()
-    for rel in M1_FILES:
+    for rel in expected_files(fixture):
         assert rel in state
+
+
+def test_hook_scripts_are_executable(tmp_path):
+    repo = init_repo("repo-python", tmp_path)
+    run_script("render.py", "apply", repo)
+    for rel in (".sdlc/hooks/secret-guard.sh", ".sdlc/hooks/install.sh"):
+        assert os.access(repo / rel, os.X_OK), f"{rel} is not executable"
+
+
+def test_codeql_language_and_dependabot_ecosystems(tmp_path):
+    repo = init_repo("repo-mixed", tmp_path)
+    run_script("render.py", "apply", repo)
+    codeql = (repo / CODEQL).read_text()
+    assert 'languages: "javascript-typescript"' in codeql
+    dependabot = (repo / ".github/dependabot.yml").read_text()
+    for ecosystem in ("github-actions", "npm", "pip"):
+        assert f'package-ecosystem: "{ecosystem}"' in dependabot
+
+
+def test_feature_flags_gate_security_files(tmp_path):
+    repo = init_repo(
+        "repo-python",
+        tmp_path,
+        overrides=["features.secret_guard=false", "features.dependabot=false"],
+    )
+    code, result = run_script("render.py", "apply", repo)
+    assert code == 0
+    written = set(result["written"])
+    assert ".sdlc/hooks/secret-guard.sh" not in written
+    assert ".pre-commit-config.yaml" not in written
+    assert ".github/dependabot.yml" not in written
+    assert "SECURITY.md" in written  # policy doc is not feature-gated
 
 
 def test_init_config_captures_detection(tmp_path):
@@ -67,8 +115,6 @@ def test_init_config_set_overrides(tmp_path):
         tmp_path,
         overrides=["workflow_style=pr", "features.codeql=false", "commands.test=pytest -q"],
     )
-    import json
-
     config = json.loads((repo / ".sdlc/config.json").read_text())
     assert config["workflow_style"] == "pr"
     assert config["features"]["codeql"] is False
@@ -92,9 +138,6 @@ def test_plan_without_config_is_friendly_error(tmp_path):
 
 def test_kit_templates_only_use_known_tokens():
     """Every {{TOKEN}} in every template must be one build_tokens can supply."""
-    import re
-    import sys
-
     kit_root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(kit_root / "scripts"))
     from render import build_tokens  # noqa: E402
