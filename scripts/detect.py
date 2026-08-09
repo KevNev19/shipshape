@@ -104,6 +104,15 @@ TEST_COMMANDS = {
     "cargo test": "cargo test",
 }
 
+RUNNER_LANGUAGE = {
+    "pytest": "python",
+    "jest": "node",
+    "vitest": "node",
+    "mocha": "node",
+    "go test": "go",
+    "cargo test": "rust",
+}
+
 
 def _read_text(path: Path) -> str:
     try:
@@ -197,19 +206,27 @@ def _scan_markers(root: Path, marker_map: dict[str, dict[str, str]]) -> list[str
 
 def detect_test_runners(root: Path, languages: list[dict]) -> tuple[list[str], str]:
     runners = set(_scan_markers(root, TEST_RUNNER_MARKERS))
-    lang_names = {entry["name"] for entry in languages}
-    if "python" in lang_names and (root / "tests").is_dir():
+    # Implicit built-in runners only for high-confidence languages, so stray
+    # files deep in the tree can't claim the project's test command.
+    high = {entry["name"] for entry in languages if entry["confidence"] == "high"}
+    if "python" in high and (root / "tests").is_dir():
         runners.add("pytest")
-    if "go" in lang_names:
+    if "go" in high:
         runners.add("go test")
-    if "rust" in lang_names:
+    if "rust" in high:
         runners.add("cargo test")
     runners = sorted(runners)
+    # Guess follows language confidence order, not runner alphabetical order.
     guess = ""
-    for runner in runners:
-        if runner in TEST_COMMANDS:
-            guess = TEST_COMMANDS[runner]
+    for entry in languages:
+        for runner in runners:
+            if RUNNER_LANGUAGE.get(runner) == entry["name"]:
+                guess = TEST_COMMANDS[runner]
+                break
+        if guess:
             break
+    if not guess and runners:
+        guess = TEST_COMMANDS.get(runners[0], "")
     return runners, guess
 
 
