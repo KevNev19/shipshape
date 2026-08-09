@@ -7,6 +7,9 @@
 # Usage:
 #   gh_helpers.sh protect <branch> [--require-review]   apply protection to a branch
 #   gh_helpers.sh protection-status <branch>            show current protection
+#   gh_helpers.sh add-collaborator <user> <pull|push|admin>
+#   gh_helpers.sh remove-collaborator <user>
+#   gh_helpers.sh list-collaborators
 set -euo pipefail
 
 fallback() {
@@ -50,8 +53,31 @@ EOF
     gh api "repos/$slug/branches/$branch/protection" 2>/dev/null \
       || echo '{"protected": false}'
     ;;
+  add-collaborator)
+    user="${2:?usage: gh_helpers.sh add-collaborator <user> <pull|push|admin>}"
+    permission="${3:?permission required: pull (read), push (write), or admin}"
+    slug="$(repo_slug)"
+    if gh api --method PUT "repos/$slug/collaborators/$user" -f permission="$permission" >/dev/null; then
+      echo "Invited '$user' with $permission access (they get an email invitation to accept)."
+    else
+      echo "Could not invite '$user' automatically. By hand: GitHub -> your repository ->" >&2
+      echo "Settings -> Collaborators -> 'Add people'." >&2
+      exit 1
+    fi
+    ;;
+  remove-collaborator)
+    user="${2:?usage: gh_helpers.sh remove-collaborator <user>}"
+    slug="$(repo_slug)"
+    gh api --method DELETE "repos/$slug/collaborators/$user" >/dev/null
+    echo "Removed '$user' from the repository."
+    ;;
+  list-collaborators)
+    slug="$(repo_slug)"
+    gh api "repos/$slug/collaborators" \
+      --jq '.[] | {login: .login, role: .role_name}'
+    ;;
   *)
-    echo "usage: gh_helpers.sh protect|protection-status <branch>" >&2
+    echo "usage: gh_helpers.sh protect|protection-status|add-collaborator|remove-collaborator|list-collaborators" >&2
     exit 2
     ;;
 esac
