@@ -10,6 +10,11 @@
       "sha256": "136c5ca826231ad9bc50859200b6ac71854c3dfa8fba95c88094ed341a2a7264",
       "template": "github/workflows/codeql.yml.tmpl"
     },
+    ".github/workflows/release.yml": {
+      "kit_version": "0.1.0",
+      "sha256": "ad79f5096cb28cdc4f0873b6bae0be8346b78734a3fad526bc912281ebfd1ee1",
+      "template": "github/workflows/release.yml.tmpl"
+    },
     ".pre-commit-config.yaml": {
       "kit_version": "0.1.0",
       "sha256": "c9a658d470cd1708be68f728b8cb486f469fe4d4456b20784cdc1774d64385e9",
@@ -34,6 +39,11 @@
       "kit_version": "0.1.0",
       "sha256": "0954b2bbbd340e2451aa504df51a14649ba48af6d990123fbdd4736362241903",
       "template": "docs/design-doc.md.tmpl"
+    },
+    "docs/sdlc/glossary.md": {
+      "kit_version": "0.1.0",
+      "sha256": "c580ecbe8bb6a7c9267efff29bdf163156053a73540d9626098d041a7f34f282",
+      "template": "docs/glossary.md.tmpl"
     },
     "docs/sdlc/harness.md": {
       "kit_version": "0.1.0",
