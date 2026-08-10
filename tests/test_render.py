@@ -27,6 +27,10 @@ BASE_FILES = {
     ".github/dependabot.yml",
     ".github/workflows/release.yml",
     "docs/sdlc/glossary.md",
+    "AGENTS.md",
+    ".github/workflows/secret-scan.yml",
+    ".github/workflows/copilot-setup-steps.yml",
+    ".github/agents/reviewer.md",
 }
 CODEQL = ".github/workflows/codeql.yml"
 
@@ -103,8 +107,30 @@ def test_feature_flags_gate_security_files(tmp_path):
     written = set(result["written"])
     assert ".sdlc/hooks/secret-guard.sh" not in written
     assert ".pre-commit-config.yaml" not in written
+    assert ".github/workflows/secret-scan.yml" not in written
     assert ".github/dependabot.yml" not in written
     assert "SECURITY.md" in written  # policy doc is not feature-gated
+
+
+def test_github_agents_flag_gates_agent_surface(tmp_path):
+    repo = init_repo("repo-python", tmp_path, overrides=["features.github_agents=false"])
+    code, result = run_script("render.py", "apply", repo)
+    assert code == 0
+    written = set(result["written"])
+    assert ".github/workflows/copilot-setup-steps.yml" not in written
+    assert ".github/agents/reviewer.md" not in written
+    assert "AGENTS.md" in written  # the adapter is always written
+
+
+def test_copilot_setup_matches_language_and_reviewer_has_frontmatter(tmp_path):
+    repo = init_repo("repo-go", tmp_path)
+    run_script("render.py", "apply", repo)
+    setup = (repo / ".github/workflows/copilot-setup-steps.yml").read_text()
+    assert "actions/setup-go" in setup
+    assert "copilot-setup-steps:" in setup, "job name is contractual"
+    reviewer = (repo / ".github/agents/reviewer.md").read_text()
+    assert reviewer.startswith("---\nname: reviewer\n")
+    assert "description:" in reviewer
 
 
 def test_init_config_captures_detection(tmp_path):

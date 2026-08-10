@@ -89,6 +89,54 @@ def test_nothing_staged_passes(tmp_path):
     assert result.returncode == 0
 
 
+def _commit(repo, message):
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", message],
+        cwd=repo,
+        check=True,
+    )
+
+
+def test_range_mode_catches_committed_secret(tmp_path):
+    """CI mode: a secret already committed (e.g. by a cloud agent that never
+    ran the local hook) is caught by --range base..HEAD."""
+    repo = guarded_repo(tmp_path)
+    stage(repo, "README2.md", "clean base\n")
+    _commit(repo, "base")
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    stage(repo, "src/config.py", f'ACCESS_KEY = "{FAKE_AWS_KEY}"\n')
+    _commit(repo, "leaky")
+
+    result = subprocess.run(
+        ["bash", ".sdlc/hooks/secret-guard.sh", "--range", f"{base}..HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "rotate" in result.stderr, "CI mode must give rotation advice"
+
+
+def test_range_mode_passes_clean_range(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(repo, "a.md", "one\n")
+    _commit(repo, "one")
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    stage(repo, "b.md", "two\n")
+    _commit(repo, "two")
+    result = subprocess.run(
+        ["bash", ".sdlc/hooks/secret-guard.sh", "--range", f"{base}..HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 @pytest.mark.parametrize("case", ["clean_after_block"])
 def test_block_then_fix_passes(tmp_path, case):
     repo = guarded_repo(tmp_path)

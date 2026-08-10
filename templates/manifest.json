@@ -14,6 +14,12 @@
       "overwrite_policy": "ask-if-drifted"
     },
     {
+      "src": "adapters/AGENTS.md.tmpl",
+      "dest": "AGENTS.md",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
       "src": "docs/design-doc.md.tmpl",
       "dest": "docs/sdlc/design.md",
       "pillar": "onboarding",
@@ -83,6 +89,52 @@
       "dest": ".github/dependabot.yml",
       "feature_flag": "dependabot",
       "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/secret-scan.yml.tmpl",
+      "dest": ".github/workflows/secret-scan.yml",
+      "feature_flag": "secret_guard",
+      "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-python.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language": "python" },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-node.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language": "node" },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-go.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language": "go" },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-generic.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language_not_in": ["python", "node", "go"] },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/agents/reviewer.md.tmpl",
+      "dest": ".github/agents/reviewer.md",
+      "feature_flag": "github_agents",
+      "pillar": "process",
       "overwrite_policy": "ask-if-drifted"
     },
     {
