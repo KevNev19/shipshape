@@ -27,9 +27,13 @@ jobs:
     env:
       HAS_PAT: ${{ secrets.ACTIONS_PAT != '' }}
     steps:
+      - uses: actions/checkout@v7
       - name: Gather alert and CI data
         env:
-          GH_TOKEN: ${{ github.token }}
+          # Dependabot and secret-scanning alert APIs are not readable by the
+          # built-in workflow token; the ACTIONS_PAT secret (when set) closes
+          # that gap — without it those sections degrade to an access note.
+          GH_TOKEN: ${{ secrets.ACTIONS_PAT || github.token }}
           REPO: ${{ github.repository }}
         run: |
           {
@@ -56,6 +60,14 @@ jobs:
             gh api "repos/$REPO/actions/runs?branch=main&per_page=20" \
               --jq '.workflow_runs[] | "- \(.name): \(.conclusion // .status) (\(.created_at))"' \
               2>/dev/null || echo "- (runs unavailable)"
+            echo
+            echo "## Workflow permissions audit"
+            for wf in .github/workflows/*.yml; do
+              if ! grep -q "permissions:" "$wf"; then
+                echo "- $wf has no explicit permissions block"
+              fi
+            done
+            echo "- (all other workflows declare explicit permissions)"
             echo
             echo "## Open pull requests"
             gh api "repos/$REPO/pulls?state=open&per_page=50" \
