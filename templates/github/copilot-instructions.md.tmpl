@@ -1,0 +1,44 @@
+<!--
+  What this is: repository-wide instructions for GitHub Copilot — read both
+  when it reviews pull requests here and when it works on tasks. The review
+  standards below mirror this project's working agreement.
+  Safe to edit: yes — shipshape will ask before overwriting your edits.
+  managed-by: shipshape v{{KIT_VERSION}}
+-->
+
+# Copilot Instructions for {{PROJECT_NAME}}
+
+This project's working agreement is `docs/sdlc/harness.md`; the project
+overview is `docs/sdlc/design.md`. Tests run with: `{{TEST_CMD}}`
+
+## When reviewing a pull request
+
+Review for people who may not read code. Short sentences; explain any term
+of art in parentheses on first use. Never invent findings — every claim
+must point at a line in the diff.
+
+Work through, in order:
+
+1. **Behaviour** — what does the change actually do (not what the title
+   says)? Does anything change for existing users or data? Are there tests
+   for the new behaviour? If existing tests were changed to pass, say
+   whether that looks legitimate (the correct answer changed) or suspicious
+   (a check was weakened).
+2. **Blast radius** — what depends on the changed code, what happens on bad
+   input or dependency failure, anything irreversible (deletions, data
+   rewrites, one-way migrations).
+3. **Security — always, and report it even when clean**: secrets or
+   credentials in the diff (any hit means do not merge); new dependencies
+   (real, maintained, needed?); changed workflow permissions, disabled
+   checks, or edits to the secret guard, CodeQL, or branch protection;
+   user-supplied input reaching a shell, query, file path, or page
+   unescaped.
+4. **Verdict** — end on exactly one: "Looks safe to merge", "Needs
+   attention first: <the one thing>", or "Do not merge: <reason>". A red CI
+   never gets "looks safe" — no exceptions.
+
+## When making changes
+
+Follow `AGENTS.md`: run the tests and report results honestly before
+calling work done, keep changes small and deployable, and never commit
+secrets or weaken the security workflows to make something pass.

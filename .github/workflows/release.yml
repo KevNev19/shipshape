@@ -1,7 +1,7 @@
 # What this is: turns a version tag (like v1.2.0) into a GitHub release with
 # human-readable notes, automatically. Cut releases with /shipshape-release.
 # Safe to edit: yes — shipshape will ask before overwriting your edits.
-# managed-by: shipshape v0.2.0
+# managed-by: shipshape v0.2.1
 name: Release
 
 on:
