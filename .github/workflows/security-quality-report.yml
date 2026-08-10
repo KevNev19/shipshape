@@ -24,6 +24,8 @@ permissions:
 jobs:
   gather-and-assign:
     runs-on: ubuntu-latest
+    env:
+      HAS_PAT: ${{ secrets.ACTIONS_PAT != '' }}
     steps:
       - name: Gather alert and CI data
         env:
@@ -73,7 +75,7 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "number=${url##*/}" >> "$GITHUB_OUTPUT"
       - name: Assign to the security-quality agent (needs ACTIONS_PAT)
-        if: ${{ secrets.ACTIONS_PAT != '' }}
+        if: ${{ env.HAS_PAT == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.ACTIONS_PAT }}
           REPO: ${{ github.repository }}
