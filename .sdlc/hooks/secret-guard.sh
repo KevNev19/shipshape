@@ -7,7 +7,7 @@
 # why. To bypass in a genuine false alarm:
 #   git commit --no-verify
 # Safe to edit: yes, but keep both layers — the file check and the content check.
-# managed-by: shipshape v0.2.0
+# managed-by: shipshape v0.2.1
 set -u
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"

@@ -4,7 +4,7 @@
 # It prefers the pre-commit framework when available, and otherwise links the
 # guard directly so a fresh clone is never left unprotected.
 # Safe to edit: yes.
-# managed-by: shipshape v0.2.0
+# managed-by: shipshape v0.2.1
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"

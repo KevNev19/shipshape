@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "kit_version": "0.2.0",
+  "kit_version": "0.2.1",
   "profile": "solo",
   "workflow_style": "trunk",
   "project_name": "shipshape",

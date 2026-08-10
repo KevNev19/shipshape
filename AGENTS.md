@@ -4,7 +4,7 @@
   this file up. It deliberately stays small — real policy lives in
   docs/sdlc/harness.md.
   Safe to edit: yes, but keep policy in the harness doc, not here.
-  managed-by: shipshape v0.2.0
+  managed-by: shipshape v0.2.1
 -->
 
 # shipshape — Instructions for AI Agents

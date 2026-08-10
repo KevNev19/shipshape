@@ -3,7 +3,7 @@
 # secret guard runs first and is referenced here, not reimplemented — the
 # script in .sdlc/hooks/secret-guard.sh stays the single source of truth.
 # Safe to edit: yes — shipshape will ask before overwriting your edits.
-# managed-by: shipshape v0.2.0
+# managed-by: shipshape v0.2.1
 fail_fast: true
 repos:
   - repo: local

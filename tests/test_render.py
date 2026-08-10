@@ -31,6 +31,7 @@ BASE_FILES = {
     ".github/workflows/secret-scan.yml",
     ".github/workflows/copilot-setup-steps.yml",
     ".github/agents/reviewer.md",
+    ".github/copilot-instructions.md",
 }
 CODEQL = ".github/workflows/codeql.yml"
 
@@ -119,6 +120,7 @@ def test_github_agents_flag_gates_agent_surface(tmp_path):
     written = set(result["written"])
     assert ".github/workflows/copilot-setup-steps.yml" not in written
     assert ".github/agents/reviewer.md" not in written
+    assert ".github/copilot-instructions.md" not in written
     assert "AGENTS.md" in written  # the adapter is always written
 
 

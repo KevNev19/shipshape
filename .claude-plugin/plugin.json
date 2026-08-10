@@ -1,7 +1,7 @@
 {
   "name": "shipshape",
   "description": "Plug-and-play SDLC setup for any git repository: scans your project, then sets up CI, security guardrails, reviews, and releases in plain English. Built for everyone, not just software engineers.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "KevNev19"
   },

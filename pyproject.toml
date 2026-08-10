@@ -1,6 +1,6 @@
 [project]
 name = "shipshape"
-version = "0.2.0"
+version = "0.2.1"
 description = "Plug-and-play SDLC kit for any git repository, delivered as a Claude Code plugin."
 requires-python = ">=3.10"
 

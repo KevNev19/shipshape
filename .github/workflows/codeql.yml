@@ -2,7 +2,7 @@
 # code on every push (and weekly) and reports vulnerable patterns under the
 # repository's Security tab. Free on public repositories.
 # Safe to edit: yes — shipshape will ask before overwriting your edits.
-# managed-by: shipshape v0.2.0
+# managed-by: shipshape v0.2.1
 name: CodeQL
 
 on:

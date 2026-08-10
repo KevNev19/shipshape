@@ -1,58 +1,63 @@
 {
   "files": {
     ".github/agents/reviewer.md": {
-      "kit_version": "0.2.0",
-      "sha256": "88a3e28bf773bfe3576a6f261c891d10e5a32245cb50f67d1177fb03c001832f",
+      "kit_version": "0.2.1",
+      "sha256": "ed126802005bb6a007fa095a17e105a7a819ca65c00073042f15dfb1222ea6d4",
       "template": "github/agents/reviewer.md.tmpl"
     },
+    ".github/copilot-instructions.md": {
+      "kit_version": "0.2.1",
+      "sha256": "e66f839f61637a23a6b557dc72d4d33ea8323b0c18cdf33540f9432de9314909",
+      "template": "github/copilot-instructions.md.tmpl"
+    },
     ".github/dependabot.yml": {
-      "kit_version": "0.2.0",
-      "sha256": "cafe549af20d58ea572c1396d4cbb2e8b29bf269a7049415337d1027e63137b9",
+      "kit_version": "0.2.1",
+      "sha256": "2dfe80798e6de1e7b0483a1267bb9ab966cc83ad595853a2b72f4491b9d2edf2",
       "template": "github/dependabot.yml.tmpl"
     },
     ".github/workflows/codeql.yml": {
-      "kit_version": "0.2.0",
-      "sha256": "a4d5c960e19afdff02aef1b2e294ae0148e735c2665362feb016f54dc83df855",
+      "kit_version": "0.2.1",
+      "sha256": "7ff0ca2caea8a65b86d448fdce4f683be9cc8a75addff67bb86569caeb152309",
       "template": "github/workflows/codeql.yml.tmpl"
     },
     ".github/workflows/copilot-setup-steps.yml": {
-      "kit_version": "0.2.0",
-      "sha256": "2cc76eb011d39aaf113096ddab8dfe89051dc3182060ddf80ddf3c6632d1452e",
+      "kit_version": "0.2.1",
+      "sha256": "e50f53c83479c8211c73da9fd2885acb609ac7eddf289f870354778e02e1c336",
       "template": "github/workflows/copilot-setup-python.yml.tmpl"
     },
     ".github/workflows/release.yml": {
-      "kit_version": "0.2.0",
-      "sha256": "36ee650b2c0d228508e58e93bb2fca9cebe2b9164c70dd678cded70726876e8a",
+      "kit_version": "0.2.1",
+      "sha256": "a73226469fb45d26d6ebef6b84fbb0f940c77b463db0e622760bb0c5b5eb89a0",
       "template": "github/workflows/release.yml.tmpl"
     },
     ".github/workflows/secret-scan.yml": {
-      "kit_version": "0.2.0",
-      "sha256": "afb4b349d3631475f42935761c011eb2277e436f377c3711e8e0991b587d11c0",
+      "kit_version": "0.2.1",
+      "sha256": "c4bc1e0a4c1cf9470dd0b375a9b1b70c59f0d08fcdf3ac20aff7ebc906165df9",
       "template": "github/workflows/secret-scan.yml.tmpl"
     },
     ".pre-commit-config.yaml": {
-      "kit_version": "0.2.0",
-      "sha256": "0c77a0259f15557547e0ddb07f9dffc11a6206f03d85f6236d96b43774d75ad0",
+      "kit_version": "0.2.1",
+      "sha256": "25254bbac172e4b286a6be0b0bb7091759daff31111f482a5aea3e4ed400f317",
       "template": "precommit/pre-commit-config.yaml.tmpl"
     },
     ".sdlc/hooks/install.sh": {
-      "kit_version": "0.2.0",
-      "sha256": "ce45d18c98231f48bdc8870c280c8d31095042f501e0be9fef15902a8dea800d",
+      "kit_version": "0.2.1",
+      "sha256": "4bfe0125ad30d50ec86c6eeebcf7ac2a0e6d0c8351cd37a049b11ad54baa1e98",
       "template": "hooks/install.sh.tmpl"
     },
     ".sdlc/hooks/secret-guard.sh": {
-      "kit_version": "0.2.0",
-      "sha256": "a922192cffb34b62898ca668903417a221b636d9a43de894c13066786e55aca9",
+      "kit_version": "0.2.1",
+      "sha256": "cc34f8494dcd26cd87e1fe4f761453d0a981e30a1754f16f2f2490808a7622c2",
       "template": "hooks/secret-guard.sh.tmpl"
     },
     "AGENTS.md": {
-      "kit_version": "0.2.0",
-      "sha256": "9bf29d85139198e99dc71b3deb0a35073bec264b2a2c8978ef810f13110fb5a6",
+      "kit_version": "0.2.1",
+      "sha256": "b8aeafb80f876fc8804d0701846e2b1a336437b9b4fb6faeec2057c613b069b1",
       "template": "adapters/AGENTS.md.tmpl"
     },
     "SECURITY.md": {
-      "kit_version": "0.2.0",
-      "sha256": "b02eb102fc0c9fb2546ef818b2c0448296f6f40ada19eebfe5515f6b59f7bba6",
+      "kit_version": "0.2.1",
+      "sha256": "8c43e3c607622a69da9a27af34315f4cc71872ff93a2a545e637dd38a7988023",
       "template": "security/SECURITY.md.tmpl"
     },
     "docs/sdlc/design.md": {
@@ -61,8 +66,8 @@
       "template": "docs/design-doc.md.tmpl"
     },
     "docs/sdlc/glossary.md": {
-      "kit_version": "0.2.0",
-      "sha256": "e58e1ab8e7b41db500dc4b22e132e7f8ed85b9cfd2f2376e18133f4e6dac1b56",
+      "kit_version": "0.2.1",
+      "sha256": "a5a41486be70cc9c072cae82863dc1df213cd8e46c807fec1bd1f8faadc8e1df",
       "template": "docs/glossary.md.tmpl"
     },
     "docs/sdlc/harness.md": {
@@ -71,10 +76,10 @@
       "template": "harness/sdlc-harness.md.tmpl"
     },
     "docs/sdlc/security.md": {
-      "kit_version": "0.2.0",
-      "sha256": "2d05cbe5f0c04bad44cb4e4c17609695a2fb1897e8f8a2ee0fa3d63989d87a08",
+      "kit_version": "0.2.1",
+      "sha256": "65c1186f513a016c87ee3e7dcdd59042ae6f6a1b9f79a243281d4411d61e1ba0",
       "template": "security/security-explainer.md.tmpl"
     }
   },
-  "kit_version": "0.2.0"
+  "kit_version": "0.2.1"
 }
