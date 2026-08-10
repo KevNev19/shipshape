@@ -114,6 +114,25 @@ ruff check . && ruff format --check .
   regression pass.
 - Every bug fixed leaves a dated test in `tests/regressions.py`.
 
+## Commit messages
+
+Every commit tells its story: subject, why, what, and who. Enforced by
+`scripts/check_commit_msg.sh` at commit-msg stage (merges/reverts exempt).
+
+- Subject: conventional type (`feat:`/`fix:`/`docs:`/`chore:`/`test:`),
+  imperative mood, aim for 50 characters, hard cap 72. Blank line after.
+- Body: a `Why:` line (the problem or reason) and a `What:` line (the
+  change itself — prose or bullets), wrapped at 72.
+- Attribution: a `Co-authored-by:` trailer for EVERY AI agent whose work is
+  in the commit, using these canonical identities:
+  - `Co-authored-by: Claude <noreply@anthropic.com>`
+  - `Co-authored-by: Codex (gpt-5.6-sol) <noreply@openai.com>`
+  - `Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>`
+- **Explicit override (Kevin, 2026-08-11):** the global rule forbidding AI
+  attribution in commits does NOT apply to this project. Shipshape is an
+  AI-native SDLC project; honest agent attribution is part of its git
+  history by design. This override is scoped to this repository only.
+
 ## Session close
 
 - Run the gates above before reporting work done; report results honestly.

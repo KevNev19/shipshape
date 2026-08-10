@@ -14,3 +14,10 @@ repos:
         language: script
         pass_filenames: false
         always_run: true
+      # Repo-local addition (drift from the shipshape template is intended):
+      # commit-message convention from docs/agents/harness.md.
+      - id: commit-message-convention
+        name: commit message convention (why, what, co-authors)
+        entry: scripts/check_commit_msg.sh
+        language: script
+        stages: [commit-msg]
