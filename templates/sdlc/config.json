@@ -13,6 +13,7 @@
     "branch_protection": true,
     "release_automation": true,
     "issue_templates": true,
+    "github_agents": true,
     "project_board": false
   },
   "commands": {
