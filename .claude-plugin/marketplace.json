@@ -1,13 +1,17 @@
 {
   "name": "shipshape",
   "description": "Marketplace for the shipshape SDLC kit.",
-  "owner": { "name": "KevNev19" },
+  "owner": {
+    "name": "KevNev19"
+  },
   "plugins": [
     {
       "name": "shipshape",
       "source": "./",
-      "version": "0.1.0",
-      "author": { "name": "KevNev19" }
+      "version": "0.2.0",
+      "author": {
+        "name": "KevNev19"
+      }
     }
   ]
 }
