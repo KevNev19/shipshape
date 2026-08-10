@@ -8,7 +8,7 @@ Security posture is incomplete this week: there is one open high-severity CodeQL
 ### CodeQL
 - **Incomplete URL substring sanitization** — `scripts/detect.py:282`  
   **What it is:** The code appears to rely on a partial text check for a web address instead of a strict validation step.  
-  **Why it matters:** A bad input could be treated as trusted when it is not, which can send the tool to the wrong destination or make it act on unsafe content.  
+  **Why it matters:** A crafted non-GitHub remote containing `github.com` could be mistaken for a GitHub remote, causing the generated repository owner and default CODEOWNERS entry to be wrong.
   **Severity:** High.  
   **Recommended action:** Replace substring-style checks with strict URL parsing and exact validation of the allowed destination, then add tests for tricky inputs.
 
