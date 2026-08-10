@@ -8,6 +8,9 @@
     }
   },
   "enabledPlugins": {
-    "codex-orchestrator@codex-orchestrator": true
+    "codex-orchestrator@codex-orchestrator": true,
+    "ralph-loop@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "github@claude-plugins-official": true
   }
 }

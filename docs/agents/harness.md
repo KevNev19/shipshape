@@ -23,11 +23,37 @@ only and must mirror this file by reference, not rewrite it differently.
 
 ## Default workflow: orchestrated implementation (the only way)
 
-All implementation work on this repo is delegated through the
-codex-orchestrator plugin (enabled at project scope in
-`.claude/settings.json`). The driving Claude session plans and independently
-verifies; Codex agents implement. This is not a preference — it is the
-standing working mode for this project.
+All implementation work on this repo runs through one layered pipeline
+combining the superpowers plugin (discipline for the driving session) and
+the codex-orchestrator plugin (delegated implementation). The driving
+Claude session shapes, plans, and independently verifies; Codex agents
+implement. This is not a preference — it is the standing working mode for
+this project.
+
+The pipeline, phase by phase:
+
+1. **Shape (superpowers).** Any creative work — features, components,
+   behavior changes — starts with the `brainstorming` skill: intent,
+   requirements, and design explored with Kevin before anything else.
+2. **Plan (superpowers → orchestrator).** `writing-plans` produces the
+   plan; its steps map one-to-one into orchestrator `task` entries with
+   goals, acceptance criteria, and owned files. Use the orchestrator's
+   Codex plan-review step when a second opinion materially reduces risk.
+3. **Implement (codex-orchestrator only).** Superpowers'
+   `subagent-driven-development` and `executing-plans` are subordinated
+   here: the "subagents" that implement are ALWAYS Codex agents launched
+   via `/codex-orchestrator:orchestrate` — never Claude subagents editing
+   files. The `test-driven-development` skill governs execution *content*:
+   task prompts demand red-green-refactor, and acceptance criteria include
+   the failing-test-first evidence.
+4. **Verify (superpowers, binding on Claude).**
+   `verification-before-completion` is the verifier's law: evidence before
+   assertions, gates actually run, never accept an implementing agent's
+   claim of success. `systematic-debugging` drives any failed-execution
+   diagnosis before a retry cycle.
+5. **Review and close (both).** Code-review discipline feeds the journal's
+   `verification` entries; the orchestrator's close sequence
+   `validate → run_closed → report.md` remains canonical and final.
 
 - Front doors: `/codex-orchestrator:workflow` owns a full run end to end;
   `/codex-orchestrator:orchestrate` runs each focused agent cycle inside it;
@@ -49,6 +75,13 @@ standing working mode for this project.
 - Exceptions: none by default. A direct (non-orchestrated) edit happens only
   when Kevin explicitly directs it for that specific task. Analysis-only or
   conversational work that changes no files needs no run.
+- Plugin conflict rules: where superpowers and the orchestrator disagree,
+  the orchestrator wins on WHO implements (Codex agents, profiled) and on
+  run records (its journal is the record of work, not a parallel one);
+  superpowers wins on HOW work is shaped, tested, and verified.
+  `using-git-worktrees` applies only when the orchestrator's compute
+  reference calls for isolated worktrees; `finishing-a-development-branch`
+  applies only when work happens on a branch (this repo is trunk-based).
 
 ## Build and test
 
