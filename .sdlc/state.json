@@ -7,12 +7,12 @@
     },
     ".github/workflows/codeql.yml": {
       "kit_version": "0.1.0",
-      "sha256": "136c5ca826231ad9bc50859200b6ac71854c3dfa8fba95c88094ed341a2a7264",
+      "sha256": "7e2bc88d441e5a07098d0e2139d5627a6693fcfcd069ccb9d6a46a9c8fa9f6dc",
       "template": "github/workflows/codeql.yml.tmpl"
     },
     ".github/workflows/release.yml": {
       "kit_version": "0.1.0",
-      "sha256": "ad79f5096cb28cdc4f0873b6bae0be8346b78734a3fad526bc912281ebfd1ee1",
+      "sha256": "d8bcd16348f499ff5a3814fe805c90968fc400f4314eed114b7e50d8d6db8f40",
       "template": "github/workflows/release.yml.tmpl"
     },
     ".pre-commit-config.yaml": {
