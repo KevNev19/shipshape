@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "codex-orchestrator": {
+      "source": {
+        "source": "github",
+        "repo": "alexzh3/codex-orchestrator"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "codex-orchestrator@codex-orchestrator": true
+  }
+}
