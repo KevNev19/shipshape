@@ -3,7 +3,7 @@
   project — what protects you, from what, and what to do when something
   goes red.
   Safe to edit: yes.
-  managed-by: shipshape v0.1.0
+  managed-by: shipshape v0.2.0
 -->
 
 # What Protects shipshape

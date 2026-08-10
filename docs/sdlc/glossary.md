@@ -2,7 +2,7 @@
   What this is: plain-English definitions of the terms this project's
   tooling uses. Skills and docs link here instead of re-explaining.
   Safe to edit: yes.
-  managed-by: shipshape v0.1.0
+  managed-by: shipshape v0.2.0
 -->
 
 # Glossary
