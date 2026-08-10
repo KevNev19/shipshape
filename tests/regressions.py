@@ -39,11 +39,47 @@ def test_nested_foreign_files_cannot_claim_test_command() -> None:
         assert result["test_command_guess"] == "pytest", result["test_command_guess"]
 
 
+def test_lookalike_remote_host_is_not_github() -> None:
+    """2026-08-10: CodeQL flagged detect_git's `"github.com" in url` substring
+    check (high severity, incomplete URL sanitization) — a remote like
+    https://evilgithub.com.attacker.example/o/r would have been classified as
+    GitHub and its path offered as owner_repo. Guard: remotes are parsed into
+    an exact host, and only github.com (or *.github.com) counts."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        subprocess.run(["git", "init", "-qb", "main", str(root)], check=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "remote",
+                "add",
+                "origin",
+                "https://evilgithub.com.attacker.example/owner/repo.git",
+            ],
+            check=True,
+        )
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPTS / "detect.py"), str(root), "--no-network"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        git_info = json.loads(proc.stdout)["git"]
+        assert git_info["remote"] == "other", git_info
+        assert git_info["owner_repo"] == "", git_info
+
+
 def main() -> int:
     checks = [
         (
             "nested foreign files cannot claim test command",
             test_nested_foreign_files_cannot_claim_test_command,
+        ),
+        (
+            "lookalike remote host is not github",
+            test_lookalike_remote_host_is_not_github,
         ),
     ]
     failures = 0
