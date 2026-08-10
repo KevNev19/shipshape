@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "kit_version": "0.1.0",
+  "kit_version": "0.2.0",
   "profile": "solo",
   "workflow_style": "trunk",
   "project_name": "shipshape",
@@ -15,7 +15,8 @@
     "branch_protection": true,
     "release_automation": true,
     "issue_templates": true,
-    "project_board": false
+    "project_board": false,
+    "github_agents": true
   },
   "commands": {
     "test": "python3 -m pytest tests/ -q",
