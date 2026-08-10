@@ -1,7 +1,7 @@
 # Security & Quality Report — 2026-08-10
 
 ## TL;DR
-Security posture is incomplete this week: there is one open high-severity CodeQL alert, and the issue data for Dependabot and secret scanning is unavailable because GitHub returned 403 errors. Quality posture is mostly healthy: 14 of 15 finished default-branch runs passed (93%), but this reporting workflow had one recent failure and five newer runs were still queued or running when the data was gathered. The single most important action is to fix the high-severity URL sanitization alert in `scripts/detect.py:282`.
+Security posture is incomplete: CodeQL (automated source-code security analysis) reports one high-severity alert, while Dependabot (dependency vulnerability alerts) and secret-scanning data is unavailable because GitHub returned `403` access errors. Quality posture is mostly healthy: 14 of 15 finished default-branch runs passed (93%), but this reporting workflow had one recent failure and five newer runs were still queued or running when the data was gathered. The single most important action is to fix the high-severity URL sanitization alert in `scripts/detect.py:282`.
 
 ## Security
 
