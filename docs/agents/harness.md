@@ -83,6 +83,25 @@ The pipeline, phase by phase:
   reference calls for isolated worktrees; `finishing-a-development-branch`
   applies only when work happens on a branch (this repo is trunk-based).
 
+## Worktree carve-out (explicit exception to the global no-worktrees rule)
+
+Kevin's global rules forbid branches and worktrees; for this project ONLY,
+orchestrator-managed isolation is the sanctioned exception, under these
+bounds:
+
+- Worktrees exist only when the orchestrator's compute rules require them
+  (overlapping task `files` or shared resources — disjoint tasks stay in
+  the main tree), created exactly as the contract prescribes
+  (`git worktree add ../shipshape-codex-impl-NN -b codex-impl-NN`).
+- They are machine-managed and MUST NOT outlive their run: after
+  integration and target-side acceptance checks, the worktree is removed
+  and its `codex-impl-NN` branch deleted in the same task cycle.
+- Session close adds a hygiene check: `git worktree list` shows only the
+  main tree, and `git branch --list 'codex-impl-*'` is empty. A stray
+  worktree or branch found at close is cleaned up (after confirming its
+  run is terminal) before the session reports done.
+- Humans never work in these worktrees; Kevin's own work stays on `main`.
+
 ## Build and test
 
 ```
