@@ -13,6 +13,7 @@ Usage:
 """
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -261,6 +262,16 @@ def detect_hooks(root: Path) -> dict:
     }
 
 
+def _parse_remote(url: str) -> tuple[str, str]:
+    """Split a git remote URL (ssh or https form) into (host, owner/repo)."""
+    match = re.match(r"(?:ssh://)?git@([^:/]+)[:/](.+)", url)
+    if not match:
+        match = re.match(r"https?://([^/@]+)/(.+)", url)
+    if not match:
+        return "", ""
+    return match.group(1).lower(), match.group(2).removesuffix(".git")
+
+
 def detect_git(root: Path, no_network: bool) -> dict:
     info = {
         "is_repo": False,
@@ -279,10 +290,12 @@ def detect_git(root: Path, no_network: bool) -> dict:
         info["default_branch"] = branch
     code, url = _run(["git", "-C", str(root), "remote", "get-url", "origin"])
     if code == 0 and url:
-        if "github.com" in url:
+        host, path = _parse_remote(url)
+        # Exact host match, not substring: "evilgithub.com.attacker.example"
+        # must never be treated as GitHub (CodeQL: incomplete URL sanitization).
+        if host == "github.com" or host.endswith(".github.com"):
             info["remote"] = "github"
-            tail = url.split("github.com")[-1].lstrip(":/")
-            info["owner_repo"] = tail.removesuffix(".git")
+            info["owner_repo"] = path
         else:
             info["remote"] = "other"
     if info["remote"] == "github" and not no_network:
