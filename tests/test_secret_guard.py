@@ -3,6 +3,7 @@ credential files, and pass clean changes. The guard is invoked directly (as
 the git hook would) against a real staged index."""
 
 import subprocess
+from pathlib import Path
 
 import pytest
 from conftest import init_repo, run_script
@@ -34,7 +35,7 @@ def stage(repo, relpath, content):
     path = repo / relpath
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
-    subprocess.run(["git", "add", str(relpath)], cwd=repo, check=True)
+    subprocess.run(["git", "add", "-f", str(relpath)], cwd=repo, check=True)
 
 
 def unstage_all(repo):
@@ -46,6 +47,100 @@ def test_clean_change_passes(tmp_path):
     stage(repo, "src/feature.py", "def feature() -> str:\n    return 'ok'\n")
     result = run_guard(repo)
     assert result.returncode == 0, result.stderr
+    assert "WARN" not in result.stderr
+
+
+def test_control_file_change_warns_without_blocking(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(repo, ".claude/preferences.json", '{"theme": "dark"}\n')
+    result = run_guard(repo)
+    assert result.returncode == 0, result.stderr
+    assert "WARN" in result.stderr
+    assert ".claude/preferences.json" in result.stderr
+    assert "automated tools behave" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "control_path",
+    [".github/copilot-instructions.md", "AGENTS.md", ".sdlc/hooks/custom.sh"],
+)
+def test_each_remaining_control_path_warns(tmp_path, control_path):
+    repo = guarded_repo(tmp_path)
+    stage(repo, control_path, "Review this control change.\n")
+    result = run_guard(repo)
+    assert result.returncode == 0, result.stderr
+    assert "WARN" in result.stderr
+    assert control_path in result.stderr
+
+
+def test_vscode_task_command_is_blocked(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(
+        repo,
+        ".vscode/tasks.json",
+        '{"version": "2.0.0", "tasks": [{"command": "make release"}]}\n',
+    )
+    result = run_guard(repo)
+    assert result.returncode == 1
+    assert "BLOCKED" in result.stderr
+    assert ".vscode/tasks.json" in result.stderr
+    assert "git commit --no-verify" in result.stderr
+
+
+def test_benign_terminal_preference_warns_without_blocking(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(repo, ".vscode/settings.json", '{"terminal.integrated.fontSize": 14}\n')
+    result = run_guard(repo)
+    assert result.returncode == 0, result.stderr
+    assert "WARN" in result.stderr
+    assert "BLOCKED" not in result.stderr
+
+
+def test_terminal_shell_setting_is_blocked(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(
+        repo,
+        ".vscode/settings.json",
+        '{"terminal.integrated.shell.osx": "/tmp/run-on-open"}\n',
+    )
+    result = run_guard(repo)
+    assert result.returncode == 1
+    assert "BLOCKED" in result.stderr
+
+
+def test_terminal_profile_with_executable_path_is_blocked(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(
+        repo,
+        ".vscode/settings.json",
+        "{\n"
+        '  "terminal.integrated.profiles.osx": {\n'
+        '    "release": {"path": "/tmp/run-on-open"}\n'
+        "  }\n"
+        "}\n",
+    )
+    result = run_guard(repo)
+    assert result.returncode == 1
+    assert "BLOCKED" in result.stderr
+
+
+def test_claude_settings_base64_blob_is_blocked(tmp_path):
+    repo = guarded_repo(tmp_path)
+    encoded = "A" * 44
+    stage(repo, ".claude/settings.json", f'{{"payload": "{encoded}"}}\n')
+    result = run_guard(repo)
+    assert result.returncode == 1
+    assert "BLOCKED" in result.stderr
+    assert "base64" in result.stderr
+
+
+def test_markdown_control_file_command_warns_without_blocking(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(repo, "CLAUDE.md", "Run `make test` before finishing.\n")
+    result = run_guard(repo)
+    assert result.returncode == 0, result.stderr
+    assert "WARN" in result.stderr
+    assert "CLAUDE.md" in result.stderr
 
 
 def test_planted_api_key_is_blocked(tmp_path):
@@ -91,7 +186,18 @@ def test_nothing_staged_passes(tmp_path):
 
 def _commit(repo, message):
     subprocess.run(
-        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", message],
+        [
+            "git",
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            message,
+        ],
         cwd=repo,
         check=True,
     )
@@ -135,6 +241,81 @@ def test_range_mode_passes_clean_range(tmp_path):
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_range_mode_warns_for_control_file_change(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(repo, "a.md", "one\n")
+    _commit(repo, "one")
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    stage(repo, ".github/agents/helper.md", "Review the whole diff.\n")
+    _commit(repo, "control")
+
+    result = subprocess.run(
+        ["bash", ".sdlc/hooks/secret-guard.sh", "--range", f"{base}..HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "WARN" in result.stderr
+    assert ".github/agents/helper.md" in result.stderr
+
+
+def test_range_mode_control_failure_does_not_give_secret_rotation_advice(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(repo, "a.md", "one\n")
+    _commit(repo, "one")
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    stage(repo, ".claude/settings.json", '{"hooks": {"command": "curl example.test"}}\n')
+    _commit(repo, "control")
+
+    result = subprocess.run(
+        ["bash", ".sdlc/hooks/secret-guard.sh", "--range", f"{base}..HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "automated tools" in result.stderr
+    assert "rotate" not in result.stderr
+    assert "looks like a secret" not in result.stderr
+
+
+def test_type_changed_control_file_warns(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(repo, ".claude/settings.json", '{"theme": "dark"}\n')
+    _commit(repo, "settings")
+    settings = repo / ".claude" / "settings.json"
+    settings.unlink()
+    settings.symlink_to(Path("..") / "shared-settings.json")
+    subprocess.run(["git", "add", ".claude/settings.json"], cwd=repo, check=True)
+
+    result = run_guard(repo)
+    assert result.returncode == 0, result.stderr
+    assert "WARN" in result.stderr
+    assert ".claude/settings.json" in result.stderr
+
+
+def test_control_file_renamed_out_of_control_path_warns(tmp_path):
+    repo = guarded_repo(tmp_path)
+    stage(repo, ".claude/preferences.json", '{"theme": "dark"}\n')
+    _commit(repo, "preferences")
+    (repo / "config").mkdir()
+    subprocess.run(
+        ["git", "mv", ".claude/preferences.json", "config/preferences.json"],
+        cwd=repo,
+        check=True,
+    )
+
+    result = run_guard(repo)
+    assert result.returncode == 0, result.stderr
+    assert "WARN" in result.stderr
+    assert ".claude/preferences.json" in result.stderr
 
 
 @pytest.mark.parametrize("case", ["clean_after_block"])

@@ -25,6 +25,10 @@ Work through these in order; the report follows the same order.
 - New dependencies: are they real, maintained, and needed?
 - Changed workflow permissions, disabled checks, or edits to security
   configuration (the secret guard, CodeQL, branch protection).
+- Changes under `.claude/`, `.vscode/`, `.github/agents/`,
+  `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`, or `.sdlc/hooks/`
+  are security findings: report purpose and consequence. Unexplained
+  control-file changes require at least "Needs attention first".
 - Input handling: anything user-supplied reaching a shell, a query, a file
   path, or HTML unescaped.
 

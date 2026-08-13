@@ -2,12 +2,12 @@
   "files": {
     ".github/agents/reviewer.md": {
       "kit_version": "0.2.1",
-      "sha256": "ed126802005bb6a007fa095a17e105a7a819ca65c00073042f15dfb1222ea6d4",
+      "sha256": "7382ed0c4679d83bcd984bfcc65264dba54f0a4705989a10f6ca60634a3aa227",
       "template": "github/agents/reviewer.md.tmpl"
     },
     ".github/copilot-instructions.md": {
       "kit_version": "0.2.1",
-      "sha256": "e66f839f61637a23a6b557dc72d4d33ea8323b0c18cdf33540f9432de9314909",
+      "sha256": "8ff5e03616def27016ec669a88013df30373ca0b857653c503135176e4ec8195",
       "template": "github/copilot-instructions.md.tmpl"
     },
     ".github/dependabot.yml": {
@@ -47,7 +47,7 @@
     },
     ".sdlc/hooks/secret-guard.sh": {
       "kit_version": "0.2.1",
-      "sha256": "cc34f8494dcd26cd87e1fe4f761453d0a981e30a1754f16f2f2490808a7622c2",
+      "sha256": "7bf78912a8bee21e42645b747c51f8f7eb3d51138ec892b78e1d228550a17806",
       "template": "hooks/secret-guard.sh.tmpl"
     },
     "AGENTS.md": {

@@ -32,7 +32,10 @@ Work through, in order:
    (real, maintained, needed?); changed workflow permissions, disabled
    checks, or edits to the secret guard, CodeQL, or branch protection;
    user-supplied input reaching a shell, query, file path, or page
-   unescaped.
+   unescaped. Changes under `.claude/`, `.vscode/`, `.github/agents/`,
+   `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`, or
+   `.sdlc/hooks/` are security findings: report purpose and consequence.
+   Unexplained control-file changes require at least "Needs attention first".
 4. **Verdict** — end on exactly one: "Looks safe to merge", "Needs
    attention first: <the one thing>", or "Do not merge: <reason>". A red CI
    never gets "looks safe" — no exceptions.

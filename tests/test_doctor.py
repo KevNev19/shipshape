@@ -45,6 +45,61 @@ def test_healthy_repo_all_green(tmp_path):
     assert "shipshape" in payload["next_action"]
 
 
+def test_agent_control_file_coverage_passes_with_guard_and_reviewer(tmp_path):
+    repo = healthy_repo(tmp_path)
+    code, payload = run_script("doctor.py", repo)
+    coverage = checks_by_name(payload, "security")["agent control-file coverage"]
+    assert code == 0, payload
+    assert coverage["status"] == "PASS"
+
+
+def test_agent_control_file_coverage_warns_without_github_agents(tmp_path):
+    repo = healthy_repo(tmp_path)
+    config_path = repo / ".sdlc" / "config.json"
+    config = json.loads(config_path.read_text())
+    config["features"]["github_agents"] = False
+    config_path.write_text(json.dumps(config))
+
+    code, payload = run_script("doctor.py", repo)
+    coverage = checks_by_name(payload, "security")["agent control-file coverage"]
+    assert code == 0, payload
+    assert coverage["status"] == "WARN"
+    assert "deterministic" in coverage["detail"]
+
+
+def test_agent_control_file_coverage_fails_for_stale_guard(tmp_path):
+    repo = healthy_repo(tmp_path)
+    guard = repo / ".sdlc" / "hooks" / "secret-guard.sh"
+    guard.write_text(guard.read_text().replace("# layer 3: agent control files", ""))
+
+    code, payload = run_script("doctor.py", repo)
+    coverage = checks_by_name(payload, "security")["agent control-file coverage"]
+    assert code == 1
+    assert coverage["status"] == "FAIL"
+    assert coverage["next_action"] == (
+        "Re-run /shipshape-init to restore checks for agent and editor control files."
+    )
+
+
+@pytest.mark.parametrize(
+    "removed_rule",
+    [
+        "are security findings: report purpose and consequence.",
+        'Unexplained control-file changes require at least "Needs attention first".',
+    ],
+)
+def test_agent_control_file_coverage_fails_for_stale_reviewer(tmp_path, removed_rule):
+    repo = healthy_repo(tmp_path)
+    reviewer = repo / ".github" / "agents" / "reviewer.md"
+    reviewer.write_text(reviewer.read_text().replace(removed_rule, ""))
+
+    code, payload = run_script("doctor.py", repo)
+    coverage = checks_by_name(payload, "security")["agent control-file coverage"]
+    assert code == 1
+    assert coverage["status"] == "FAIL"
+    assert "reviewer" in coverage["detail"]
+
+
 def test_uninstalled_guard_is_fail_with_fix(tmp_path):
     repo = healthy_repo(tmp_path)
     (repo / ".git" / "hooks" / "pre-commit").unlink()

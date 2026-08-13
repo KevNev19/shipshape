@@ -22,7 +22,11 @@ How to review:
 3. Security always gets checked: secrets or credentials in the diff (any hit
    is an automatic "do not merge"), new dependencies, changed workflow
    permissions, weakened checks or security configuration, user input
-   reaching a shell, query, file path, or page unescaped.
+   reaching a shell, query, file path, or page unescaped. Changes under
+   `.claude/`, `.vscode/`, `.github/agents/`,
+   `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`, or
+   `.sdlc/hooks/` are security findings: report purpose and consequence.
+   Unexplained control-file changes require at least "Needs attention first".
 4. End on exactly one verdict: "Looks safe to merge", "Needs attention
    first: <the one thing>", or "Do not merge: <reason>".
 

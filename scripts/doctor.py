@@ -31,6 +31,14 @@ UNUSED_SETTING_MESSAGE = (
 TEST_RETRY_NEXT_ACTION = (
     "Remove the retry and fix or quarantine the flaky test so one green run means the test passed."
 )
+AGENT_CONTROL_LAYER_MARKER = "# layer 3: agent control files"
+AGENT_CONTROL_REVIEW_MARKERS = (
+    "are security findings: report purpose and consequence.",
+    'Unexplained control-file changes require at least "Needs attention first".',
+)
+AGENT_CONTROL_NEXT_ACTION = (
+    "Re-run /shipshape-init to restore checks for agent and editor control files."
+)
 
 
 def check(name: str, status: str, detail: str, next_action: str = "") -> dict:
@@ -86,6 +94,48 @@ def test_retries_check(repo: Path, config: dict) -> dict:
     return check("test retries", PASS, "no test retries found")
 
 
+def agent_control_coverage_check(repo: Path, features: dict) -> dict:
+    guard = repo / ".sdlc" / "hooks" / "secret-guard.sh"
+    guard_text = guard.read_text(encoding="utf-8", errors="ignore") if guard.is_file() else ""
+    has_guard_layer = AGENT_CONTROL_LAYER_MARKER in guard_text
+    if features.get("secret_guard", True) and not has_guard_layer:
+        return check(
+            "agent control-file coverage",
+            FAIL,
+            "rendered secret guard lacks agent and editor control-file checks",
+            AGENT_CONTROL_NEXT_ACTION,
+        )
+    if not has_guard_layer:
+        return check(
+            "agent control-file coverage",
+            WARN,
+            "secret guard is off; agent and editor control-file checks are inactive",
+        )
+    if not features.get("github_agents", False):
+        return check(
+            "agent control-file coverage",
+            WARN,
+            "deterministic guard layer is active; GitHub agent review is off",
+        )
+
+    reviewer = repo / ".github" / "agents" / "reviewer.md"
+    reviewer_text = (
+        reviewer.read_text(encoding="utf-8", errors="ignore") if reviewer.is_file() else ""
+    )
+    if not all(marker in reviewer_text for marker in AGENT_CONTROL_REVIEW_MARKERS):
+        return check(
+            "agent control-file coverage",
+            FAIL,
+            "GitHub reviewer lacks the agent control-file security rule",
+            AGENT_CONTROL_NEXT_ACTION,
+        )
+    return check(
+        "agent control-file coverage",
+        PASS,
+        "guard and GitHub reviewer cover agent and editor control files",
+    )
+
+
 def security_checks(repo: Path, config: dict) -> list[dict]:
     checks = []
     features = config.get("features", {})
@@ -117,6 +167,8 @@ def security_checks(repo: Path, config: dict) -> list[dict]:
         )
     elif guard.is_file():
         checks.append(check("secret guard installed", PASS, "runs on every commit here"))
+
+    checks.append(agent_control_coverage_check(repo, features))
 
     codeql = repo / ".github" / "workflows" / "codeql.yml"
     if codeql.is_file():
