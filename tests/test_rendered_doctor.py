@@ -1,6 +1,7 @@
 """The consumer doctor is executable, JSON-only, and kept in sync."""
 
 import json
+import os
 import subprocess
 import sys
 
@@ -18,11 +19,17 @@ def rendered_repo(tmp_path):
     return repo
 
 
-def run_rendered_doctor(repo):
+def run_rendered_doctor(repo, *, github_actions=False):
+    env = os.environ.copy()
+    if github_actions:
+        env["GITHUB_ACTIONS"] = "true"
+    else:
+        env.pop("GITHUB_ACTIONS", None)
     proc = subprocess.run(
         [sys.executable, str(repo / ".sdlc" / "scripts" / "doctor.py"), str(repo)],
         capture_output=True,
         text=True,
+        env=env,
     )
     return proc.returncode, json.loads(proc.stdout)
 
@@ -50,6 +57,52 @@ def test_rendered_doctor_fails_when_the_secret_guard_is_missing(tmp_path):
     assert code == 1
     assert payload["ok"] is False
     assert check_map(payload)["secret guard"]["status"] == "FAIL"
+
+
+def test_rendered_doctor_accepts_secret_scan_in_ci_without_local_hook(tmp_path):
+    repo = rendered_repo(tmp_path)
+    (repo / ".git" / "hooks" / "pre-commit").unlink()
+
+    code, payload = run_rendered_doctor(repo, github_actions=True)
+
+    installed = check_map(payload)["secret guard installed"]
+    assert code == 0, payload
+    assert installed["status"] == "PASS"
+    assert installed["detail"] == (
+        "per-clone hook not checkable in CI; pushes are covered by the secret-scan workflow"
+    )
+
+
+def test_rendered_doctor_fails_when_secret_scan_is_missing_in_ci(tmp_path):
+    repo = rendered_repo(tmp_path)
+    (repo / ".github" / "workflows" / "secret-scan.yml").unlink()
+
+    code, payload = run_rendered_doctor(repo, github_actions=True)
+
+    installed = check_map(payload)["secret guard installed"]
+    assert code == 1
+    assert payload["ok"] is False
+    assert installed["status"] == "FAIL"
+    assert installed["next_action"] == (
+        "Re-run /shipshape-init to restore the secret-scan workflow."
+    )
+
+
+def test_rendered_doctor_still_requires_local_hook_outside_ci(tmp_path):
+    repo = rendered_repo(tmp_path)
+    (repo / ".git" / "hooks" / "pre-commit").unlink()
+
+    code, payload = run_rendered_doctor(repo)
+
+    installed = check_map(payload)["secret guard installed"]
+    assert code == 1
+    assert payload["ok"] is False
+    assert installed == {
+        "name": "secret guard installed",
+        "status": "FAIL",
+        "detail": "the scanner exists but is not active for this clone",
+        "next_action": "run: bash .sdlc/hooks/install.sh",
+    }
 
 
 def test_rendered_and_plugin_doctors_report_the_same_checks(tmp_path):

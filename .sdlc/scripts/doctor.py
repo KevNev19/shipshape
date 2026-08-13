@@ -14,6 +14,10 @@ The embedded kit version is compared with the version recorded in
 ``.sdlc/state.json``. This consumer copy cannot know the currently installed
 shipshape plugin version because the plugin may not be installed here.
 
+When ``GITHUB_ACTIONS`` is exactly ``"true"``, the ``secret guard installed``
+check verifies the secret-scan workflow because a per-clone pre-commit hook is
+not available on the runner. Local runs continue to check the clone's hook.
+
 Usage:
     python3 doctor.py <repo-path>
 
@@ -25,6 +29,7 @@ They flag common cases without claiming to parse YAML or shell.
 
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -202,18 +207,39 @@ def security_checks(repo: Path, config: dict) -> list[dict]:
     else:
         checks.append(check("secret guard", PASS, "secret scanner present"))
 
-    hook = repo / ".git" / "hooks" / "pre-commit"
-    if guard.is_file() and not hook.exists():
-        checks.append(
-            check(
-                "secret guard installed",
-                FAIL,
-                "the scanner exists but is not active for this clone",
-                "run: bash .sdlc/hooks/install.sh",
+    if guard.is_file() and os.environ.get("GITHUB_ACTIONS") == "true":
+        secret_scan = repo / ".github" / "workflows" / "secret-scan.yml"
+        if secret_scan.is_file():
+            checks.append(
+                check(
+                    "secret guard installed",
+                    PASS,
+                    "per-clone hook not checkable in CI; pushes are covered by "
+                    "the secret-scan workflow",
+                )
             )
-        )
+        else:
+            checks.append(
+                check(
+                    "secret guard installed",
+                    FAIL,
+                    "the secret-scan workflow is missing in CI",
+                    "Re-run /shipshape-init to restore the secret-scan workflow.",
+                )
+            )
     elif guard.is_file():
-        checks.append(check("secret guard installed", PASS, "runs on every commit here"))
+        hook = repo / ".git" / "hooks" / "pre-commit"
+        if not hook.exists():
+            checks.append(
+                check(
+                    "secret guard installed",
+                    FAIL,
+                    "the scanner exists but is not active for this clone",
+                    "run: bash .sdlc/hooks/install.sh",
+                )
+            )
+        else:
+            checks.append(check("secret guard installed", PASS, "runs on every commit here"))
 
     checks.append(agent_control_coverage_check(repo, features))
 

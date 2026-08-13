@@ -7,12 +7,15 @@ Currently empty by design — the first entry arrives with the first fixed bug.
 """
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS = ROOT / "scripts"
+TEMPLATES = ROOT / "templates"
 
 
 def test_nested_foreign_files_cannot_claim_test_command() -> None:
@@ -71,6 +74,55 @@ def test_lookalike_remote_host_is_not_github() -> None:
         assert git_info["owner_repo"] == "", git_info
 
 
+def test_ci_doctor_uses_secret_scan_workflow() -> None:
+    """2026-08-14: the weekly rendered doctor checked a per-clone pre-commit
+    hook that cannot exist in GitHub Actions, so healthy repositories received
+    false-positive health issues. Guard: CI checks the secret-scan workflow
+    that protects pushed changes instead of the runner clone's local hook."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        doctor = root / ".sdlc" / "scripts" / "doctor.py"
+        doctor.parent.mkdir(parents=True)
+        template = TEMPLATES / "scripts" / "doctor.py.tmpl"
+        doctor.write_text(template.read_text().replace("{{KIT_VERSION}}", "test"))
+        config = {
+            "features": {
+                "codeql": False,
+                "github_agents": False,
+                "scheduled_health": False,
+                "secret_guard": True,
+            },
+            "commands": {"test": ""},
+        }
+        (root / ".sdlc" / "config.json").write_text(json.dumps(config))
+        guard = root / ".sdlc" / "hooks" / "secret-guard.sh"
+        guard.parent.mkdir()
+        guard.write_text("# layer 3: agent control files\n")
+        workflow = root / ".github" / "workflows" / "secret-scan.yml"
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text("permissions:\n  contents: read\n")
+        env = os.environ.copy()
+        env["GITHUB_ACTIONS"] = "true"
+
+        proc = subprocess.run(
+            [sys.executable, str(doctor), str(root)],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True,
+        )
+        checks = {
+            item["name"]: item
+            for section in json.loads(proc.stdout)["sections"]
+            for item in section["checks"]
+        }
+        installed = checks["secret guard installed"]
+        assert installed["status"] == "PASS", installed
+        assert installed["detail"] == (
+            "per-clone hook not checkable in CI; pushes are covered by the secret-scan workflow"
+        ), installed
+
+
 def main() -> int:
     checks = [
         (
@@ -80,6 +132,10 @@ def main() -> int:
         (
             "lookalike remote host is not github",
             test_lookalike_remote_host_is_not_github,
+        ),
+        (
+            "CI doctor uses secret-scan workflow",
+            test_ci_doctor_uses_secret_scan_workflow,
         ),
     ]
     failures = 0
