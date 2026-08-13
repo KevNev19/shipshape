@@ -35,6 +35,11 @@
       "sha256": "c4bc1e0a4c1cf9470dd0b375a9b1b70c59f0d08fcdf3ac20aff7ebc906165df9",
       "template": "github/workflows/secret-scan.yml.tmpl"
     },
+    ".github/workflows/shipshape-doctor.yml": {
+      "kit_version": "0.2.1",
+      "sha256": "0828dc82c28c09b64f3a483f00919acef64da61cab550298886bbd271b9f4b86",
+      "template": "github/workflows/shipshape-doctor.yml.tmpl"
+    },
     ".pre-commit-config.yaml": {
       "kit_version": "0.2.1",
       "sha256": "25254bbac172e4b286a6be0b0bb7091759daff31111f482a5aea3e4ed400f317",
@@ -49,6 +54,11 @@
       "kit_version": "0.2.1",
       "sha256": "7bf78912a8bee21e42645b747c51f8f7eb3d51138ec892b78e1d228550a17806",
       "template": "hooks/secret-guard.sh.tmpl"
+    },
+    ".sdlc/scripts/doctor.py": {
+      "kit_version": "0.2.1",
+      "sha256": "0598727c8cd65d968f038f7c71e96efdf4aa0305c4b24615f1f6622f850be38d",
+      "template": "scripts/doctor.py.tmpl"
     },
     "AGENTS.md": {
       "kit_version": "0.2.1",
@@ -77,7 +87,7 @@
     },
     "docs/sdlc/security.md": {
       "kit_version": "0.2.1",
-      "sha256": "65c1186f513a016c87ee3e7dcdd59042ae6f6a1b9f79a243281d4411d61e1ba0",
+      "sha256": "d4b7bbce151207f1a7db081a6dc16a5e426efdc596761d7441233eb40185ad27",
       "template": "security/security-explainer.md.tmpl"
     }
   },

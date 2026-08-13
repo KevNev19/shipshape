@@ -206,6 +206,58 @@ def test_no_test_retries_is_pass(tmp_path):
     assert check["detail"] == "no test retries found"
 
 
+def test_scheduled_health_check_passes_when_managed_files_are_present(tmp_path):
+    repo = healthy_repo(tmp_path)
+    doctor = repo / ".sdlc" / "scripts" / "doctor.py"
+    doctor.parent.mkdir(parents=True, exist_ok=True)
+    doctor.write_text("# managed doctor\n")
+    workflow = repo / ".github" / "workflows" / "shipshape-doctor.yml"
+    workflow.write_text("on:\n  schedule:\n    - cron: '41 4 * * 3'\n")
+
+    code, payload = run_script("doctor.py", repo)
+    scheduled = checks_by_name(payload, "setup")["scheduled health check"]
+    assert code == 0, payload
+    assert scheduled["status"] == "PASS"
+
+
+def test_scheduled_health_check_warns_when_feature_is_off(tmp_path):
+    repo = healthy_repo(tmp_path)
+    config_path = repo / ".sdlc" / "config.json"
+    config = json.loads(config_path.read_text())
+    config["features"]["scheduled_health"] = False
+    config_path.write_text(json.dumps(config))
+
+    code, payload = run_script("doctor.py", repo)
+    scheduled = checks_by_name(payload, "setup")["scheduled health check"]
+    assert code == 0, payload
+    assert scheduled["status"] == "WARN"
+    assert scheduled["detail"] == "scheduled health check is turned off"
+
+
+@pytest.mark.parametrize("missing", ["doctor", "workflow", "schedule"])
+def test_scheduled_health_check_fails_when_setup_is_incomplete(tmp_path, missing):
+    repo = healthy_repo(tmp_path)
+    doctor = repo / ".sdlc" / "scripts" / "doctor.py"
+    doctor.parent.mkdir(parents=True, exist_ok=True)
+    doctor.write_text("# managed doctor\n")
+    workflow = repo / ".github" / "workflows" / "shipshape-doctor.yml"
+    workflow.write_text("on:\n  schedule:\n    - cron: '41 4 * * 3'\n")
+    if missing == "doctor":
+        doctor.unlink()
+    elif missing == "workflow":
+        workflow.unlink()
+    else:
+        workflow.write_text("on: workflow_dispatch\n")
+
+    code, payload = run_script("doctor.py", repo)
+    scheduled = checks_by_name(payload, "setup")["scheduled health check"]
+    assert code == 1
+    assert scheduled["status"] == "FAIL"
+    assert scheduled["next_action"] == (
+        "Re-run /shipshape-init to restore the scheduled health check."
+    )
+
+
 def test_user_edit_reported_as_fine(tmp_path):
     repo = healthy_repo(tmp_path)
     claude = repo / "CLAUDE.md"

@@ -54,6 +54,21 @@
       "overwrite_policy": "ask-if-drifted"
     },
     {
+      "src": "scripts/doctor.py.tmpl",
+      "dest": ".sdlc/scripts/doctor.py",
+      "feature_flag": "scheduled_health",
+      "mode": "755",
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/shipshape-doctor.yml.tmpl",
+      "dest": ".github/workflows/shipshape-doctor.yml",
+      "feature_flag": "scheduled_health",
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
       "src": "hooks/secret-guard.sh.tmpl",
       "dest": ".sdlc/hooks/secret-guard.sh",
       "feature_flag": "secret_guard",

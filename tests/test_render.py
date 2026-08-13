@@ -32,6 +32,8 @@ BASE_FILES = {
     ".github/workflows/copilot-setup-steps.yml",
     ".github/agents/reviewer.md",
     ".github/copilot-instructions.md",
+    ".sdlc/scripts/doctor.py",
+    ".github/workflows/shipshape-doctor.yml",
 }
 CODEQL = ".github/workflows/codeql.yml"
 
@@ -85,6 +87,13 @@ def test_hook_scripts_are_executable(tmp_path):
     run_script("render.py", "apply", repo)
     for rel in (".sdlc/hooks/secret-guard.sh", ".sdlc/hooks/install.sh"):
         assert os.access(repo / rel, os.X_OK), f"{rel} is not executable"
+
+
+def test_rendered_doctor_is_executable(tmp_path):
+    repo = init_repo("repo-python", tmp_path)
+    run_script("render.py", "apply", repo)
+    doctor = repo / ".sdlc" / "scripts" / "doctor.py"
+    assert os.access(doctor, os.X_OK), f"{doctor} is not executable"
 
 
 def test_codeql_language_and_dependabot_ecosystems(tmp_path):

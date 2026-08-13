@@ -1,30 +1,38 @@
 #!/usr/bin/env python3
+# What this is: a self-contained health check for this shipshape-managed
+# repository, suitable for local use and the scheduled GitHub workflow.
+# Safe to edit: yes — shipshape will ask before overwriting your edits.
+# managed-by: shipshape v{{KIT_VERSION}}
 """Health check for a shipshape-managed repo (ADR 0002: stdlib only).
 
 Emits one JSON scorecard on stdout: sections in priority order (security
 first), each check PASS / WARN / FAIL with a plain-detail string, plus a
-single suggested next_action. Skills translate this for the user; this
-script never prints prose.
+single suggested next_action. Callers translate this for people; this script
+never prints prose.
+
+The embedded kit version is compared with the version recorded in
+``.sdlc/state.json``. This consumer copy cannot know the currently installed
+shipshape plugin version because the plugin may not be installed here.
 
 Usage:
     python3 doctor.py <repo-path>
 
 The workflow-permissions and test-retry audits are deliberately naive text
-checks. Permissions looks for a `permissions:` line anywhere in a workflow;
+checks. Permissions looks for a ``permissions:`` line anywhere in a workflow;
 test retries looks for a short list of known action names and shell markers.
 They flag common cases without claiming to parse YAML or shell.
 """
 
+import hashlib
 import json
 import re
 import sys
 from pathlib import Path
 
-from render import kit_version, load_json, load_state, sha256_text
-
+KIT_VERSION = "{{KIT_VERSION}}"
 PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 RETRY_ACTIONS = ("nick-fields/retry", "nick-invision/retry", "wandalen/wretry.action")
-SHELL_LOOP_SCAN_LIMIT = 1000  # Bound naive matches to a nearby shell loop body.
+SHELL_LOOP_SCAN_LIMIT = 1000
 UNUSED_SETTING_MESSAGE = (
     "Remove features.project_board; this setting has never changed what shipshape installs."
 )
@@ -39,7 +47,24 @@ AGENT_CONTROL_REVIEW_MARKERS = (
 AGENT_CONTROL_NEXT_ACTION = (
     "Re-run /shipshape-init to restore checks for agent and editor control files."
 )
-SCHEDULED_HEALTH_NEXT_ACTION = "Re-run /shipshape-init to restore the scheduled health check."
+SCHEDULED_HEALTH_NEXT_ACTION = (
+    "Re-run /shipshape-init to restore the scheduled health check."
+)
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_state(repo: Path) -> dict:
+    state_path = repo / ".sdlc" / "state.json"
+    if state_path.is_file():
+        return load_json(state_path)
+    return {"kit_version": "", "files": {}}
 
 
 def check(name: str, status: str, detail: str, next_action: str = "") -> dict:
@@ -222,9 +247,9 @@ def security_checks(repo: Path, config: dict) -> list[dict]:
     workflows_dir = repo / ".github" / "workflows"
     offenders = []
     if workflows_dir.is_dir():
-        for wf in sorted(workflows_dir.glob("*.yml")):
-            if "permissions:" not in wf.read_text(encoding="utf-8", errors="ignore"):
-                offenders.append(wf.name)
+        for workflow in sorted(workflows_dir.glob("*.yml")):
+            if "permissions:" not in workflow.read_text(encoding="utf-8", errors="ignore"):
+                offenders.append(workflow.name)
     if offenders:
         checks.append(
             check(
@@ -277,19 +302,18 @@ def setup_checks(repo: Path, config: dict, state: dict) -> list[dict]:
     else:
         checks.append(check("managed files", PASS, "all present and unmodified"))
 
-    current = kit_version()
     written_with = state.get("kit_version", "")
-    if written_with and written_with != current:
+    if written_with and written_with != KIT_VERSION:
         checks.append(
             check(
                 "kit version",
                 WARN,
-                f"set up with shipshape v{written_with}, installed is v{current}",
+                f"set up with shipshape v{written_with}, rendered doctor is v{KIT_VERSION}",
                 "re-run /shipshape-init to upgrade the managed files",
             )
         )
     else:
-        checks.append(check("kit version", PASS, f"v{current}"))
+        checks.append(check("kit version", PASS, f"v{KIT_VERSION}"))
     return checks
 
 
@@ -318,10 +342,13 @@ def main() -> int:
         {"name": "security", "checks": security_checks(repo, config)},
         {"name": "setup", "checks": setup_checks(repo, config, state)},
     ]
-    all_checks = [c for section in sections for c in section["checks"]]
-    counts = {s: sum(1 for c in all_checks if c["status"] == s) for s in (PASS, WARN, FAIL)}
-    first_fail = next((c for c in all_checks if c["status"] == FAIL), None)
-    first_warn = next((c for c in all_checks if c["status"] == WARN), None)
+    all_checks = [item for section in sections for item in section["checks"]]
+    counts = {
+        status: sum(1 for item in all_checks if item["status"] == status)
+        for status in (PASS, WARN, FAIL)
+    }
+    first_fail = next((item for item in all_checks if item["status"] == FAIL), None)
+    first_warn = next((item for item in all_checks if item["status"] == WARN), None)
     if first_fail:
         next_action = first_fail["next_action"] or f"fix: {first_fail['name']}"
     elif first_warn:

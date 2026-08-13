@@ -13,7 +13,8 @@
     "branch_protection": true,
     "release_automation": true,
     "issue_templates": true,
-    "github_agents": true
+    "github_agents": true,
+    "scheduled_health": true
   },
   "commands": {
     "test": "",

@@ -39,6 +39,15 @@ Most projects are mostly other people's code. Dependabot watches those
 libraries and opens a pull request when one of them has a security fix.
 Treat those PRs as high priority: merge them once CI is green.
 
+## When an AI tool works here
+
+Choose the tool's restricted workspace mode and give it access to this
+repository, not unrelated folders. Do not give it production credentials:
+a mistaken command or misleading instruction could otherwise reach live
+systems. Approve requests for extra access one at a time, after checking why
+the tool needs it. If the tool works in the cloud, keep its changes in a pull
+request so CI checks them before anyone merges them.
+
 ## When something goes red
 
 1. Don't panic; nothing red here means the project is already broken in

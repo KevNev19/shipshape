@@ -19,11 +19,14 @@ Follow [../shipshape-init/references/voice.md](../shipshape-init/references/voic
 
 2. **Map the request to config keys.** Common ones: `workflow_style`
    (trunk/pr), `profile` (solo/team), `commands.test`, `owners.default`,
-   `toolchain.*`, `features.*`. If the user asks to disable a security
-   feature (`features.codeql`, `features.secret_guard`,
-   `features.dependabot`, `features.branch_protection`): state the
-   one-sentence consequence ("commits will no longer be checked for
-   passwords or keys") and require an explicit yes before proceeding.
+   `toolchain.*`, `features.*`. If the user asks to disable a
+   consequence-gated feature (`features.codeql`, `features.secret_guard`,
+   `features.dependabot`, `features.branch_protection`,
+   `features.scheduled_health`): state the one-sentence consequence and
+   require an explicit yes before proceeding. For security controls, name
+   the lost protection (for example, "commits will no longer be checked for
+   passwords or keys"). For `scheduled_health`, use: "nobody will be told
+   when a protection quietly disappears."
 
 3. **Write the config.**
 
