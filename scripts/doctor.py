@@ -29,8 +29,7 @@ UNUSED_SETTING_MESSAGE = (
     "Remove features.project_board; this setting has never changed what shipshape installs."
 )
 TEST_RETRY_NEXT_ACTION = (
-    "Remove the retry and fix or quarantine the flaky test so one green run means the test "
-    "passed."
+    "Remove the retry and fix or quarantine the flaky test so one green run means the test passed."
 )
 
 

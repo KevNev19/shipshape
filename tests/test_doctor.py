@@ -6,7 +6,6 @@ import json
 import subprocess
 
 import pytest
-
 from conftest import init_repo, run_script
 
 
