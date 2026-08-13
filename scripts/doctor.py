@@ -9,22 +9,82 @@ script never prints prose.
 Usage:
     python3 doctor.py <repo-path>
 
-The workflow-permissions audit is deliberately naive (looks for a
-`permissions:` line anywhere in the workflow file) — it flags the common
-case of a workflow with no permissions block at all.
+The workflow-permissions and test-retry audits are deliberately naive text
+checks. Permissions looks for a `permissions:` line anywhere in a workflow;
+test retries looks for a short list of known action names and shell markers.
+They flag common cases without claiming to parse YAML or shell.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
 from render import kit_version, load_json, load_state, sha256_text
 
 PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
+RETRY_ACTIONS = ("nick-fields/retry", "nick-invision/retry", "wandalen/wretry.action")
+SHELL_LOOP_SCAN_LIMIT = 1000  # Bound naive matches to a nearby shell loop body.
+UNUSED_SETTING_MESSAGE = (
+    "Remove features.project_board; this setting has never changed what shipshape installs."
+)
+TEST_RETRY_NEXT_ACTION = (
+    "Remove the retry and fix or quarantine the flaky test so one green run means the test "
+    "passed."
+)
 
 
 def check(name: str, status: str, detail: str, next_action: str = "") -> dict:
     return {"name": name, "status": status, "detail": detail, "next_action": next_action}
+
+
+def find_test_retry_markers(text: str, test_command: str) -> list[str]:
+    lowered = text.casefold()
+    markers = [action for action in RETRY_ACTIONS if action in lowered]
+    if not test_command:
+        return markers
+
+    escaped_command = re.escape(test_command)
+    for loop in ("until", "for"):
+        if re.search(
+            rf"\b{loop}\b[\s\S]{{0,{SHELL_LOOP_SCAN_LIMIT}}}?{escaped_command}"
+            rf"[\s\S]{{0,{SHELL_LOOP_SCAN_LIMIT}}}?\bdone\b",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            markers.append(f"{loop} loop around the configured test command")
+
+    retry_flag = re.compile(r"--(?:retries|retry|reruns)\b", flags=re.IGNORECASE)
+    for line in text.splitlines():
+        if test_command.casefold() in line.casefold() and retry_flag.search(line):
+            markers.append("retry flag on the configured test command")
+            break
+    return markers
+
+
+def unused_settings_check(config: dict) -> dict:
+    if "project_board" in config.get("features", {}):
+        return check("unused settings", WARN, UNUSED_SETTING_MESSAGE, UNUSED_SETTING_MESSAGE)
+    return check("unused settings", PASS, "no unused settings")
+
+
+def test_retries_check(repo: Path, config: dict) -> dict:
+    workflows_dir = repo / ".github" / "workflows"
+    test_command = str(config.get("commands", {}).get("test", "")).strip()
+    offenders = []
+    if workflows_dir.is_dir():
+        for workflow in sorted(workflows_dir.glob("*.yml")):
+            text = workflow.read_text(encoding="utf-8", errors="ignore")
+            if find_test_retry_markers(text, test_command):
+                offenders.append(workflow.name)
+    if offenders:
+        return check(
+            "test retries",
+            WARN,
+            f"possible test retry markers in: {', '.join(offenders)}",
+            TEST_RETRY_NEXT_ACTION,
+        )
+    return check("test retries", PASS, "no test retries found")
 
 
 def security_checks(repo: Path, config: dict) -> list[dict]:
@@ -105,11 +165,14 @@ def security_checks(repo: Path, config: dict) -> list[dict]:
 
 
 def setup_checks(repo: Path, config: dict, state: dict) -> list[dict]:
-    checks = []
+    checks = [unused_settings_check(config)]
+
     if (repo / ".github" / "workflows" / "ci.yml").is_file():
         checks.append(check("automated tests (CI)", PASS, "CI workflow present"))
     else:
         checks.append(check("automated tests (CI)", WARN, "no CI workflow found"))
+
+    checks.append(test_retries_check(repo, config))
 
     drifted, missing = [], []
     for dest, record in state.get("files", {}).items():

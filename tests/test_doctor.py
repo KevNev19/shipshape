@@ -2,7 +2,10 @@
 uninstalled secret guard, and degrades to WARN (never FAIL) for the
 availability-dependent checks."""
 
+import json
 import subprocess
+
+import pytest
 
 from conftest import init_repo, run_script
 
@@ -72,6 +75,81 @@ def test_workflow_without_permissions_is_flagged(tmp_path):
     check = checks_by_name(payload, "security")["workflow permissions"]
     assert check["status"] == "WARN"
     assert "deploy.yml" in check["detail"]
+
+
+def test_unused_project_board_setting_is_warn_not_fail(tmp_path):
+    repo = healthy_repo(tmp_path)
+    config_path = repo / ".sdlc" / "config.json"
+    config = json.loads(config_path.read_text())
+    config["features"]["project_board"] = False
+    config_path.write_text(json.dumps(config))
+
+    code, payload = run_script("doctor.py", repo)
+    check = checks_by_name(payload, "setup")["unused settings"]
+    message = (
+        "Remove features.project_board; this setting has never changed what shipshape installs."
+    )
+    assert code == 0
+    assert check == {
+        "name": "unused settings",
+        "status": "WARN",
+        "detail": message,
+        "next_action": message,
+    }
+
+
+def test_no_unused_settings_is_pass(tmp_path):
+    repo = healthy_repo(tmp_path)
+    code, payload = run_script("doctor.py", repo)
+    check = checks_by_name(payload, "setup")["unused settings"]
+    assert code == 0
+    assert check["status"] == "PASS"
+    assert check["detail"] == "no unused settings"
+
+
+@pytest.mark.parametrize(
+    "retry_step",
+    [
+        "uses: nick-fields/retry@v3",
+        "uses: nick-invision/retry@v1",
+        "uses: Wandalen/wretry.action@v3",
+        "run: pytest --retries 2",
+        "run: |\n          until pytest; do sleep 1; done",
+        "run: |\n          for attempt in 1 2 3; do\n            pytest && break\n          done",
+    ],
+)
+def test_known_test_retry_is_warn_not_fail(tmp_path, retry_step):
+    repo = healthy_repo(tmp_path)
+    (repo / ".github" / "workflows" / "retry.yml").write_text(
+        "name: Tests\n"
+        "on: push\n"
+        "permissions:\n"
+        "  contents: read\n"
+        "jobs:\n"
+        "  test:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    steps:\n"
+        f"      - {retry_step}\n"
+    )
+
+    code, payload = run_script("doctor.py", repo)
+    check = checks_by_name(payload, "setup")["test retries"]
+    assert code == 0
+    assert check["status"] == "WARN"
+    assert "retry.yml" in check["detail"]
+    assert check["next_action"] == (
+        "Remove the retry and fix or quarantine the flaky test so one green run means the "
+        "test passed."
+    )
+
+
+def test_no_test_retries_is_pass(tmp_path):
+    repo = healthy_repo(tmp_path)
+    code, payload = run_script("doctor.py", repo)
+    check = checks_by_name(payload, "setup")["test retries"]
+    assert code == 0
+    assert check["status"] == "PASS"
+    assert check["detail"] == "no test retries found"
 
 
 def test_user_edit_reported_as_fine(tmp_path):
