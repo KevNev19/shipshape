@@ -18,33 +18,10 @@ of these skills actually firing. Each skill receives exactly one verdict —
 bind / redundant / conflicts / situational — for the kit-development
 surface, and yes/no for the consumer surface, which defaults to no unless
 the skill survives ADR 0001's inert-tooling rule. Every verdict cites a
-skill-file fact or a run-history event.
-
-## The finding that reframes the question
-
-The study set out to ask whether these processes *should* be tied into the
-pipeline. The evidence sweep answered a different question: they already
-are. Codex implementation agents have been reading Kevin's personal skills
-library at `~/.agents/skills/` — the staging source of the packaged plugin
-— on their own initiative in nearly every implementation execution:
-the two-axes `review` skill eighteen times, `implement` eighteen,
-`codebase-design` eleven, `tdd` ten. No prompt invited this; no config
-names that directory. The self-invoked chain is consistent: "implement →
-tdd → review" at task start, superpowers' `verification-before-completion`
-before handoff.
-
-And it has been earning its keep. In the dead-flag/doctor-checks run, the
-self-invoked review pass found an unexplained magic-number window that was
-fixed before handoff. In the ADR 0008 run it found a fail-soft bug (a
-wrong-shaped JSON API response could crash the doctor instead of WARNing)
-plus three safety edge cases — all fixed before Claude's independent
-verification ever saw the work. No clash was observed from this chain:
-it runs inside the implementer's turn, and the harness's binding rule that
-Claude never accepts an implementer's claim of success still executed
-every time.
-
-So the real decision is not "integrate or ignore" but **formalize, fence,
-or leave tacit** — per skill.
+skill-file fact or a run-history event traceable to the two agent inputs;
+where a rationale additionally references a repo fact (an ADR, a file
+layout), that reference was verified directly against the repository and
+is marked as supplementary — no verdict rests on one alone.
 
 ## The pipeline as it stands
 
@@ -114,15 +91,19 @@ already bound at verify. The evidence agrees the gap is theoretical: zero
 reads ever, while two real debugging cycles (the CI false-positive) ran a
 clean diagnose→reproduce→fix loop on prose discipline alone.
 
-**research — conflicts.** The one literal firing traced in run history
-shows why: self-invoked inside a Codex execution, its "spin up a
-background agent" instruction produced sandbox-internal sub-delegation
-invisible to the orchestrator's journal — direct friction with the
-harness rule that the journal is the record of work. The fence is narrow:
-Codex task prompts must not invite it; Claude-side research already runs
-under session patterns that do the accounting. What would change this
-verdict: a revision of the skill that reports its delegation to the
-caller.
+**research — conflicts.** The verdict rests on the skill's design, not on
+the severity of the one observed firing. Its core instruction is to "spin
+up a background agent" — so any invocation inside a Codex execution
+sub-delegates by construction, and the one traced instance confirmed the
+consequence: sandbox-internal delegation invisible to the orchestrator's
+journal, which the pipeline map classified as neutral-to-mildly-clashing
+("a small friction against the harness's claim that its journal is the
+record of work"; the output still passed all four independent checks).
+Mild in that instance, structural in kind — which is why the verdict is
+conflicts rather than situational. The fence is narrow: Codex task
+prompts must not invite it; Claude-side research already runs under
+session patterns that do the accounting. What would change this verdict:
+a revision of the skill that reports its delegation to the caller.
 
 **grilling — situational.** No run evidence, and superpowers'
 `brainstorming` covers shape-stage questioning. Its frontier/design-tree
@@ -158,27 +139,52 @@ suite (`to-spec`, `to-tickets`, `triage`, `wayfinder`) is noted as future
 research relevant to the intent-capture story around ADR 0009 — a separate
 decision with its own evidence bar.
 
-## Evidence appendix: what the sweep actually found
+## Evidence: where his skills already fired
 
-- One literal plugin-cache hit across all runs (the research-skill
-  sub-delegation instance, classified neutral-to-mildly-clashing).
-- The personal-library reads (`~/.agents/skills/`, verified present):
+The study set out to ask whether these processes *should* be tied into
+the pipeline; the sweep answered a different question — they already are.
+Codex implementation agents have been reading Kevin's personal skills
+library at `~/.agents/skills/` (verified present; the staging source of
+the packaged plugin) on their own initiative in nearly every
+implementation execution, in a consistent chain: "implement → tdd →
+review" at task start, superpowers' `verification-before-completion`
+before handoff. No prompt invited this; no config names that directory.
+The real decision is therefore not "integrate or ignore" but formalize,
+fence, or leave tacit — per skill. The instances, each classified:
+
+- **Helped** — dead-flag/doctor-checks run: the self-invoked two-axes
+  `review` pass found an unexplained magic-number window in a new loop
+  scan, fixed before handoff.
+- **Helped** — ADR 0008 run: the same self-invoked `review` pass found a
+  fail-soft bug (a wrong-shaped JSON API response could crash the doctor
+  instead of WARNing) plus three safety edge cases, all fixed before
+  Claude's independent verification ever saw the work.
+- **Helped (aggregate)** — the personal-library read counts across runs:
   review ×18, implement ×18, codebase-design ×11, tdd ×10,
-  edit-article ×2, diagnosing-bugs ×0 — self-directed in every case.
-- Two fully traced helped instances (dead-flag run; ADR 0008 run),
-  detailed above.
-- A governance distinction confirmed by inspection: a separate session's
-  run used `codex-review-*` agents for the harness's own plan-review
-  phase — unrelated to the mattpocock review skill (zero skill reads in
-  those executions).
-- Two side-catches for the record, outside this study's scope: the oldest
-  run predates the Codex profile mandate (historical compliance gap, not a
-  live violation), and the fact that Codex agents read a personal skills
-  library uninvited is itself a control-surface observation adjacent to
-  ADR 0005's theme — the library is outside the repo, so the guard does
-  not see it.
+  edit-article ×2 — self-directed in every case, with no observed clash:
+  the chain runs inside the implementer's turn, and Claude's independent
+  verification still executed every time.
+- **Clashed (mildly)** — the single literal plugin-cache hit: the
+  `research` skill self-invoked inside a Codex execution, whose
+  background-delegation instruction produced sandbox-internal
+  sub-delegation invisible to the run journal (classified
+  neutral-to-mildly-clashing by the sweep; the output still passed all
+  four independent checks).
+- **Neutral** — `diagnosing-bugs` was never read (zero hits ever), while
+  two real debugging cycles around the CI false-positive ran a clean
+  diagnose→reproduce→fix loop on prose discipline alone — the process it
+  covers happened without it.
 
-## Draft harness amendment (proposal — not yet policy)
+Confirmed distinctions and side-catches, for the record: a separate
+session's run used `codex-review-*` agents for the harness's own
+plan-review phase, unrelated to the mattpocock review skill (zero skill
+reads in those executions); the oldest run predates the Codex profile
+mandate (historical compliance gap, not a live violation); and the fact
+that Codex agents read a personal skills library uninvited is itself a
+control-surface observation adjacent to ADR 0005's theme — the library is
+outside the repo, so the guard does not see it.
+
+## Draft harness amendment (for the binds only)
 
 Three sentences, at three points in `docs/agents/harness.md`:
 
