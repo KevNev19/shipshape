@@ -28,6 +28,11 @@ Follow [../shipshape-init/references/voice.md](../shipshape-init/references/voic
    passwords or keys"). For `scheduled_health`, use: "nobody will be told
    when a protection quietly disappears."
 
+   Enabling `features.tiered_review` has the inverse gate: before turning it
+   on, state: "changes matching the two low-risk classes will merge without a
+   person once checks pass" and require an explicit yes. Disabling it needs
+   no consequence gate.
+
 3. **Write the config.**
 
    ```bash
@@ -43,7 +48,10 @@ Follow [../shipshape-init/references/voice.md](../shipshape-init/references/voic
    Summarize what will change; on a go-ahead, `apply`. Conflicted files
    follow the usual rule: ask per file before any `--force`. Note: turning a
    feature off stops managing its files but does not delete them — offer to
-   remove the now-unmanaged file, and only delete on a per-file yes.
+   remove the now-unmanaged file, and only delete on a per-file yes. Tiered
+   review is the safety exception: disabling it plans removal of the managed
+   auto-merge workflow. A drifted or unowned copy remains a conflict and
+   still needs per-file confirmation before removal.
 
 5. **Report** what changed and the one next step (usually: commit).
 
@@ -51,6 +59,8 @@ Follow [../shipshape-init/references/voice.md](../shipshape-init/references/voic
 
 - Don't disable any security feature without stating the consequence and
   getting an explicit yes.
+- Don't enable tiered review without stating its consequence and getting an
+  explicit yes; don't gate turning it off.
 - Don't edit managed files directly to satisfy a customization — config
   first, then regenerate.
 - Don't delete files without a per-file confirmation.

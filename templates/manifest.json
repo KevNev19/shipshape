@@ -1,5 +1,5 @@
 {
-  "comment": "Single source of truth for what shipshape writes into a target repo. Each entry: src (template under templates/), dest (path in target repo), optional when (all conditions must hold), optional feature_flag (config.features gate), pillar, overwrite_policy (ask-if-drifted | write-once).",
+  "comment": "Single source of truth for what shipshape writes into a target repo. Each entry: src (template under templates/), dest (path in target repo), optional when (all conditions must hold), optional feature_flag (config.features gate), optional remove_when_inapplicable for safety-critical revocation, pillar, overwrite_policy (ask-if-drifted | write-once).",
   "templates": [
     {
       "src": "harness/sdlc-harness.md.tmpl",
@@ -65,6 +65,15 @@
       "src": "github/workflows/shipshape-doctor.yml.tmpl",
       "dest": ".github/workflows/shipshape-doctor.yml",
       "feature_flag": "scheduled_health",
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/low-risk-automerge.yml.tmpl",
+      "dest": ".github/workflows/low-risk-automerge.yml",
+      "when": { "workflow_style": "pr" },
+      "feature_flag": "tiered_review",
+      "remove_when_inapplicable": true,
       "pillar": "workflows",
       "overwrite_policy": "ask-if-drifted"
     },

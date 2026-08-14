@@ -14,7 +14,8 @@
     "release_automation": true,
     "issue_templates": true,
     "github_agents": true,
-    "scheduled_health": true
+    "scheduled_health": true,
+    "tiered_review": false
   },
   "commands": {
     "test": "",

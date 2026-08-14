@@ -17,8 +17,11 @@ They flag common cases without claiming to parse YAML or shell.
 
 import json
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 from render import kit_version, load_json, load_state, sha256_text
 
@@ -40,6 +43,12 @@ AGENT_CONTROL_NEXT_ACTION = (
     "Re-run /shipshape-init to restore checks for agent and editor control files."
 )
 SCHEDULED_HEALTH_NEXT_ACTION = "Re-run /shipshape-init to restore the scheduled health check."
+TIERED_REVIEW_NEXT_ACTION = "Turn off tiered review until every required check is enforced."
+TIERED_REVIEW_UNVERIFIED = "could not verify that required checks guard auto-merge"
+TIERED_REVIEW_REMOVE_ACTION = (
+    "Remove .github/workflows/low-risk-automerge.yml before relying on tiered review being off."
+)
+GH_API_TIMEOUT_SECONDS = 10
 
 
 def check(name: str, status: str, detail: str, next_action: str = "") -> dict:
@@ -118,6 +127,153 @@ def scheduled_health_check(repo: Path, features: dict) -> dict:
     )
 
 
+def run_gh_json(gh: str, repo: Path, args: list[str]) -> tuple[dict | list | None, str]:
+    try:
+        result = subprocess.run(
+            [gh, *args],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            timeout=GH_API_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None, "unavailable"
+    if result.returncode != 0:
+        status = "not_found" if re.search(r"\bHTTP\s+404\b", result.stderr) else "unavailable"
+        return None, status
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None, "unavailable"
+    if not isinstance(payload, (dict, list)):
+        return None, "unavailable"
+    return payload, "ok"
+
+
+def classic_status_contexts(payload: dict | list | None, status: str) -> set[str] | None:
+    if status == "not_found":
+        return set()
+    if status != "ok" or not isinstance(payload, dict):
+        return None
+    contexts = payload.get("contexts", [])
+    checks = payload.get("checks", [])
+    if not isinstance(contexts, list) or not isinstance(checks, list):
+        return None
+    if not all(isinstance(context, str) for context in contexts):
+        return None
+    if not all(
+        isinstance(status_check, dict) and isinstance(status_check.get("context"), str)
+        for status_check in checks
+    ):
+        return None
+    return set(contexts) | {status_check["context"] for status_check in checks}
+
+
+def ruleset_status_contexts(payload: dict | list | None, status: str) -> set[str] | None:
+    if status != "ok" or not isinstance(payload, list):
+        return None
+    contexts = set()
+    for rule in payload:
+        if not isinstance(rule, dict):
+            return None
+        if rule.get("type") != "required_status_checks":
+            continue
+        parameters = rule.get("parameters", {})
+        if not isinstance(parameters, dict):
+            return None
+        checks = parameters.get("required_status_checks", [])
+        if not isinstance(checks, list) or not all(
+            isinstance(status_check, dict) and isinstance(status_check.get("context"), str)
+            for status_check in checks
+        ):
+            return None
+        contexts.update(status_check["context"] for status_check in checks)
+    return contexts
+
+
+def required_status_contexts(repo: Path, config: dict) -> set[str] | None:
+    gh = shutil.which("gh")
+    if not gh:
+        return None
+
+    owner_repo = str(config.get("repo", {}).get("owner_repo", "")).strip()
+    if not owner_repo:
+        repo_data, repo_status = run_gh_json(gh, repo, ["repo", "view", "--json", "nameWithOwner"])
+        if repo_status == "ok" and isinstance(repo_data, dict):
+            owner_repo = str(repo_data.get("nameWithOwner", "")).strip()
+    if "/" not in owner_repo:
+        return None
+
+    branch = quote(str(config.get("default_branch", "main")), safe="")
+    branch_data, branch_status = run_gh_json(
+        gh, repo, ["api", f"repos/{owner_repo}/branches/{branch}"]
+    )
+    if branch_status != "ok" or not isinstance(branch_data, dict):
+        return None
+    if branch_data.get("protected") is False:
+        return set()
+    if branch_data.get("protected") is not True:
+        return None
+
+    protection, protection_status = run_gh_json(
+        gh,
+        repo,
+        ["api", f"repos/{owner_repo}/branches/{branch}/protection/required_status_checks"],
+    )
+    rules, rules_status = run_gh_json(
+        gh, repo, ["api", f"repos/{owner_repo}/rules/branches/{branch}"]
+    )
+    classic_contexts = classic_status_contexts(protection, protection_status)
+    ruleset_contexts = ruleset_status_contexts(rules, rules_status)
+    contexts = (classic_contexts or set()) | (ruleset_contexts or set())
+    if "test" not in contexts and (classic_contexts is None or ruleset_contexts is None):
+        return None
+    return contexts
+
+
+def tiered_review_gates_check(repo: Path, config: dict) -> dict:
+    enabled = config.get("features", {}).get("tiered_review", False)
+    workflow = repo / ".github" / "workflows" / "low-risk-automerge.yml"
+    if not enabled and workflow.is_file():
+        return check(
+            "tiered review gates",
+            FAIL,
+            "tiered review is off but the auto-merge workflow is still present",
+            TIERED_REVIEW_REMOVE_ACTION,
+        )
+    if not enabled:
+        return check(
+            "tiered review gates",
+            PASS,
+            "tiered review is off; every change needs a person",
+        )
+
+    if not workflow.is_file():
+        return check(
+            "tiered review gates",
+            FAIL,
+            "tiered review is on but the auto-merge workflow is missing",
+            TIERED_REVIEW_NEXT_ACTION,
+        )
+
+    contexts = required_status_contexts(repo, config)
+    if contexts is None:
+        return check("tiered review gates", WARN, TIERED_REVIEW_UNVERIFIED)
+    if "test" not in contexts:
+        return check(
+            "tiered review gates",
+            FAIL,
+            "the default branch does not require the `test` status check",
+            TIERED_REVIEW_NEXT_ACTION,
+        )
+    return check(
+        "tiered review gates",
+        PASS,
+        "`test` is required on the default branch and the auto-merge workflow is present",
+    )
+
+
 def agent_control_coverage_check(repo: Path, features: dict) -> dict:
     guard = repo / ".sdlc" / "hooks" / "secret-guard.sh"
     guard_text = guard.read_text(encoding="utf-8", errors="ignore") if guard.is_file() else ""
@@ -193,6 +349,7 @@ def security_checks(repo: Path, config: dict) -> list[dict]:
         checks.append(check("secret guard installed", PASS, "runs on every commit here"))
 
     checks.append(agent_control_coverage_check(repo, features))
+    checks.append(tiered_review_gates_check(repo, config))
 
     codeql = repo / ".github" / "workflows" / "codeql.yml"
     if codeql.is_file():

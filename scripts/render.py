@@ -228,6 +228,7 @@ def compute_plan(repo: Path, config: dict) -> dict:
         "ok": True,
         "writes": [],
         "regenerates": [],
+        "removals": [],
         "skips": [],
         "conflicts": [],
         "errors": [],
@@ -236,6 +237,35 @@ def compute_plan(repo: Path, config: dict) -> dict:
     }
     for entry in manifest["templates"]:
         if not entry_applies(entry, config):
+            if not entry.get("remove_when_inapplicable"):
+                continue
+            dest = entry["dest"]
+            dest_path = repo / dest
+            if not dest_path.is_file():
+                continue
+            recorded = state["files"].get(dest)
+            if recorded is None:
+                plan["conflicts"].append(
+                    {
+                        "path": dest,
+                        "reason": (
+                            "inactive managed path already exists but was not written by shipshape"
+                        ),
+                        "action": "remove",
+                    }
+                )
+                continue
+            current_hash = sha256_text(dest_path.read_text(encoding="utf-8"))
+            if current_hash != recorded["sha256"]:
+                plan["conflicts"].append(
+                    {
+                        "path": dest,
+                        "reason": "inactive managed file was edited since shipshape wrote it",
+                        "action": "remove",
+                    }
+                )
+                continue
+            plan["removals"].append({"path": dest, "pillar": entry["pillar"]})
             continue
         dest = entry["dest"]
         rendered, problems = render_template(TEMPLATES_DIR / entry["src"], tokens)
@@ -292,15 +322,26 @@ def cmd_apply(repo: Path, config: dict, force: list[str]) -> int:
     state["kit_version"] = kit_version()
 
     to_write = [item["path"] for item in plan["writes"] + plan["regenerates"]]
-    forced, refused = [], []
+    forced, forced_removals, refused = [], [], []
     for conflict in plan["conflicts"]:
         if conflict["path"] in force:
-            forced.append(conflict["path"])
+            if conflict.get("action") == "remove":
+                forced_removals.append(conflict["path"])
+            else:
+                forced.append(conflict["path"])
         else:
             refused.append(conflict)
-    unknown_force = sorted(set(force) - set(forced))
+    unknown_force = sorted(set(force) - set(forced) - set(forced_removals))
     if unknown_force:
         return fail(f"--force paths not in conflict list: {unknown_force}")
+
+    removed = []
+    for dest in [item["path"] for item in plan["removals"]] + forced_removals:
+        dest_path = repo / dest
+        if dest_path.is_file():
+            dest_path.unlink()
+        state["files"].pop(dest, None)
+        removed.append(dest)
 
     written = []
     for dest in to_write + forced:
@@ -327,7 +368,8 @@ def cmd_apply(repo: Path, config: dict, force: list[str]) -> int:
             {
                 "ok": True,
                 "written": written,
-                "forced": forced,
+                "removed": removed,
+                "forced": forced + forced_removals,
                 "skipped": plan["skips"],
                 "conflicts_untouched": refused,
             },

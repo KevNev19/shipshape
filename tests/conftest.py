@@ -1,12 +1,34 @@
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 KIT_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = KIT_ROOT / "scripts"
 FIXTURES = KIT_ROOT / "tests" / "fixtures"
+
+
+@pytest.fixture
+def hermetic_doctor_path(tmp_path: Path, monkeypatch) -> Path:
+    """Keep doctor subprocesses away from host-installed CLI tools."""
+    bin_dir = tmp_path / "doctor-bin"
+    bin_dir.mkdir(exist_ok=True)
+    for command in ("git", "python3"):
+        executable = shutil.which(command)
+        assert executable is not None
+        (bin_dir / command).symlink_to(executable)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    assert shutil.which("gh") is None
+    return bin_dir
+
+
+def prepend_to_path(monkeypatch, directory: Path) -> None:
+    """Put a test shim ahead of the curated subprocess PATH."""
+    monkeypatch.setenv("PATH", f"{directory}{os.pathsep}{os.environ['PATH']}")
 
 
 def run_script(script: str, *args) -> tuple[int, dict]:

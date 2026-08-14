@@ -6,7 +6,12 @@ import json
 import subprocess
 
 import pytest
-from conftest import init_repo, run_script
+from conftest import init_repo, prepend_to_path, run_script
+
+
+@pytest.fixture(autouse=True)
+def pin_doctor_subprocess_path(hermetic_doctor_path):
+    return hermetic_doctor_path
 
 
 def healthy_repo(tmp_path):
@@ -26,6 +31,61 @@ def checks_by_name(payload, section):
     return {c["name"]: c for c in match["checks"]}
 
 
+def install_fake_gh(tmp_path, response: dict | None, exit_code: int = 0):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    gh = bin_dir / "gh"
+    output = json.dumps(response) if response is not None else ""
+    gh.write_text(f"#!/bin/sh\nprintf '%s\\n' '{output}'\nexit {exit_code}\n")
+    gh.chmod(0o755)
+    return bin_dir
+
+
+def install_routed_fake_gh(tmp_path):
+    bin_dir = tmp_path / "routed-bin"
+    bin_dir.mkdir(exist_ok=True)
+    gh = bin_dir / "gh"
+    gh.write_text(
+        "#!/bin/sh\n"
+        'case "$*" in\n'
+        '  *"/protection/required_status_checks"*)\n'
+        "    printf '%s\\n' \"${FAKE_GH_PROTECTION_BODY:-}\"\n"
+        "    printf '%s\\n' \"${FAKE_GH_PROTECTION_ERROR:-}\" >&2\n"
+        '    exit "${FAKE_GH_PROTECTION_CODE:-1}" ;;\n'
+        '  *"/rules/branches/"*)\n'
+        "    printf '%s\\n' \"${FAKE_GH_RULES_BODY:-}\"\n"
+        '    exit "${FAKE_GH_RULES_CODE:-1}" ;;\n'
+        '  *"/branches/"*)\n'
+        "    printf '%s\\n' \"${FAKE_GH_BRANCH_BODY:-}\"\n"
+        '    exit "${FAKE_GH_BRANCH_CODE:-1}" ;;\n'
+        "esac\n"
+        "exit 1\n"
+    )
+    gh.chmod(0o755)
+    return bin_dir
+
+
+def set_fake_gh_response(monkeypatch, name, payload, exit_code=0):
+    body = payload if isinstance(payload, str) else json.dumps(payload)
+    monkeypatch.setenv(f"FAKE_GH_{name}_BODY", body)
+    monkeypatch.setenv(f"FAKE_GH_{name}_CODE", str(exit_code))
+
+
+def set_fake_gh_error(monkeypatch, name, message):
+    monkeypatch.setenv(f"FAKE_GH_{name}_ERROR", message)
+
+
+def enable_tiered_review(repo, *, workflow=True):
+    config_path = repo / ".sdlc" / "config.json"
+    config = json.loads(config_path.read_text())
+    config["features"]["tiered_review"] = True
+    config["repo"]["owner_repo"] = "example/project"
+    config_path.write_text(json.dumps(config))
+    if workflow:
+        path = repo / ".github" / "workflows" / "low-risk-automerge.yml"
+        path.write_text("permissions:\n  contents: read\n  pull-requests: write\n")
+
+
 def test_unset_repo_points_to_init(tmp_path):
     bare = tmp_path / "bare"
     bare.mkdir()
@@ -43,6 +103,209 @@ def test_healthy_repo_all_green(tmp_path):
     assert payload["counts"]["FAIL"] == 0
     assert payload["sections"][0]["name"] == "security", "security must lead"
     assert "shipshape" in payload["next_action"]
+
+
+def test_tiered_review_gates_pass_when_feature_is_off(tmp_path):
+    repo = healthy_repo(tmp_path)
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 0, payload
+    assert tiered_review == {
+        "name": "tiered review gates",
+        "status": "PASS",
+        "detail": "tiered review is off; every change needs a person",
+        "next_action": "",
+    }
+
+
+def test_tiered_review_gates_fail_when_feature_is_off_but_workflow_remains(tmp_path):
+    repo = healthy_repo(tmp_path)
+    workflow = repo / ".github" / "workflows" / "low-risk-automerge.yml"
+    workflow.write_text("name: unexpectedly active\n")
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 1
+    assert tiered_review["status"] == "FAIL"
+    assert tiered_review["next_action"] == (
+        "Remove .github/workflows/low-risk-automerge.yml before relying on tiered review being off."
+    )
+
+
+def test_tiered_review_gates_warn_when_required_checks_cannot_be_verified(tmp_path):
+    repo = healthy_repo(tmp_path)
+    config_path = repo / ".sdlc" / "config.json"
+    config = json.loads(config_path.read_text())
+    config["features"]["tiered_review"] = True
+    config_path.write_text(json.dumps(config))
+    workflow = repo / ".github" / "workflows" / "low-risk-automerge.yml"
+    workflow.write_text("permissions:\n  contents: read\n  pull-requests: write\n")
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 0, payload
+    assert tiered_review["status"] == "WARN"
+    assert tiered_review["detail"] == ("could not verify that required checks guard auto-merge")
+
+
+def test_tiered_review_gates_warn_when_protection_api_is_inaccessible(tmp_path, monkeypatch):
+    repo = healthy_repo(tmp_path)
+    enable_tiered_review(repo)
+    prepend_to_path(monkeypatch, install_routed_fake_gh(tmp_path))
+    set_fake_gh_response(monkeypatch, "BRANCH", {"protected": True})
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 0, payload
+    assert tiered_review["status"] == "WARN"
+    assert tiered_review["detail"] == ("could not verify that required checks guard auto-merge")
+
+
+@pytest.mark.parametrize(
+    ("protection", "rules"),
+    [
+        ({"contexts": ["test"], "checks": []}, []),
+        ({"contexts": [], "checks": [{"context": "test"}]}, []),
+        (
+            {"contexts": [], "checks": []},
+            [
+                {
+                    "type": "required_status_checks",
+                    "parameters": {"required_status_checks": [{"context": "test"}]},
+                }
+            ],
+        ),
+    ],
+)
+def test_tiered_review_gates_pass_when_test_is_required(tmp_path, monkeypatch, protection, rules):
+    repo = healthy_repo(tmp_path)
+    enable_tiered_review(repo)
+    prepend_to_path(monkeypatch, install_routed_fake_gh(tmp_path))
+    set_fake_gh_response(monkeypatch, "BRANCH", {"protected": True})
+    set_fake_gh_response(monkeypatch, "PROTECTION", protection)
+    set_fake_gh_response(monkeypatch, "RULES", rules)
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 0, payload
+    assert tiered_review["status"] == "PASS"
+    assert "`test` is required" in tiered_review["detail"]
+
+
+def test_tiered_review_gates_fail_when_api_shows_no_required_checks(tmp_path, monkeypatch):
+    repo = healthy_repo(tmp_path)
+    enable_tiered_review(repo)
+    prepend_to_path(monkeypatch, install_routed_fake_gh(tmp_path))
+    set_fake_gh_response(monkeypatch, "BRANCH", {"protected": True})
+    set_fake_gh_response(monkeypatch, "PROTECTION", {"contexts": [], "checks": []})
+    set_fake_gh_response(monkeypatch, "RULES", [])
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 1
+    assert tiered_review["status"] == "FAIL"
+    assert tiered_review["next_action"] == (
+        "Turn off tiered review until every required check is enforced."
+    )
+
+
+def test_tiered_review_gates_fail_when_classic_protection_is_not_configured(tmp_path, monkeypatch):
+    repo = healthy_repo(tmp_path)
+    enable_tiered_review(repo)
+    prepend_to_path(monkeypatch, install_routed_fake_gh(tmp_path))
+    set_fake_gh_response(monkeypatch, "BRANCH", {"protected": True})
+    set_fake_gh_response(monkeypatch, "PROTECTION", None, exit_code=1)
+    set_fake_gh_error(monkeypatch, "PROTECTION", "gh: Branch not protected (HTTP 404)")
+    set_fake_gh_response(monkeypatch, "RULES", [])
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 1
+    assert tiered_review["status"] == "FAIL"
+    assert tiered_review["next_action"] == (
+        "Turn off tiered review until every required check is enforced."
+    )
+
+
+def test_tiered_review_gates_fail_when_workflow_is_missing(tmp_path):
+    repo = healthy_repo(tmp_path)
+    enable_tiered_review(repo, workflow=False)
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 1
+    assert tiered_review["status"] == "FAIL"
+    assert tiered_review["next_action"] == (
+        "Turn off tiered review until every required check is enforced."
+    )
+
+
+def test_tiered_review_gates_fail_when_branch_is_unprotected(tmp_path, monkeypatch):
+    repo = healthy_repo(tmp_path)
+    enable_tiered_review(repo)
+    prepend_to_path(monkeypatch, install_routed_fake_gh(tmp_path))
+    set_fake_gh_response(monkeypatch, "BRANCH", {"protected": False})
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 1
+    assert tiered_review["status"] == "FAIL"
+    assert tiered_review["next_action"] == (
+        "Turn off tiered review until every required check is enforced."
+    )
+
+
+def test_tiered_review_gates_warn_when_api_output_is_malformed(tmp_path, monkeypatch):
+    repo = healthy_repo(tmp_path)
+    enable_tiered_review(repo)
+    prepend_to_path(monkeypatch, install_routed_fake_gh(tmp_path))
+    set_fake_gh_response(monkeypatch, "BRANCH", "not-json")
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 0, payload
+    assert tiered_review["status"] == "WARN"
+    assert tiered_review["detail"] == ("could not verify that required checks guard auto-merge")
+
+
+def test_tiered_review_gates_warn_when_api_shape_is_malformed(tmp_path, monkeypatch):
+    repo = healthy_repo(tmp_path)
+    enable_tiered_review(repo)
+    prepend_to_path(monkeypatch, install_routed_fake_gh(tmp_path))
+    set_fake_gh_response(monkeypatch, "BRANCH", {"protected": True})
+    set_fake_gh_response(monkeypatch, "PROTECTION", {"contexts": None, "checks": []})
+    set_fake_gh_response(monkeypatch, "RULES", [])
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 0, payload
+    assert tiered_review["status"] == "WARN"
+
+
+def test_tiered_review_gates_warn_when_required_check_payload_is_malformed(tmp_path, monkeypatch):
+    repo = healthy_repo(tmp_path)
+    enable_tiered_review(repo)
+    prepend_to_path(monkeypatch, install_routed_fake_gh(tmp_path))
+    set_fake_gh_response(monkeypatch, "BRANCH", {"protected": True})
+    set_fake_gh_response(monkeypatch, "PROTECTION", {"contexts": None, "checks": []})
+    set_fake_gh_response(monkeypatch, "RULES", [])
+
+    code, payload = run_script("doctor.py", repo)
+
+    tiered_review = checks_by_name(payload, "security")["tiered review gates"]
+    assert code == 0, payload
+    assert tiered_review["status"] == "WARN"
+    assert tiered_review["detail"] == ("could not verify that required checks guard auto-merge")
 
 
 def test_agent_control_file_coverage_passes_with_guard_and_reviewer(tmp_path):

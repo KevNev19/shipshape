@@ -57,7 +57,7 @@
     },
     ".sdlc/scripts/doctor.py": {
       "kit_version": "0.2.1",
-      "sha256": "a2f22175f4ed5217edea226d1717cd9b50d4a7c6fc751c18bc0193e6cdad15f1",
+      "sha256": "c09de0d6cd9b2aa3c1670c8552cca901bd80ed8da6eabe2dfa4757f8a95760bb",
       "template": "scripts/doctor.py.tmpl"
     },
     "AGENTS.md": {
