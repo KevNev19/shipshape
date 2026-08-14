@@ -1,6 +1,8 @@
 # Review rubric
 
-Work through these in order; the report follows the same order.
+Work through these four steps internally. Do not use them as report headings
+or narrate the diff file by file. Send the output through the
+[finding contract](finding-contract.md), ordered by verified finding severity.
 
 ## 1. Behaviour
 

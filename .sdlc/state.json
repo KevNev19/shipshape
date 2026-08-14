@@ -2,12 +2,12 @@
   "files": {
     ".github/agents/reviewer.md": {
       "kit_version": "0.2.1",
-      "sha256": "7382ed0c4679d83bcd984bfcc65264dba54f0a4705989a10f6ca60634a3aa227",
+      "sha256": "5e136ff8a6a316f8e5ed393e7ab4aa111fccb4e26422655ec99027e38c772512",
       "template": "github/agents/reviewer.md.tmpl"
     },
     ".github/copilot-instructions.md": {
       "kit_version": "0.2.1",
-      "sha256": "8ff5e03616def27016ec669a88013df30373ca0b857653c503135176e4ec8195",
+      "sha256": "431e8485d243a7ba02e7e044f383d7320231facc1d4ea64f91e625527913529c",
       "template": "github/copilot-instructions.md.tmpl"
     },
     ".github/dependabot.yml": {
