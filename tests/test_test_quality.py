@@ -53,6 +53,33 @@ def test_assertion_free_test_is_flagged(tmp_path):
     assert "test_empty" in result["next_action"]
 
 
+def test_fixture_decorated_test_functions_are_not_scanned(tmp_path):
+    (tmp_path / "test_fixtures.py").write_text(
+        """@fixture
+def test_bare_fixture():
+    pass
+
+@fixture()
+def test_called_fixture():
+    pass
+
+@pytest.fixture
+async def test_qualified_fixture():
+    pass
+
+@pytest.fixture(scope="session")
+async def test_qualified_called_fixture():
+    pass
+""",
+        encoding="utf-8",
+    )
+
+    _, result = run_scan(tmp_path)
+
+    assert result["tests_scanned"] == 0
+    assert result["assertion_free"] == []
+
+
 def test_unittest_assert_is_recognized(tmp_path):
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "unittest_example.py").write_text(
@@ -90,11 +117,45 @@ def test_raises():
     assert result["assertion_free"] == []
 
 
-def test_nested_lexical_scopes_do_not_supply_assertions_or_tests(tmp_path):
+def test_assertions_in_nested_functions_are_recognized(tmp_path):
+    (tmp_path / "test_nested_assertions.py").write_text(
+        """def test_nested_sync():
+    def run_test():
+        assert True
+
+def test_nested_async():
+    async def run_test():
+        assert True
+""",
+        encoding="utf-8",
+    )
+
+    _, result = run_scan(tmp_path)
+
+    assert result["tests_scanned"] == 2
+    assert result["assertion_free"] == []
+
+
+def test_nested_function_without_assertions_does_not_satisfy_test(tmp_path):
+    (tmp_path / "test_nested_without_assertions.py").write_text(
+        """def test_nested_without_assertions():
+    def run_test():
+        return 42
+""",
+        encoding="utf-8",
+    )
+
+    _, result = run_scan(tmp_path)
+
+    assert result["tests_scanned"] == 1
+    assert [item["test"] for item in result["assertion_free"]] == ["test_nested_without_assertions"]
+
+
+def test_nested_tests_are_not_scanned_and_class_asserts_are_ignored(tmp_path):
     (tmp_path / "test_nested.py").write_text(
         """def test_outer():
     def test_nested():
-        assert True
+        return 42
     class Local:
         assert True
     callback = lambda: 1

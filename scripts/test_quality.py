@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Find Python tests whose bodies contain no recognizable assertion.
 
-This is deliberately a naive structural check: it cannot see assertions made
-inside helpers called by a test, so helper-driven tests can be false positives.
-The spike favors precision but records this unavoidable boundary explicitly.
-It uses only the standard library and emits exactly one JSON object on stdout.
+This is deliberately a naive structural check: it cannot see assertions
+delegated to module-level helpers called by a test, so those helper-driven tests
+can be false positives. The spike favors precision but records this unavoidable
+boundary explicitly. It uses only the standard library and emits exactly one
+JSON object on stdout.
 """
 
 import ast
@@ -141,6 +142,14 @@ class _AssertionVisitor(_ExecutableVisitor):
             return
         super().generic_visit(node)
 
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        for statement in node.body:
+            self.visit(statement)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        for statement in node.body:
+            self.visit(statement)
+
 
 def _has_assertion(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     visitor = _AssertionVisitor(_mock_names(node))
@@ -154,12 +163,20 @@ class _TestVisitor(ast.NodeVisitor):
         self.tests: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        if node.name.startswith("test_"):
+        if node.name.startswith("test_") and not _is_fixture(node):
             self.tests.append(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        if node.name.startswith("test_"):
+        if node.name.startswith("test_") and not _is_fixture(node):
             self.tests.append(node)
+
+
+def _is_fixture(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    for decorator in node.decorator_list:
+        name = _dotted_name(decorator.func if isinstance(decorator, ast.Call) else decorator)
+        if name in {"fixture", "pytest.fixture"}:
+            return True
+    return False
 
 
 def _skip_reason(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
