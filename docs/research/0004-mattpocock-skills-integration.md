@@ -19,9 +19,8 @@ bind / redundant / conflicts / situational — for the kit-development
 surface, and yes/no for the consumer surface, which defaults to no unless
 the skill survives ADR 0001's inert-tooling rule. Every verdict cites a
 skill-file fact or a run-history event traceable to the two agent inputs;
-where a rationale additionally references a repo fact (an ADR, a file
-layout), that reference was verified directly against the repository and
-is marked as supplementary — no verdict rests on one alone.
+some rationales additionally reference repo facts (an ADR, a file layout)
+verified directly against the repository — no verdict rests on one alone.
 
 ## The pipeline as it stands
 
@@ -31,14 +30,14 @@ is marked as supplementary — no verdict rests on one alone.
 | Plan | superpowers `writing-plans` → orchestrator task entries | Claude |
 | Implement | codex-orchestrator only; superpowers `test-driven-development` governs content | Codex |
 | Verify | superpowers `verification-before-completion`, `systematic-debugging` | Claude, binding |
-| Close | orchestrator validate → run_closed → report | Claude |
+| Review and close | code-review discipline feeds journal `verification` entries; orchestrator validate → run_closed → report | Claude |
 
 Conflict rule: the orchestrator wins on who implements and on run records;
 superpowers wins on how work is shaped, tested, and verified.
 
 ## Verdict table
 
-| Skill | Kit-dev verdict | Consumer | Binding point (if bind) |
+| Skill | Kit-dev verdict | Consumer surface | Binding point (if bind) |
 |---|---|---|---|
 | code-review (two-axes) | **bind** | no | Implement: sanctioned pre-handoff self-review in Codex task prompts |
 | writing-for-agents | **bind** | no | Cross-cutting: consulted when editing templates/, skills/, or agent-facing docs |
@@ -61,9 +60,12 @@ fail-soft crash plus three safety edge cases). Its two-axes structure
 0007's findings-first contract: this is the *implementer's* self-check
 before handoff; ADR 0007 governs what the *reviewer* reports to the human.
 Formalizing means task prompts acknowledge the chain rather than each
-Codex agent rediscovering it. What would change this verdict: evidence
-that the self-review pass materially lengthens runs without catching
-defects.
+Codex agent rediscovering it. For symmetry with the redundancy test
+applied elsewhere: superpowers ships `requesting-code-review` and
+`receiving-code-review`, but neither is bound anywhere in the harness or
+`CLAUDE.md`, so there is no equivalent to defer to. What would change
+this verdict: evidence that the self-review pass materially lengthens
+runs without catching defects.
 
 **writing-for-agents — bind.** No run evidence (it fires on skill/agent-doc
 authoring, which Codex tasks so far have not been), but the strongest
@@ -71,20 +73,26 @@ skill-file case in the set: shipshape's *product* is agent-consumed
 documents — adapters, harness templates, skill files — and this is a
 discipline for exactly that (context pointers, progressive disclosure,
 completion criteria, no-op hunting). Nothing in superpowers covers it.
-Binding point is cross-cutting: consulted whenever templates/, skills/, or
-the agent-facing docs are edited.
+Binding point is cross-cutting: a sentence in the harness's Design rules
+section, consulted whenever templates/, skills/, or the agent-facing docs
+are edited. What would change this verdict: a trial period in which
+consulting it demonstrably adds authoring overhead without improving the
+docs agents actually follow.
 
 **codebase-design — bind.** Eleven uninvited self-invocations during
 engine work; no superpowers equivalent for its deep-module vocabulary
 (depth, seams, adapters, the deletion test). Natural home is shape-stage
-design discussions for scripts/ and template structure.
+design discussions for scripts/ and template structure. What would change
+this verdict: shape-stage sessions where the vocabulary is invoked
+without changing any design decision.
 
 **tdd — redundant.** The harness already binds superpowers'
 `test-driven-development` to govern implementation content, and the local
 file is near-identical in substance. The observed double-reading was
-harmless reinforcement, but naming both in policy would create exactly the
-dual-vocabulary drift ADR 0004's mirror-by-reference rule exists to
-prevent. The superpowers binding stands alone.
+harmless reinforcement, but naming both in policy would invite
+dual-vocabulary drift — the same concern that motivates ADR 0004's
+mirror-by-reference pattern for consumer adapters, applied here by
+analogy. The superpowers binding stands alone.
 
 **diagnosing-bugs — redundant.** Superpowers' `systematic-debugging` is
 already bound at verify. The evidence agrees the gap is theoretical: zero
@@ -113,11 +121,10 @@ acceptance. If it surfaces assumptions the drafting process missed, it
 earns a narrow pre-ADR bind; until then it stays on demand.
 
 **domain-modeling — situational.** The glossary discipline (challenge
-conflicting terms, sharpen inline, offer ADRs sparingly) is sound and its
-ADR-offering test matches this repo's adr-guide. But its `CONTEXT.md` file
-convention collides with the kit's established homes (`docs/sdlc/design.md`,
-`docs/sdlc/glossary.md`), so it is a discipline to borrow, not a file
-layout to adopt.
+conflicting terms, sharpen inline, offer ADRs sparingly) is sound. But
+its `CONTEXT.md` file convention collides with the kit's established
+homes (`docs/sdlc/design.md`, `docs/sdlc/glossary.md`), so it is a
+discipline to borrow, not a file layout to adopt.
 
 **prototype — situational.** Useful shape-stage tool, but it assumes
 throwaway branches off main — colliding with the trunk-only rule, whose
@@ -189,13 +196,17 @@ outside the repo, so the guard does not see it.
 Three sentences, at three points in `docs/agents/harness.md`:
 
 1. *Implement stage:* "Codex task prompts sanction the implementer's
-   pre-handoff self-review chain (the local `implement`/`tdd`/`review`
-   skills it already reaches for); prompts must not invite the `research`
-   skill's background delegation, which bypasses the run journal."
+   pre-handoff two-axes self-review (the local `review` skill it already
+   reaches for)."
 2. *Shape stage:* "Interface and seam design for the engine consults the
    `codebase-design` vocabulary (deep modules, the deletion test)."
-3. *Cross-cutting:* "Edits to templates/, skills/, or agent-facing docs
-   consult `writing-for-agents` before writing."
+3. *Design rules section:* "Edits to templates/, skills/, or agent-facing
+   docs consult `writing-for-agents` before writing."
+
+Each sentence is severable — accepting one does not imply another. The
+`research` fence is deliberately not here: it is the output of a
+conflicts verdict, not a bind, and stands in that skill's rationale as
+its own fourth, separately decidable proposal.
 
 ## What this study does not decide
 
