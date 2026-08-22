@@ -7,9 +7,10 @@ the human reads, not what the reviewer inspects.
 ## 1. Intent
 
 Say whether an intent artifact (a written record of what the change is meant
-to do) is available. Link the artifact or originating issue (the task that led
-to the change) when one exists. When neither exists, say: "No intent artifact
-was found. This review judged the change on its own terms."
+to do) is available. Look for intent artifacts under `docs/changes/`. Link the
+artifact or originating issue (the task that led to the change) when one
+exists. When neither exists, say: "No intent artifact was found. This review
+judged the change on its own terms."
 
 ## 2. Verified findings
 

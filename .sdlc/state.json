@@ -60,6 +60,11 @@
       "sha256": "c09de0d6cd9b2aa3c1670c8552cca901bd80ed8da6eabe2dfa4757f8a95760bb",
       "template": "scripts/doctor.py.tmpl"
     },
+    ".sdlc/templates/change-intent.md": {
+      "kit_version": "0.2.1",
+      "sha256": "4a9f239178ddda9f61a93b4272293a9d6657cd0e5d364ca32257430e39ab8b65",
+      "template": "docs/change-intent.md.tmpl"
+    },
     "AGENTS.md": {
       "kit_version": "0.2.1",
       "sha256": "b8aeafb80f876fc8804d0701846e2b1a336437b9b4fb6faeec2057c613b069b1",

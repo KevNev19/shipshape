@@ -36,6 +36,7 @@ BASE_FILES = {
     ".github/copilot-instructions.md",
     ".sdlc/scripts/doctor.py",
     ".github/workflows/shipshape-doctor.yml",
+    ".sdlc/templates/change-intent.md",
 }
 CODEQL = ".github/workflows/codeql.yml"
 LOW_RISK_AUTOMERGE = ".github/workflows/low-risk-automerge.yml"

@@ -26,6 +26,12 @@
       "overwrite_policy": "write-once"
     },
     {
+      "src": "docs/change-intent.md.tmpl",
+      "dest": ".sdlc/templates/change-intent.md",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
       "src": "github/workflows/ci-python.yml.tmpl",
       "dest": ".github/workflows/ci.yml",
       "when": { "primary_language": "python" },
