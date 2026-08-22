@@ -1,6 +1,8 @@
 # Integrating the mattpocock-skills processes: worth the effort?
 
-- Status: Research results (2026-08-14)
+- Status: Research results (2026-08-14). Accepted 2026-08-22: all four
+  proposals (three binds and the research fence) applied to
+  [docs/agents/harness.md](../agents/harness.md).
 - Purpose: per-skill decision on binding the mattpocock-skills plugin's
   processes into shipshape's pipeline. Changes no policy; recommended
   binds are proposals for [docs/agents/harness.md](../agents/harness.md)

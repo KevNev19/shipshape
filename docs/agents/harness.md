@@ -20,6 +20,9 @@ only and must mirror this file by reference, not rewrite it differently.
   `skills/shipshape-init/references/voice.md`; they contain no logic.
 - The never-clobber drift contract is inviolable: nothing overwrites a
   user-edited file without an explicit per-file force.
+- Edits to templates/, skills/, or agent-facing docs consult
+  `writing-for-agents` before writing (accepted from
+  `docs/research/0004-mattpocock-skills-integration.md`).
 
 ## Default workflow: orchestrated implementation (the only way)
 
@@ -35,6 +38,8 @@ The pipeline, phase by phase:
 1. **Shape (superpowers).** Any creative work — features, components,
    behavior changes — starts with the `brainstorming` skill: intent,
    requirements, and design explored with Kevin before anything else.
+   Interface and seam design for the engine consults the
+   `codebase-design` vocabulary (deep modules, the deletion test).
 2. **Plan (superpowers → orchestrator).** `writing-plans` produces the
    plan; its steps map one-to-one into orchestrator `task` entries with
    goals, acceptance criteria, and owned files. Use the orchestrator's
@@ -45,7 +50,11 @@ The pipeline, phase by phase:
    via `/codex-orchestrator:orchestrate` — never Claude subagents editing
    files. The `test-driven-development` skill governs execution *content*:
    task prompts demand red-green-refactor, and acceptance criteria include
-   the failing-test-first evidence.
+   the failing-test-first evidence. Codex task prompts sanction the
+   implementer's pre-handoff two-axes self-review (the local `review`
+   skill it already reaches for), and must not invite the `research`
+   skill's background delegation, which bypasses the run journal (both
+   accepted from `docs/research/0004-mattpocock-skills-integration.md`).
 4. **Verify (superpowers, binding on Claude).**
    `verification-before-completion` is the verifier's law: evidence before
    assertions, gates actually run, never accept an implementing agent's
