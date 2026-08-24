@@ -8,6 +8,7 @@ Currently empty by design — the first entry arrives with the first fixed bug.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,39 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
 TEMPLATES = ROOT / "templates"
+FIXTURES = ROOT / "tests" / "fixtures"
+
+
+def render_fixture(fixture: str, root: Path, overrides: list[str] | None = None) -> Path:
+    """Render a detected fixture through the consumer installation path."""
+    repo = root / fixture
+    shutil.copytree(FIXTURES / fixture, repo)
+    detect = subprocess.run(
+        [sys.executable, str(SCRIPTS / "detect.py"), str(repo), "--no-network"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    detect_file = root / f"{fixture}-detect.json"
+    detect_file.write_text(detect.stdout)
+    init_args = [
+        sys.executable,
+        str(SCRIPTS / "render.py"),
+        "init-config",
+        str(repo),
+        "--detect",
+        str(detect_file),
+    ]
+    for override in overrides or []:
+        init_args.extend(["--set", override])
+    subprocess.run(init_args, capture_output=True, text=True, check=True)
+    subprocess.run(
+        [sys.executable, str(SCRIPTS / "render.py"), "apply", str(repo)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return repo
 
 
 def test_nested_foreign_files_cannot_claim_test_command() -> None:
@@ -123,6 +157,28 @@ def test_ci_doctor_uses_secret_scan_workflow() -> None:
         ), installed
 
 
+def test_python_ci_installs_pytest_when_project_does_not() -> None:
+    """2026-08-24: a fresh Python repo's first CI run failed because the
+    rendered workflow invoked pytest without ensuring the runner was installed."""
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = render_fixture("repo-python", Path(tmp))
+        workflow = (repo / ".github" / "workflows" / "ci.yml").read_text()
+        assert 'python -c "import pytest" >/dev/null 2>&1 || pip install pytest' in workflow
+
+
+def test_low_risk_automerge_has_merge_permission() -> None:
+    """2026-08-24: eligible pull requests could not enable auto-merge because
+    the rendered PR-style workflow had read-only contents permission."""
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = render_fixture(
+            "repo-python",
+            Path(tmp),
+            overrides=["workflow_style=pr", "features.tiered_review=true"],
+        )
+        workflow = (repo / ".github" / "workflows" / "low-risk-automerge.yml").read_text()
+        assert "permissions:\n  contents: write\n  pull-requests: write\n" in workflow
+
+
 def main() -> int:
     checks = [
         (
@@ -136,6 +192,14 @@ def main() -> int:
         (
             "CI doctor uses secret-scan workflow",
             test_ci_doctor_uses_secret_scan_workflow,
+        ),
+        (
+            "Python CI installs pytest when project does not",
+            test_python_ci_installs_pytest_when_project_does_not,
+        ),
+        (
+            "low-risk auto-merge has merge permission",
+            test_low_risk_automerge_has_merge_permission,
         ),
     ]
     failures = 0

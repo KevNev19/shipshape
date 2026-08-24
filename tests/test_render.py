@@ -227,7 +227,7 @@ def test_tiered_review_workflow_never_executes_proposed_content(tmp_path):
     assert trigger == (
         "  pull_request_target:\n    types: [opened, synchronize, reopened, labeled]\n"
     )
-    assert permissions == "  contents: read\n  pull-requests: write\n"
+    assert permissions == "  contents: write\n  pull-requests: write\n"
     assert not re.search(r"(?m)^\s*uses\s*:", workflow)
     for forbidden in (
         "actions/checkout",
