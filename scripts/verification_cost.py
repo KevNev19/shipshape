@@ -28,6 +28,10 @@ def fetch_json(path: str):
         return None
 
 
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
 def _timestamp(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
@@ -52,7 +56,7 @@ def summarize(repo: str, days: int) -> dict:
     if not os.environ.get("GITHUB_TOKEN"):
         return _failure(days, "Set GITHUB_TOKEN with repository read access and try again.")
 
-    since = datetime.now(UTC) - timedelta(days=days)
+    since = _now() - timedelta(days=days)
     runs = []
     warnings = []
     page = 1

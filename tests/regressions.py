@@ -12,12 +12,16 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
 TEMPLATES = ROOT / "templates"
 FIXTURES = ROOT / "tests" / "fixtures"
+
+sys.path.insert(0, str(SCRIPTS))
+import verification_cost  # noqa: E402
 
 
 def render_fixture(fixture: str, root: Path, overrides: list[str] | None = None) -> Path:
@@ -179,6 +183,60 @@ def test_low_risk_automerge_has_merge_permission() -> None:
         assert "permissions:\n  contents: write\n  pull-requests: write\n" in workflow
 
 
+def test_verification_cost_window_uses_injected_clock() -> None:
+    """2026-10-13: verification-cost tests silently expired once the wall
+    clock left their 30-day window because summarize read datetime.now
+    directly. Guard: the run window and merged-PR query follow the injected
+    clock."""
+    assert hasattr(verification_cost, "_now"), (
+        "verification_cost must expose a patchable _now clock"
+    )
+    original_fetch_json = verification_cost.fetch_json
+    original_now = verification_cost._now
+    original_token = os.environ.get("GITHUB_TOKEN")
+    requests = []
+
+    def fake_fetch(path):
+        requests.append(path)
+        if path.startswith("repos/"):
+            return {
+                "workflow_runs": [
+                    {
+                        "run_attempt": 1,
+                        "run_started_at": "2026-08-12T10:00:00Z",
+                        "updated_at": "2026-08-12T10:05:00Z",
+                    }
+                ]
+            }
+        return {"total_count": 1}
+
+    try:
+        os.environ["GITHUB_TOKEN"] = "test-token"
+        verification_cost.fetch_json = fake_fetch
+        verification_cost._now = lambda: datetime(2026, 8, 20, tzinfo=UTC)
+
+        current = verification_cost.summarize("owner/repo", 30)
+
+        assert current["runs"] == 1, f"expected recent run to be counted: {current}"
+        expected_search = (
+            "search/issues?q=repo%3Aowner/repo%20is%3Apr%20is%3Amerged%20"
+            "merged%3A%3E%3D2026-07-21&per_page=1"
+        )
+        assert expected_search in requests, f"missing injected-date query: {requests}"
+
+        verification_cost._now = lambda: datetime(2027, 8, 20, tzinfo=UTC)
+        later = verification_cost.summarize("owner/repo", 30)
+
+        assert later["runs"] == 0, f"expected old run to be excluded: {later}"
+    finally:
+        verification_cost.fetch_json = original_fetch_json
+        verification_cost._now = original_now
+        if original_token is None:
+            os.environ.pop("GITHUB_TOKEN", None)
+        else:
+            os.environ["GITHUB_TOKEN"] = original_token
+
+
 def main() -> int:
     checks = [
         (
@@ -200,6 +258,10 @@ def main() -> int:
         (
             "low-risk auto-merge has merge permission",
             test_low_risk_automerge_has_merge_permission,
+        ),
+        (
+            "verification-cost window uses injected clock",
+            test_verification_cost_window_uses_injected_clock,
         ),
     ]
     failures = 0

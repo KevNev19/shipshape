@@ -1,10 +1,18 @@
 """Offline tests for verification-cost aggregation."""
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import verification_cost  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def pin_verification_cost_clock(monkeypatch):
+    monkeypatch.setattr(verification_cost, "_now", lambda: datetime(2026, 8, 20, tzinfo=UTC))
 
 
 def test_happy_path_aggregates_runs_and_merged_changes(monkeypatch):
