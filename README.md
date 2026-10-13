@@ -1,82 +1,147 @@
 <div align="center">
 
-# ⚓ shipshape
-
-### A proper software delivery process for any repository —<br>set up in one conversation, in plain English.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/assets/readme/hero-dark.svg">
+  <img alt="Signal flags spelling SHIPSHAPE beside the headline: Get your repository shipshape. A proper software delivery process for any repository, set up in one conversation, in plain English. For Codex and Claude Code. Scan, a few questions, preview, set up." src="site/assets/readme/hero-light.svg" width="100%">
+</picture>
 
 [![CI](https://github.com/KevNev19/shipshape/actions/workflows/ci.yml/badge.svg)](https://github.com/KevNev19/shipshape/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/KevNev19/shipshape/actions/workflows/codeql.yml/badge.svg)](https://github.com/KevNev19/shipshape/actions/workflows/codeql.yml)
-[![Release](https://img.shields.io/github/v/release/KevNev19/shipshape?label=release&color=2ea44f)](https://github.com/KevNev19/shipshape/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/KevNev19/shipshape?label=release&color=1c3f94)](https://github.com/KevNev19/shipshape/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-1c3f94.svg)](LICENSE)
 
-**Scan → five questions → preview → done.**<br>
-No expertise required · nothing overwritten · everything explained
+**[Website](https://kevnev19.github.io/shipshape/)** · **[Get it](#get-it)** · **[Commands](#the-commands)** · **[Releases](https://github.com/KevNev19/shipshape/releases)**
 
 </div>
 
----
-
 You have a project. Maybe you're a seasoned engineer, maybe you've never
-heard the word "CI" — either way, your repository deserves automated tests,
+heard the word "CI". Either way, your repository deserves automated tests,
 secret protection, dependency monitoring, and releases that don't rely on
 memory and luck.
 
 **Shipshape** is a plugin for Codex and Claude Code that sets all of that up
-for you, conversationally. It scans your repo, asks a handful of plain-language
-questions, shows you exactly what it will create, and writes it on your
-go-ahead. Everything it writes is standard, boring, reliable tooling — delete
-the plugin tomorrow and your setup keeps working.
+for you, conversationally. It scans your repo, asks a handful of
+plain-language questions, shows you exactly what it will create, and writes
+it on your go-ahead. Everything it writes is standard, boring, reliable
+tooling. Delete the plugin tomorrow and your setup keeps working.
+
+## How it works
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/assets/readme/course-dark.svg">
+  <img alt="The course $shipshape-init follows, drawn as a chart. 1, Scan: reads your languages, package setup and how tests run; it only looks. 2, A few questions: five at most, about outcomes; what the scan knows is only confirmed. 3, Preview: every file it will add, and why; files you already have are left alone. 4, Set up: writes exactly what you saw and switches on the commit guard. Nothing changes before the preview." src="site/assets/readme/course-light.svg" width="100%">
+</picture>
+
+<details>
+<summary>Read the course as text</summary>
+
+1. **Scan.** Reads your languages, package setup and how tests run. It only
+   looks.
+2. **A few questions.** Five at most, about outcomes. What the scan knows is
+   only confirmed.
+3. **Preview.** Every file it will add, and why. Files you already have are
+   left alone.
+4. **Set up.** Writes exactly what you saw and switches on the commit guard.
+
+Nothing changes before the preview.
+
+</details>
+
+Run `$shipshape-init` in Codex, or `/shipshape-init` in Claude Code, in any
+repository from an empty folder to a ten-year-old codebase. Nothing in your
+project changes until you've seen the whole plan and said go. A GitHub rule
+that protects `main` is a separate yes.
 
 ## How it feels
 
-```text
-you>  $shipshape-init
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/assets/readme/conversation-dark.svg">
+  <img alt="An example conversation. You type $shipshape-init. Shipshape: This looks like a Python project that uses pytest for its tests. Is that right? You: yep. it's just me working on it. Shipshape: Got it: solo, changes go straight to main, and checks run after each push. Here's the plan, and nothing you already have gets touched: .github/workflows/ci.yml runs your tests on GitHub after each push to main; .sdlc/hooks/secret-guard.sh stops a commit that adds a key or credential file; docs/sdlc/harness.md is your working agreement, in plain English; and more files. Shall I go ahead? You: go ahead. Shipshape: Done. Everything is written, and the secret guard is on for this copy. Next step: commit these new files and push them to GitHub." src="site/assets/readme/conversation-light.svg" width="100%">
+</picture>
 
-      This looks like a Python project that uses pytest for its tests — is that right?
+<details>
+<summary>Read the conversation as text</summary>
 
-you>  yep. it's just me working on it
+> **you:** `$shipshape-init`
+>
+> **shipshape:** This looks like a Python project that uses pytest for its
+> tests. Is that right?
+>
+> **you:** yep. it's just me working on it
+>
+> **shipshape:** Got it: solo, changes go straight to main, and checks run
+> after each push. Here's the plan, and nothing you already have gets
+> touched:
+>
+> - `.github/workflows/ci.yml`: runs your tests on GitHub after each push to main
+> - `.sdlc/hooks/secret-guard.sh`: stops a commit that adds a key or credential file
+> - `docs/sdlc/harness.md`: your working agreement, in plain English
+> - …
+>
+> Shall I go ahead?
+>
+> **you:** go ahead
+>
+> **shipshape:** Done. Everything is written, and the secret guard is on for
+> this copy. Next step: commit these new files and push them to GitHub.
 
-      Got it: solo, changes go straight to main, protected by automated checks.
-      Here's the plan — 12 files, and nothing you already have gets touched:
+</details>
 
-        .github/workflows/ci.yml      runs your tests automatically after every push
-        .sdlc/hooks/secret-guard.sh   blocks passwords and API keys at commit time
-        docs/sdlc/harness.md          your working agreement, in plain English
-        ...
-
-      Shall I go ahead?
-```
-
-Two minutes later there's a green check on your next push, a guard on every
-commit, and a `docs/sdlc/` folder that explains itself.
+After your next push the checks start running on GitHub, a guard watches
+every commit on your computer, and a `docs/sdlc/` folder explains the whole
+setup.
 
 ## What's watching your back
 
-```mermaid
-flowchart LR
-    A["you commit"] --> B["🛡️ secret guard<br/>blocks leaked keys"]
-    B --> C["you push"]
-    C --> D["✅ CI<br/>runs your tests"]
-    C --> E["🔍 CodeQL<br/>scans for vulnerabilities"]
-    F["your dependencies"] --> G["🤖 Dependabot<br/>proposes security fixes"]
-    H["you tag v1.2.0"] --> I["📦 Release<br/>published with notes"]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/assets/readme/watch-bill-dark.svg">
+  <img alt="Watch bill. Every commit, on your computer: the secret guard stops a commit that adds a key file or a known AWS, GitHub, Slack, Stripe or Google token, and flags changes to files that steer AI tools. Pushes and pull requests to main: CI runs your tests on GitHub; the secret scan checks every new commit again. Pushes, pull requests and weekly: CodeQL looks for known security mistakes in Python, JavaScript/TypeScript, Go, Java, Ruby or C# code. Weekly: Dependabot suggests newer versions. Every Wednesday: the health check re-checks every protection and, when anything needs attention, opens or updates one issue. You push a version tag: a release is published only if its checks passed. Once you say yes: a branch rule stops anyone deleting main or overwriting its history." src="site/assets/readme/watch-bill-light.svg" width="100%">
+</picture>
 
-Security is the centre of the kit, not an add-on: every guardrail is **on by
-default**, and switching one off means hearing the consequence in one plain
-sentence and saying yes anyway.
+<details>
+<summary>Read the watch bill as text</summary>
+
+- **Every commit, on your computer · Secret guard.** Stops a commit that adds
+  a key file (like `.env` or a private key) or a known AWS, GitHub, Slack,
+  Stripe or Google token. Flags changes to files that steer AI tools.
+- **Pushes and pull requests to main · CI.** Runs your tests on GitHub. In
+  straight-to-main mode it reports after the change lands.
+- **Pushes and pull requests to main · Secret scan.** Checks every new commit
+  again on GitHub, so a key added in one commit and deleted in the next is
+  still caught.
+- **Pushes, pull requests and weekly · CodeQL.** For Python,
+  JavaScript/TypeScript, Go, Java, Ruby or C# code: finds known security
+  mistakes and lists them in the Security tab. Free on public repositories.
+- **Weekly · Dependabot.** Suggests newer versions of your libraries and
+  GitHub Actions as pull requests.
+- **Every Wednesday · Health check.** Re-checks every protection and, when
+  anything is rated WARN or FAIL, opens or updates one issue with the counts
+  and the next thing to fix.
+- **You push a version tag · Release.** Publishes a GitHub release for that
+  exact commit, only if its checks passed on GitHub.
+- **Once you say yes · Branch rule.** Stops anyone deleting main or
+  overwriting its history with a force-push.
+
+</details>
+
+Security is the centre of the kit, not an add-on. Everything here that fits
+your project comes switched on for a solo, straight-to-main setup, except the
+branch rule, which waits for your yes. Switching off a security guard or the
+health check means hearing the consequence in one plain sentence and saying
+yes anyway.
 
 ## The commands
 
 | Command | What it does |
 |---|---|
-| ⚓ `$shipshape-init` | Scan, interview, preview, set up. The front door. |
-| 🩺 `$shipshape-doctor` | Health check — security first, one suggested next action. |
-| 👀 `$shipshape-review` | Explains any change in plain language, ends on a clear verdict. |
-| 🚢 `$shipshape-release` | Guided releases: right version number, honest notes, one tag. |
-| 🔑 `$shipshape-access` | "Give Sam access" → the exact GitHub command, shown before it runs. |
-| 🎛️ `$shipshape-customize` | Change anything off the defaults; only the affected files regenerate. |
-| 🧭 `$shipshape-orchestrate` | Coordinate a bounded change through the worker runtime for the current host. |
+| `$shipshape-init` | The front door. Scan, interview, preview, set up. |
+| `$shipshape-doctor` | Read-only health check: problems first, then one next step. |
+| `$shipshape-review` | Read-only review of any change, in plain words, with a clear verdict. |
+| `$shipshape-release` | Checks your tests passed, suggests a version, publishes on your yes. |
+| `$shipshape-access` | "Give Sam access" becomes the exact GitHub command, shown first. |
+| `$shipshape-customize` | Change anything off the defaults; only affected files regenerate. |
+| `$shipshape-intent` | Records what a bigger change is for and how you'll know it worked. |
+| `$shipshape-orchestrate` | Coordinate a bounded change through the worker runtime for the current host. |
 
 The examples use Codex's `$skill-name` syntax; in Claude Code, invoke the same
 entrypoints as `/skill-name`. The six setup, customization, access, intent,
@@ -94,9 +159,53 @@ existing preview, no-clobber, and confirmation gates still apply.
 
 The coordinator remains whichever model the user selected in the host; Astra
 is one example, not a requirement. Routing by host is core behavior. Choosing
-individual worker models inside that route is secondary.
+individual worker models inside that route is secondary. Shipshape does not
+install either orchestrator plugin.
+
+## Why you can trust it with your repo
+
+- **Nothing is ever clobbered.** Shipshape remembers the fingerprint of every
+  file it writes. Edit one, and it becomes *yours*: future runs report it
+  and ask, file by file, before touching it. A file you already had is
+  replaced only if you say yes to that exact file.
+- **Files explain themselves.** Generated files open with what they are, why
+  you have them, and whether they're safe to edit. A glossary defines every
+  term the tooling uses.
+- **Plain words, honest verdicts.** Skills translate ("the login test
+  expected X and got Y"), a red CI never gets called "looks safe", and a
+  file being present is never reported as a check that ran.
+- **It runs on itself.** This repository was set up by shipshape: its secret
+  guard, CodeQL, Dependabot, release workflow and weekly health check are
+  its own output. Where a file was already hand-written, shipshape left it
+  alone, as it will in yours. See [`docs/sdlc/`](docs/sdlc/).
+
+## Make it yours
+
+One file, `.sdlc/config.json`, drives everything: working style
+(straight-to-main or pull-request), team or solo, features on or off, test
+command, reviewers. Change it with `$shipshape-customize`; shipshape
+regenerates only what's affected and leaves your edits alone.
+
+## Under the hood
+
+For the curious: a stdlib-only Python engine (`detect.py` → `render.py` →
+`protection.py` → `doctor.py`), token-substitution templates with zero
+template logic, frozen-fixture tests, and dated regression checks that keep
+fixed bugs from coming back. Decisions are recorded in
+[`docs/adr/`](docs/adr/). Run the whole pipeline against a scratch repo with
+`bash tests/e2e.sh`.
+
+The [website](https://kevnev19.github.io/shipshape/) lives in
+[`site/`](site/) and deploys to GitHub Pages from `main`. The art in this
+README is generated from the site's own fonts and colours by
+[`site/tools/build_readme_art.py`](site/tools/build_readme_art.py).
 
 ## Get it
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/assets/readme/install-dark.svg">
+  <img alt="Flag P, the Blue Peter. Flown in harbour, it means: all aboard, this vessel is about to sail." src="site/assets/readme/install-light.svg" width="600">
+</picture>
 
 Register the published Shipshape marketplace and install it in Codex:
 
@@ -136,45 +245,18 @@ In Claude Code, use its in-app marketplace commands:
 Replace `KevNev19/shipshape` with the checkout's absolute path to test local,
 unpublished Claude Code changes.
 
-Needs `git` and `python3` (preinstalled on macOS and most Linux). The
-GitHub CLI (`gh`) unlocks access management and branch protection — shipshape
-will tell you if it's missing, and what to click instead.
+Needs `git` and Python 3.10 or newer (check with `python3 --version`). On
+macOS, `xcode-select --install` provides git; get a current Python from
+python.org or Homebrew. On Linux, use your package manager. Releases, access
+changes and the GitHub branch rule also need the GitHub CLI (`gh`), signed
+in; shipshape tells you how to install it if it's missing.
 
-## Why you can trust it with your repo
+<br>
 
-- **Nothing is ever clobbered.** Shipshape remembers the fingerprint of every
-  file it writes. Edit one, and it becomes *yours* — future runs report it
-  and ask, file by file, before touching it. There is no silent overwrite
-  path in the codebase, and there are tests to keep it that way.
-- **Every file explains itself.** Each generated file opens with what it is,
-  why you have it, and whether it's safe to edit. A glossary defines every
-  term the tooling uses.
-- **Plain words, honest verdicts.** Skills translate — "the login test
-  expected X and got Y" — and a red CI never gets called "looks safe".
-- **It runs on itself.** This repository was set up by shipshape: the badges
-  above, the release you're reading about, the secret guard that inspected
-  every one of its commits — all its own output. Dependabot's first PR
-  arrived one minute after publish. See [`docs/sdlc/`](docs/sdlc/).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/assets/readme/footer-dark.svg">
+  <img alt="Signal flags spelling SHIPSHAPE. Get your repository shipshape." src="site/assets/readme/footer-light.svg" width="100%">
+</picture>
 
-## Make it yours
-
-One file — `.sdlc/config.json` — drives everything: working style
-(straight-to-main or pull-request), team or solo, features on or off, test
-command, reviewers. Change it with `$shipshape-customize`; shipshape
-regenerates only what's affected and leaves your edits alone.
-
-## Under the hood
-
-For the curious: a stdlib-only Python engine (`detect.py` → `render.py` →
-`doctor.py`), token-substitution templates with zero template logic,
-frozen-fixture tests, and one dated regression test per bug ever fixed.
-Decisions are recorded in [`docs/adr/`](docs/adr/). Run the whole pipeline
-against a scratch repo with `bash tests/e2e.sh`.
-
-<div align="center">
-
-*Get your repository shipshape.*
-
-MIT © [KevNev19](https://github.com/KevNev19)
-
-</div>
+MIT © [KevNev19](https://github.com/KevNev19) · Set in Big Shoulders Stencil
+and Atkinson Hyperlegible, under the [SIL Open Font License](site/assets/fonts/).
