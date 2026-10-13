@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>shipshape — a proper delivery process for any repository</title>
+<meta name="description" content="A plugin for Codex and Claude Code that sets up automated tests, secret protection, dependency monitoring and releases for any repository, in one plain-English conversation.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f3f6f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#08131f" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://kevnev19.github.io/shipshape/">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="shipshape — get your repository shipshape">
+<meta property="og:description" content="A proper software delivery process for any repository, set up in one conversation, in plain English.">
+<meta property="og:url" content="https://kevnev19.github.io/shipshape/">
+<meta property="og:image" content="https://kevnev19.github.io/shipshape/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Signal flags spelling SHIPSHAPE beside the words: get your repository shipshape.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="assets/fonts/big-shoulders-stencil-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/atkinson-hyperlegible-next.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- International Code of Signals flags, drawn once and reused. 3:2, 60 x 40. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="flag-s" viewBox="0 0 60 40">
+    <rect class="f-white" width="60" height="40"/>
+    <rect class="f-blue" x="20" y="13.333" width="20" height="13.333"/>
+    <rect class="f-edge" x="0.5" y="0.5" width="59" height="39"/>
+  </symbol>
+  <symbol id="flag-h" viewBox="0 0 60 40">
+    <rect class="f-white" width="30" height="40"/>
+    <rect class="f-red" x="30" width="30" height="40"/>
+    <rect class="f-edge" x="0.5" y="0.5" width="59" height="39"/>
+  </symbol>
+  <symbol id="flag-i" viewBox="0 0 60 40">
+    <rect class="f-yellow" width="60" height="40"/>
+    <circle class="f-black" cx="30" cy="20" r="10"/>
+    <rect class="f-edge" x="0.5" y="0.5" width="59" height="39"/>
+  </symbol>
+  <symbol id="flag-p" viewBox="0 0 60 40">
+    <rect class="f-blue" width="60" height="40"/>
+    <rect class="f-white" x="20" y="13.333" width="20" height="13.333"/>
+    <rect class="f-edge" x="0.5" y="0.5" width="59" height="39"/>
+  </symbol>
+  <symbol id="flag-a" viewBox="0 0 60 40">
+    <rect class="f-white" width="30" height="40"/>
+    <path class="f-blue" d="M30 0H60L45 20L60 40H30Z"/>
+    <path class="f-edge" d="M0.5 0.5H59L44.4 20L59 39.5H0.5Z"/>
+  </symbol>
+  <symbol id="flag-e" viewBox="0 0 60 40">
+    <rect class="f-blue" width="60" height="20"/>
+    <rect class="f-red" y="20" width="60" height="20"/>
+    <rect class="f-edge" x="0.5" y="0.5" width="59" height="39"/>
+  </symbol>
+  <symbol id="anchor" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="4.75" r="2.25"/>
+      <path d="M12 7v14"/>
+      <path d="M8 10.5h8"/>
+      <path d="M4.25 13.25c0 4.3 3.47 7.75 7.75 7.75s7.75-3.45 7.75-7.75"/>
+      <path d="M2.5 15.25l1.75-2 2 1.75"/>
+      <path d="M21.5 15.25l-1.75-2-2 1.75"/>
+    </g>
+  </symbol>
+</svg>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="shipshape, back to top">
+      <svg aria-hidden="true"><use href="#anchor"/></svg>shipshape
+    </a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#watch">On watch</a>
+      <a href="#commands">Commands</a>
+      <a href="#trust">Trust</a>
+      <a href="https://github.com/KevNev19/shipshape">GitHub</a>
+    </nav>
+    <a class="button" href="#install">Install</a>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-copy">
+        <p class="eyebrow">A plugin for Codex and Claude Code · MIT licensed</p>
+        <h1 class="display">
+          <span>Get your</span>
+          <span>repository</span>
+          <span class="hl">shipshape.</span>
+        </h1>
+        <p class="lead">A proper software delivery process for any repository, set up in one conversation, in plain English.</p>
+        <ol class="course-mini" aria-label="How setup goes">
+          <li>Scan</li>
+          <li>A few questions</li>
+          <li>Preview</li>
+          <li>Set up</li>
+        </ol>
+        <div class="hosts">
+          <div class="host">
+            <p class="host-name">Codex <span>in a terminal</span></p>
+            <div class="copybox">
+              <code id="hero-codex">codex plugin marketplace add KevNev19/<wbr>shipshape</code>
+              <button class="copy" type="button" data-copy="hero-codex" aria-label="Copy the Codex install command">Copy</button>
+            </div>
+          </div>
+          <div class="host">
+            <p class="host-name">Claude Code <span>in the app</span></p>
+            <div class="copybox">
+              <code id="hero-claude">/plugin marketplace add KevNev19/<wbr>shipshape</code>
+              <button class="copy" type="button" data-copy="hero-claude" aria-label="Copy the Claude Code install command">Copy</button>
+            </div>
+          </div>
+        </div>
+        <p class="promise"><a href="#install">Full install steps</a> · <a href="https://github.com/KevNev19/shipshape">Read the source on GitHub</a></p>
+        <p class="promise">No expertise required · Nothing replaced without your yes · Everything explained</p>
+      </div>
+
+      <figure class="hoist">
+        <ol class="flags" aria-label="Signal flags spelling SHIPSHAPE">
+          <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-s"/></svg><span class="letter">S</span></li>
+          <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-h"/></svg><span class="letter">H</span></li>
+          <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-i"/></svg><span class="letter">I</span></li>
+          <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-p"/></svg><span class="letter">P</span></li>
+          <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-s"/></svg><span class="letter">S</span></li>
+          <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-h"/></svg><span class="letter">H</span></li>
+          <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-a"/></svg><span class="letter">A</span></li>
+          <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-p"/></svg><span class="letter">P</span></li>
+          <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-e"/></svg><span class="letter">E</span></li>
+        </ol>
+        <figcaption>The word itself, in the International Code of Signals.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2 id="how-title">From bare repo to protected, in one conversation</h2>
+        <p class="lead">Run <code>$shipshape-init</code> in Codex, or <code>/shipshape-init</code> in Claude Code, in any repository from an empty folder to a ten-year-old codebase. Nothing in your project changes until you have seen the whole plan and said go.</p>
+      </header>
+
+      <div class="chart">
+        <div class="chart-inner">
+          <ol class="course">
+            <li class="waypoint">
+              <span class="wp-mark" aria-hidden="true">1</span>
+              <h3>Scan</h3>
+              <p>It reads your project to learn its languages, how it installs packages and how its tests run. It only looks.</p>
+            </li>
+            <li class="waypoint">
+              <span class="wp-mark" aria-hidden="true">2</span>
+              <h3>A few questions</h3>
+              <p>Five at most, about outcomes: who works on it, how changes should land, how you check it works, what must never leak, and whether it's public. What the scan already knows is only confirmed.</p>
+            </li>
+            <li class="waypoint">
+              <span class="wp-mark" aria-hidden="true">3</span>
+              <h3>Preview</h3>
+              <p>Every file it will add, one line each, with what it's for. Files you already have are listed apart and left alone unless you say yes to that exact file.</p>
+            </li>
+            <li class="waypoint">
+              <span class="wp-mark" aria-hidden="true">4</span>
+              <h3>Set up</h3>
+              <p>It writes exactly what you saw and switches on the commit guard. A GitHub rule that protects main is added only if you say yes.</p>
+            </li>
+          </ol>
+          <p class="cartouche">Course for <code>$shipshape-init</code><br>Nothing changes before the preview</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="feel" aria-labelledby="feel-title">
+    <div class="wrap">
+      <div class="split">
+        <div class="prose">
+          <p class="eyebrow">How it feels</p>
+          <div class="section-head">
+            <h2 id="feel-title">Plain questions. A plan you can read.</h2>
+          </div>
+          <p>Shipshape asks about how you work, in everyday words. It confirms what it found instead of guessing, and every term of art gets a short explanation the first time it comes up.</p>
+          <p>Everything it writes is standard, boring, reliable tooling. Remove the plugin tomorrow and your setup keeps working.</p>
+          <p class="after">After your next push the checks start running on GitHub, a guard watches every commit on your computer, and a <code>docs/sdlc/</code> folder explains the whole setup.</p>
+        </div>
+
+        <figure class="terminal" aria-label="An example $shipshape-init conversation">
+          <div class="terminal-bar" aria-hidden="true"><i></i><i></i><i></i><span>my-project</span></div>
+          <div class="terminal-body">
+            <div class="t-you"><b>you&gt;</b><span>$shipshape-init</span></div>
+            <div class="t-ss"><p>This looks like a Python project that uses pytest for its tests. Is that right?</p></div>
+            <div class="t-you"><b>you&gt;</b><span>yep. it's just me working on it</span></div>
+            <div class="t-ss">
+              <p>Got it: solo, changes go straight to main, and automated checks run after each push. Here's the plan, and nothing you already have gets touched:</p>
+              <ul class="t-plan">
+                <li><code>.github/workflows/ci.yml</code><span>runs your tests on GitHub after each push to main</span></li>
+                <li><code>.sdlc/hooks/secret-guard.sh</code><span>stops a commit that adds a key or credential file</span></li>
+                <li><code>docs/sdlc/harness.md</code><span>your working agreement, in plain English</span></li>
+                <li><code>…</code></li>
+              </ul>
+              <p>Shall I go ahead?</p>
+            </div>
+            <div class="t-you"><b>you&gt;</b><span>go ahead</span></div>
+            <div class="t-ss">
+              <p class="t-done">Done. Everything is written, and the secret guard is on for this copy of your project.</p>
+              <p>Next step: commit these new files and push them to GitHub. <span class="t-cursor" aria-hidden="true"></span></p>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="watch" aria-labelledby="watch-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">On watch</p>
+        <h2 id="watch-title">What's watching your back</h2>
+        <p class="lead">Security is the centre of the kit, not an add-on. Everything here that fits your project comes switched on for a solo, straight-to-main setup, except the branch rule, which waits for your yes. Switching off a security guard or the health check means hearing the consequence in one plain sentence, and saying yes anyway.</p>
+      </header>
+
+      <div class="watch">
+        <div class="watchbill-frame">
+          <table class="watchbill">
+            <caption>Watch bill</caption>
+            <thead>
+              <tr><th scope="col">When</th><th scope="col">On watch</th><th scope="col">What it does</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Every commit, on your computer</td><td>Secret guard</td><td>Stops a commit that adds a key file (like <code>.env</code> or a private key) or a known AWS, GitHub, Slack, Stripe or Google token. Flags changes to files that steer AI tools.</td></tr>
+              <tr><td>Pushes and pull requests to main</td><td>CI</td><td>Runs your tests on GitHub. In straight-to-main mode it reports after the change lands.</td></tr>
+              <tr><td>Pushes and pull requests to main</td><td>Secret scan</td><td>Checks every new commit again on GitHub, so a key added in one commit and deleted in the next is still caught.</td></tr>
+              <tr><td>Pushes, pull requests and weekly</td><td>CodeQL</td><td>For Python, JavaScript/TypeScript, Go, Java, Ruby or C# code: finds known security mistakes and lists them in the Security tab. Free on public repositories.</td></tr>
+              <tr><td>Weekly</td><td>Dependabot</td><td>Suggests newer versions of your libraries and GitHub Actions as pull requests.</td></tr>
+              <tr><td>Every Wednesday</td><td>Health check</td><td>Re-checks every protection and, when anything is rated WARN or FAIL, opens or updates one issue with the counts and the next thing to fix.</td></tr>
+              <tr><td>You push a version tag</td><td>Release</td><td>Publishes a GitHub release for that exact commit, only if its checks passed on GitHub.</td></tr>
+              <tr><td>Once you say yes</td><td>Branch rule</td><td>Stops anyone deleting main or overwriting its history with a force-push.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div>
+          <figure class="scorecard" aria-label="Example $shipshape-doctor report">
+            <header>$shipshape-doctor <span>example</span></header>
+            <p class="group">Security</p>
+            <ul>
+              <li><b class="status fail">FAIL</b>secret guard installed <span>the scanner is in place, but Git isn't set to run it before each commit yet</span></li>
+              <li><b class="status fail">FAIL</b>remote protection <span>couldn't confirm the safeguards on GitHub; this project has no GitHub address yet</span></li>
+              <li><b class="status pass">PASS</b>code scanning (CodeQL) <span>set up; not run here, and alerts weren't checked</span></li>
+              <li><b class="status pass">PASS</b>dependency watch (Dependabot) <span>settings present; alerts weren't checked</span></li>
+            </ul>
+            <p class="group">Setup</p>
+            <ul>
+              <li><b class="status pass">PASS</b>automated tests (CI) <span>set to run after each push; no run seen yet</span></li>
+              <li><b class="status pass">PASS</b>managed files <span>all present and unedited</span></li>
+            </ul>
+            <p class="next">Next: run bash .sdlc/hooks/install.sh once in this copy of your project</p>
+          </figure>
+          <p class="figure-note">Failures lead, status words are written out, and every report ends with one thing to do next. It says what it actually checked: a file being there is never reported as a run that passed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="commands" aria-labelledby="commands-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">Commands</p>
+        <h2 id="commands-title">Eight commands, two hosts</h2>
+        <p class="lead">Each one is a short conversation. In Codex, type <code>$shipshape-init</code>; in Claude Code, <code>/shipshape-init</code>. Doctor and review only look and report. Init, customize, access, release and intent show you exactly what they will do and wait for your yes.</p>
+      </header>
+
+      <ul class="commands">
+        <li class="cmd front">
+          <code>$shipshape-init</code>
+          <h3>The front door</h3>
+          <p>Scans your project, asks a few questions, shows every file it will add, then sets it up.</p>
+          <p class="tag">Previews first</p>
+        </li>
+        <li class="cmd">
+          <code>$shipshape-doctor</code>
+          <h3>Health check</h3>
+          <p>Checks your setup and its guards. Problems come first, then one thing to do next.</p>
+          <p class="tag">Read-only</p>
+        </li>
+        <li class="cmd">
+          <code>$shipshape-review</code>
+          <h3>Plain-language review</h3>
+          <p>Explains a change in plain words and ends on a clear verdict. It never edits or merges.</p>
+          <p class="tag">Read-only</p>
+        </li>
+        <li class="cmd">
+          <code>$shipshape-release</code>
+          <h3>Guided releases</h3>
+          <p>Checks your tests passed on GitHub, suggests a version, and publishes only on your yes.</p>
+          <p class="tag">Asks first</p>
+        </li>
+        <li class="cmd">
+          <code>$shipshape-access</code>
+          <h3>Who can do what</h3>
+          <p>“Give Sam access”, in plain words. You see the exact command before it runs.</p>
+          <p class="tag">Asks first</p>
+        </li>
+        <li class="cmd">
+          <code>$shipshape-customize</code>
+          <h3>Off the defaults</h3>
+          <p>Change a setting by asking. You see what will change, and only those files are rewritten.</p>
+          <p class="tag">Previews first</p>
+        </li>
+        <li class="cmd">
+          <code>$shipshape-intent</code>
+          <h3>Say what you mean</h3>
+          <p>For bigger changes: four short answers, saved as a note before work starts.</p>
+          <p class="tag">Optional</p>
+        </li>
+        <li class="cmd">
+          <code>$shipshape-orchestrate</code>
+          <h3>Hand off a task</h3>
+          <p>For developers using both assistants: one hands a scoped coding task to the other, then checks the result. Needs a separate orchestrator plugin.</p>
+          <p class="tag">For developers</p>
+        </li>
+      </ul>
+      <p class="figure-note">In Codex, every command except doctor and orchestrate starts only when you type its name, so nothing runs by surprise.</p>
+    </div>
+  </section>
+
+  <section class="section" id="trust" aria-labelledby="trust-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">Trust</p>
+        <h2 id="trust-title">Why you can trust it with your repo</h2>
+      </header>
+
+      <div class="trust">
+        <ul class="reasons">
+          <li>
+            <h3>Nothing is ever clobbered</h3>
+            <p>Shipshape remembers a fingerprint of every file it writes. Edit one and it becomes yours: future runs report it and ask, file by file, before touching it. A file you already had is replaced only if you say yes to that exact file.</p>
+          </li>
+          <li>
+            <h3>Files explain themselves</h3>
+            <p>Generated files open with what they are, why you have them, and whether they're safe to edit. A glossary defines every term the tooling uses.</p>
+          </li>
+          <li>
+            <h3>Plain words, honest verdicts</h3>
+            <p>Reviews translate failures: “the login test expected X and got Y.” A red CI never gets called “looks safe”, and a file being present is never reported as a check that ran.</p>
+          </li>
+          <li>
+            <h3>It runs on itself</h3>
+            <p>This project was set up by shipshape: its secret guard, CodeQL, Dependabot, release workflow and weekly health check are its own output. Where a file was already hand-written, shipshape left it alone, as it will in yours.</p>
+          </li>
+        </ul>
+
+        <div class="specimen">
+          <figure>
+            <pre><span class="dim"># </span><mark>What this is:</mark> Dependabot —
+<span class="dim">#</span> GitHub's dependency watcher.
+<span class="dim">#</span> When a library this project
+<span class="dim">#</span> uses gets a security fix or
+<span class="dim">#</span> update, it opens a pull
+<span class="dim">#</span> request with the upgrade so
+<span class="dim">#</span> you never run known-vulnerable
+<span class="dim">#</span> code for long.
+<span class="dim"># </span><mark>Safe to edit:</mark> yes — shipshape
+<span class="dim">#</span> will ask before overwriting
+<span class="dim">#</span> your edits.
+<span class="dim"># </span><mark>managed-by:</mark> shipshape v0.2.1</pre>
+            <figcaption>The opening lines of a generated <code>.github/dependabot.yml</code>, rewrapped to fit.</figcaption>
+          </figure>
+          <p class="quote">“I left <code>CLAUDE.md</code> alone because it has your own edits in it. Tell me if you'd like me to replace it.”</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="config" aria-label="Configuration and engine">
+    <div class="wrap">
+      <div class="pair">
+        <div>
+          <p class="eyebrow">Make it yours</p>
+          <h2>One file steers everything</h2>
+          <p><code>.sdlc/config.json</code> holds your working style, team or solo, which guardrails are on, your test command and your reviewers. Change it with <code>$shipshape-customize</code>: only what's affected regenerates, and your own edits are left alone.</p>
+          <pre><span class="k">"profile"</span>: "solo",
+<span class="k">"workflow_style"</span>: "trunk",
+<span class="k">"features"</span>: {
+  <span class="k">"codeql"</span>: true,
+  <span class="k">"dependabot"</span>: true,
+  <span class="k">"secret_guard"</span>: true,
+  <span class="k">"scheduled_health"</span>: true
+},
+<span class="k">"commands"</span>: {
+  <span class="k">"test"</span>: "python3 -m pytest tests/ -q"
+}</pre>
+        </div>
+        <div>
+          <p class="eyebrow">Under the hood</p>
+          <h2>Boring on purpose</h2>
+          <ol class="pipeline" aria-label="Engine pipeline, in order">
+            <li><code>detect.py</code></li>
+            <li><code>render.py</code></li>
+            <li><code>protection.py</code></li>
+            <li><code>doctor.py</code></li>
+          </ol>
+          <ul class="facts">
+            <li>Plain Python 3.10 or newer, using only its built-in library. Nothing to pip install.</li>
+            <li>Templates are plain token substitution: no template language, no conditionals.</li>
+            <li>Over 600 tests, plus 30 dated regression checks that keep fixed bugs from coming back.</li>
+            <li>Decisions recorded as <a href="https://github.com/KevNev19/shipshape/tree/main/docs/adr">architecture decision records</a>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <div class="install">
+        <figure class="peter">
+          <svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-p"/></svg>
+          <figcaption>Flag P, the Blue Peter. Flown in harbour, it means: all aboard, this vessel is about to sail.</figcaption>
+        </figure>
+        <div class="install-main">
+          <p class="eyebrow">Install</p>
+          <h2 id="install-title">All aboard</h2>
+          <div class="host-steps">
+            <div>
+              <h3>In Codex</h3>
+              <p>Run the first two in a terminal, then type the third in a new Codex conversation in your project.</p>
+              <ol class="steps">
+                <li><div class="copybox"><code id="codex-1">codex plugin marketplace add KevNev19/<wbr>shipshape</code><button class="copy" type="button" data-copy="codex-1" aria-label="Copy Codex step 1">Copy</button></div></li>
+                <li><div class="copybox"><code id="codex-2">codex plugin add shipshape@<wbr>shipshape</code><button class="copy" type="button" data-copy="codex-2" aria-label="Copy Codex step 2">Copy</button></div></li>
+                <li><div class="copybox"><code id="codex-3">$shipshape-init</code><button class="copy" type="button" data-copy="codex-3" aria-label="Copy Codex step 3">Copy</button></div></li>
+              </ol>
+            </div>
+            <div>
+              <h3>In Claude Code</h3>
+              <p>Type each one inside Claude Code, in your project.</p>
+              <ol class="steps">
+                <li><div class="copybox"><code id="claude-1">/plugin marketplace add KevNev19/<wbr>shipshape</code><button class="copy" type="button" data-copy="claude-1" aria-label="Copy Claude Code step 1">Copy</button></div></li>
+                <li><div class="copybox"><code id="claude-2">/plugin install shipshape@<wbr>shipshape</code><button class="copy" type="button" data-copy="claude-2" aria-label="Copy Claude Code step 2">Copy</button></div></li>
+                <li><div class="copybox"><code id="claude-3">/shipshape-init</code><button class="copy" type="button" data-copy="claude-3" aria-label="Copy Claude Code step 3">Copy</button></div></li>
+              </ol>
+            </div>
+          </div>
+          <p class="needs">Needs <code>git</code> and Python 3.10 or newer (check with <code>python3 --version</code>). On macOS, <code>xcode-select --install</code> provides git; get a current Python from python.org or Homebrew. On Linux, use your package manager. Releases, access changes and the GitHub branch rule also need the GitHub CLI (<code>gh</code>), signed in; shipshape tells you how to install it if it's missing.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="sign">
+      <div class="mini-hoist" aria-hidden="true">
+        <svg viewBox="0 0 60 40"><use href="#flag-s"/></svg>
+        <svg viewBox="0 0 60 40"><use href="#flag-h"/></svg>
+        <svg viewBox="0 0 60 40"><use href="#flag-i"/></svg>
+        <svg viewBox="0 0 60 40"><use href="#flag-p"/></svg>
+        <svg viewBox="0 0 60 40"><use href="#flag-s"/></svg>
+        <svg viewBox="0 0 60 40"><use href="#flag-h"/></svg>
+        <svg viewBox="0 0 60 40"><use href="#flag-a"/></svg>
+        <svg viewBox="0 0 60 40"><use href="#flag-p"/></svg>
+        <svg viewBox="0 0 60 40"><use href="#flag-e"/></svg>
+      </div>
+      <p>Get your repository shipshape.</p>
+    </div>
+    <nav aria-label="Project links">
+      <a href="https://github.com/KevNev19/shipshape">GitHub</a>
+      <a href="https://github.com/KevNev19/shipshape/releases">Releases</a>
+      <a href="https://github.com/KevNev19/shipshape/tree/main/docs/adr">Decisions</a>
+      <a href="https://github.com/KevNev19/shipshape/blob/main/SECURITY.md">Security policy</a>
+    </nav>
+    <p class="small">MIT © <a href="https://github.com/KevNev19">KevNev19</a>. Set in Big Shoulders Stencil and Atkinson Hyperlegible, under the SIL Open Font License.</p>
+  </div>
+</footer>
+
+<p id="copy-status" class="visually-hidden" role="status" aria-live="polite"></p>
+
+<script>
+  // Copy buttons: write the target's text, fall back to selecting it, and
+  // tell screen readers what happened. Scoped in a function so no name
+  // shadows a window property (a global "status" would be window.status).
+  (function () {
+    var copyStatus = document.getElementById("copy-status");
+    var announce = function (message) {
+      copyStatus.textContent = "";
+      setTimeout(function () { copyStatus.textContent = message; }, 50);
+    };
+    document.querySelectorAll("[data-copy]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var target = document.getElementById(button.getAttribute("data-copy"));
+        var text = target.textContent.trim();
+        var done = function (label, message) {
+          announce(message);
+          button.textContent = label;
+          clearTimeout(button.resetTimer);
+          button.resetTimer = setTimeout(function () { button.textContent = "Copy"; }, 1800);
+        };
+        var select = function () {
+          var range = document.createRange();
+          range.selectNodeContents(target);
+          var selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          done("Selected", "Command selected. Press Ctrl+C or Cmd+C to copy.");
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () {
+            done("Copied", "Copied to clipboard");
+          }, select);
+        } else {
+          select();
+        }
+      });
+    });
+  })();
+</script>
+</body>
+</html>
