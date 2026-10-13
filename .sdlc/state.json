@@ -1,8 +1,10 @@
 {
+  "completed_kit_version": "0.2.1",
   "files": {
     ".github/agents/reviewer.md": {
       "kit_version": "0.2.1",
-      "sha256": "5e136ff8a6a316f8e5ed393e7ab4aa111fccb4e26422655ec99027e38c772512",
+      "mode": "0644",
+      "sha256": "1b7dae7f6265d23c2a0595e86bc77afd96abc9d37ad9a9e00b6086391a872493",
       "template": "github/agents/reviewer.md.tmpl"
     },
     ".github/copilot-instructions.md": {
@@ -12,31 +14,37 @@
     },
     ".github/dependabot.yml": {
       "kit_version": "0.2.1",
+      "mode": "0644",
       "sha256": "2dfe80798e6de1e7b0483a1267bb9ab966cc83ad595853a2b72f4491b9d2edf2",
       "template": "github/dependabot.yml.tmpl"
     },
     ".github/workflows/codeql.yml": {
       "kit_version": "0.2.1",
+      "mode": "0644",
       "sha256": "7ff0ca2caea8a65b86d448fdce4f683be9cc8a75addff67bb86569caeb152309",
       "template": "github/workflows/codeql.yml.tmpl"
     },
     ".github/workflows/copilot-setup-steps.yml": {
       "kit_version": "0.2.1",
+      "mode": "0644",
       "sha256": "e50f53c83479c8211c73da9fd2885acb609ac7eddf289f870354778e02e1c336",
       "template": "github/workflows/copilot-setup-python.yml.tmpl"
     },
     ".github/workflows/release.yml": {
       "kit_version": "0.2.1",
-      "sha256": "a73226469fb45d26d6ebef6b84fbb0f940c77b463db0e622760bb0c5b5eb89a0",
+      "mode": "0644",
+      "sha256": "0376bd3f59c0616816c5748e871522968e158bce335eac11c6bd4bb0b05e1406",
       "template": "github/workflows/release.yml.tmpl"
     },
     ".github/workflows/secret-scan.yml": {
       "kit_version": "0.2.1",
-      "sha256": "c4bc1e0a4c1cf9470dd0b375a9b1b70c59f0d08fcdf3ac20aff7ebc906165df9",
+      "mode": "0644",
+      "sha256": "cc7fe1d048c324fd8aad7b26699a28b66d33c9e60dfec57dbcbd4d09be410ad3",
       "template": "github/workflows/secret-scan.yml.tmpl"
     },
     ".github/workflows/shipshape-doctor.yml": {
       "kit_version": "0.2.1",
+      "mode": "0644",
       "sha256": "0828dc82c28c09b64f3a483f00919acef64da61cab550298886bbd271b9f4b86",
       "template": "github/workflows/shipshape-doctor.yml.tmpl"
     },
@@ -47,21 +55,37 @@
     },
     ".sdlc/hooks/install.sh": {
       "kit_version": "0.2.1",
-      "sha256": "4bfe0125ad30d50ec86c6eeebcf7ac2a0e6d0c8351cd37a049b11ad54baa1e98",
+      "mode": "0755",
+      "sha256": "10a64fae31ea51223d82010ceb6e0feed6980cc23aa193b55aaf87860e55b615",
       "template": "hooks/install.sh.tmpl"
     },
     ".sdlc/hooks/secret-guard.sh": {
       "kit_version": "0.2.1",
-      "sha256": "7bf78912a8bee21e42645b747c51f8f7eb3d51138ec892b78e1d228550a17806",
+      "mode": "0755",
+      "sha256": "02ea0765028acecffab5f6b29b2f6faf5d042e75c4c910f4864d917d4d77793a",
       "template": "hooks/secret-guard.sh.tmpl"
     },
     ".sdlc/scripts/doctor.py": {
       "kit_version": "0.2.1",
-      "sha256": "c09de0d6cd9b2aa3c1670c8552cca901bd80ed8da6eabe2dfa4757f8a95760bb",
+      "mode": "0755",
+      "sha256": "f87ef813f6d2bdee21a5870ea8ae23019206cffd531043de009f244573362ccd",
       "template": "scripts/doctor.py.tmpl"
+    },
+    ".sdlc/scripts/release-preflight.py": {
+      "kit_version": "0.2.1",
+      "mode": "0755",
+      "sha256": "a7347603441717d6901fa6ae25854166b43cdd32a19c2f95426007d054736ae2",
+      "template": "scripts/release-preflight.py.tmpl"
+    },
+    ".sdlc/scripts/review-gates.py": {
+      "kit_version": "0.2.1",
+      "mode": "0644",
+      "sha256": "8c9dc225a0da396eedf4469029345d5b1288083044ac859ad7213fa74ecdab34",
+      "template": "scripts/review-gates.py.tmpl"
     },
     ".sdlc/templates/change-intent.md": {
       "kit_version": "0.2.1",
+      "mode": "0644",
       "sha256": "4a9f239178ddda9f61a93b4272293a9d6657cd0e5d364ca32257430e39ab8b65",
       "template": "docs/change-intent.md.tmpl"
     },
@@ -72,6 +96,7 @@
     },
     "SECURITY.md": {
       "kit_version": "0.2.1",
+      "mode": "0644",
       "sha256": "8c43e3c607622a69da9a27af34315f4cc71872ff93a2a545e637dd38a7988023",
       "template": "security/SECURITY.md.tmpl"
     },
@@ -82,6 +107,7 @@
     },
     "docs/sdlc/glossary.md": {
       "kit_version": "0.2.1",
+      "mode": "0644",
       "sha256": "a5a41486be70cc9c072cae82863dc1df213cd8e46c807fec1bd1f8faadc8e1df",
       "template": "docs/glossary.md.tmpl"
     },
@@ -92,9 +118,21 @@
     },
     "docs/sdlc/security.md": {
       "kit_version": "0.2.1",
-      "sha256": "d4b7bbce151207f1a7db081a6dc16a5e426efdc596761d7441233eb40185ad27",
+      "mode": "0644",
+      "sha256": "e89677577825cd6f62069882f14eada85630ad7245cde64dff60ff2919388338",
       "template": "security/security-explainer.md.tmpl"
     }
   },
-  "kit_version": "0.2.1"
+  "kit_version": "0.2.1",
+  "last_run_errors": [],
+  "last_run_kit_version": "0.2.1",
+  "pending_conflicts": [
+    ".github/copilot-instructions.md",
+    ".github/workflows/ci.yml",
+    ".pre-commit-config.yaml",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "docs/sdlc/harness.md"
+  ],
+  "status": "partial"
 }

@@ -27,17 +27,25 @@ or narrate the diff file by file. Send the output through the
 - New dependencies: are they real, maintained, and needed?
 - Changed workflow permissions, disabled checks, or edits to security
   configuration (the secret guard, CodeQL, branch protection).
-- Changes under `.claude/`, `.vscode/`, `.github/agents/`,
-  `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`, or `.sdlc/hooks/`
-  are security findings: report purpose and consequence. Unexplained
-  control-file changes require at least "Needs attention first".
+- Automation and policy controls at any depth are security findings:
+  `AGENTS.md`, `CLAUDE.md`, `SKILL.md`, `.agents/`, `.codex/`, `.claude/`,
+  Claude/Codex plugin metadata, `.github/agents/`, `.github/workflows/`,
+  `.github/copilot-instructions.md`, `.sdlc/`, `docs/agents/`, `docs/sdlc/`,
+  harness documents, and editor automation (`.vscode/`,
+  `.idea/runConfigurations/`, `.zed/`, `.fleet/run.json`, `.devcontainer/`).
+  Check both rename names and mode-only changes. Report purpose and
+  consequence. Unexplained control changes require at least "Needs attention
+  first" and remain human-reviewed.
+- Secret and control scanners use finite patterns. A pass cannot guarantee
+  detection; a hit can be a false positive. Verify the diff itself.
 - Input handling: anything user-supplied reaching a shell, a query, a file
   path, or HTML unescaped.
 
 ## 4. Verdict calibration
 
-- "Looks safe to merge" — checks green, no security notes, risks are
-  explained and acceptable.
+- "Looks safe to merge" — exact applicable checks green, no security notes,
+  risks explained and acceptable. Green is evidence about configured checks,
+  not proof of safety.
 - "Needs attention first" — one fixable thing stands between this and safe.
 - "Do not merge" — failing checks the author didn't explain, a secret in
   the diff, or an unexplained irreversible action.

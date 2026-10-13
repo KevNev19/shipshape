@@ -33,6 +33,14 @@
       "name": "node"
     }
   ],
+  "node_package_manager": {
+    "lockfiles": [
+      "package-lock.json"
+    ],
+    "name": "npm",
+    "variant": "npm",
+    "version": ""
+  },
   "package_managers": [
     "npm"
   ],

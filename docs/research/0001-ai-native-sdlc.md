@@ -1,8 +1,8 @@
 # Challenging the traditional SDLC: does it survive AI-native development?
 
-- Status: Living research document (v1.1, 2026-08-10 — every cited URL
-  fetched and checked against its claim; quotes verified verbatim against
-  primaries; misattributions and one cost-math error from v1 corrected)
+- Status: Living research document (v1.2, 2026-09-09 — productivity,
+  delivery, review-override, and test-quality claims rechecked against the
+  named primary sources and bounded local evidence)
 - Purpose: working document for stress-testing traditional SDLC and CI/CD
   orthodoxy against how software is actually built in 2026, and sketching
   what an AI-native lifecycle could look like. Opinionated by design;
@@ -331,18 +331,22 @@ then checking each one.
 
 | Assumption | Status | Evidence |
 |---|---|---|
-| Integration pain superlinear in batch size | **Holds — stronger than ever** | DORA's mechanism for the 2024 instability finding was exactly "AI enables larger batches" ([dora.dev](https://dora.dev/research/2024/dora-report/)) |
-| Fast feedback loops | **Holds** | DORA 2025: teams with strong automated testing and fast feedback capture AI gains; weak teams get punished harder ([DORA 2025](https://cloud.google.com/blog/products/ai-machine-learning/announcing-the-2025-dora-report)) |
+| Integration pain superlinear in batch size | **Holds as a design risk** | DORA 2024 proposed larger batches as one explanation for its observed delivery-instability association; the survey analysis does not establish a universal causal mechanism ([dora.dev](https://dora.dev/research/2024/dora-report/)) |
+| Fast feedback loops | **Holds as a practice** | DORA 2025 associates stronger internal platforms and feedback capabilities with better outcomes; its survey models and companion guidance do not isolate a universal causal effect ([DORA 2025](https://cloud.google.com/blog/products/ai-machine-learning/announcing-the-2025-dora-report)) |
 | Human-paced arrival rate | **Broken** | Merge-queue math explodes nonlinearly under agent arrival rates; flaky-test retries become self-inflicted DoS ([tianpan.co](https://tianpan.co/blog/2026-07-02-the-merge-queue-is-the-new-bottleneck)) |
 | Author understands the change | **Broken** | Werner Vogels' "verification debt"; Sonar survey: 96% don't fully trust AI code, only 48% verify before committing ([Sonar press release](https://www.sonarsource.com/company/press-releases/sonar-data-reveals-critical-verification-gap-in-ai-coding/), vendor survey) |
 | Reviewer comprehension is cheap | **Broken** | LinearB queueing data, Finster's sampling-rate argument (§3) |
 | Humans are the error source automation protects against | **Inverted** | CI must now be hardened *against the automation*: microVM/syscall sandboxing (Kata Containers, gVisor) via the kubernetes-sigs Agent Sandbox project — the working assumption being that agent-written code will eventually do something it shouldn't ([agent-sandbox.sigs.k8s.io](https://agent-sandbox.sigs.k8s.io/)) |
 
 The evidence creates a tension that we need to hold rather than resolve
-away. DORA 2025, the strongest source at ~5,000 respondents, finds that
-"AI doesn't fix a team; it amplifies what's already there." CI/CD
-discipline became *more* decisive, not less. The instability finding
-isn't "CI is obsolete"; it's "teams with weak CI get punished harder."
+away. DORA's survey and qualitative work associates higher AI adoption with
+both greater delivery throughput and greater delivery instability. It frames
+AI as an amplifier of existing capabilities, but does not establish a
+universal causal mechanism or prove that any particular process product
+improves outcomes
+([DORA, 10 March 2026](https://dora.dev/insights/balancing-ai-tensions/)).
+The supported operational conclusion is narrower: deterministic feedback
+remains important while increased output can also increase verification load.
 
 LinearB, meanwhile, provides the strongest dataset at 8.1M PRs and shows
 that the *human-judgment gate* inside the pipeline is precisely where AI
@@ -420,49 +424,57 @@ those levels of analysis, almost every apparent contradiction dissolves.
    greenfield/simple work, falling to 0–10% and becoming negative after
    rework for complex brownfield work — plausibly the modal bucket for
    production work (this doc's inference).
-3. **Delivery stability degrades.** This is the most robust system-level
-   finding. DORA 2024 found −7.2% stability per 25% AI adoption. That
-   finding persisted through DORA 2025's throughput reversal and is
-   corroborated by
+3. **Delivery throughput and instability can rise together.** DORA's survey
+   models associate higher adoption with both outcomes; they do not show that
+   adoption universally causes either one. Directionally similar risk signals
+   appear in
    [Faros telemetry](https://www.faros.ai/research/ai-acceleration-whiplash)
    (22k devs: incidents +58%, bugs/dev +54%, PRs merged with no review
    +31%, deployment frequency −11.7% — vendor, within-org before/after)
    and [Uplevel](https://uplevelteam.com/blog/ai-for-developer-productivity)
    (+41% bug rate, no throughput gain — vendor, observational).
-4. **Self-reported speedup is contradicted in sign by three independent
-   datasets.** METR reported felt +20% and measured −19%, then later
-   self-downgraded to
-   "very weak evidence"; Stanford's self-assessment barely correlates
-   with measured productivity, r=0.17, developers misjudging by ~30
-   percentile points, slides only; and the NAV IT longitudinal
+4. **Self-reported speedup needs independent measurement.** METR's early-2025
+   randomized study found tasks took 19% longer while participants expected a
+   speedup. Its February 2026 note calls a different follow-up unreliable; it
+   does not retract the original experiment. Stanford's self-assessment barely
+   correlates with measured productivity, r=0.17, developers misjudging by
+   ~30 percentile points, slides only; and the NAV IT longitudinal
    replication (perceived gains, no objective change — via
    [ITPro](https://www.itpro.com/software/development/github-says-copilot-improves-code-quality-but-are-ai-coding-tools-actually-producing-results-for-developers)).
-   None is individually strong, but no dataset shows self-report
-   tracking measured outcomes. Discount *any* "developers report saving
-   N hours" finding accordingly, including DX's 3.6 hrs/week
+   These contexts differ, so they support caution rather than a universal
+   claim that perception never tracks outcomes. Treat any "developers report
+   saving N hours" result as self-report, including DX's 3.6 hrs/week
    ([DX](https://getdx.com/blog/ai-assisted-engineering-q4-impact-report-2025/)).
 5. **Maintainability erodes on the longest baseline.** GitClear §3 is
    directionally consistent with Faros churn data despite both being
    vendor telemetry.
 
-The METR study deserves a closer, honest reading because it supplies the
-most-cited number in the debate. In July 2025, 16 experienced OSS devs
-completed 246 tasks on their own mature repos. They were 19% *slower* with
-AI while estimating that they were +20% faster.
+The METR result needs its population and date. In the early-2025 randomized
+study, 16 experienced open-source developers completed 246 tasks on mature
+repositories; allowing AI made task time 19% longer. That estimate describes
+those developers, repositories, tools, and dates. It should not be projected
+unchanged onto current agents or different work.
 
-In Feb 2026, however, METR reported that its follow-up design had broken
-down. Developers unwilling to work without AI opted out, 30–50% of
-developers said they withheld some tasks, and some ran concurrent agents,
-making wall-clock time meaningless. Point estimates flipped positive for
-returning participants, and METR called its own data "only very weak evidence."
-Citing the 19% in 2026 without this update is misleading; so
-is citing the walkback as proof of speedup.
+METR's February 2026 update concerns a separate follow-up started in August
+2025. Opt-out and task-selection effects, a lower pay rate, and concurrent
+agent use made that follow-up an unreliable estimate of current productivity.
+The update repeats the original 19% result; it qualifies the follow-up rather
+than retracting the early-2025 randomized result. Neither study proves current
+speedup across software work.
 ([original](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/),
 [update](https://metr.org/blog/2026-02-24-uplift-update/))
 
+A May 2026 METR survey adds current context, not a causal estimate. Its 349
+technical workers self-reported median value multipliers of 1.4–2x and a 3x
+speed multiplier. Participants were a paid-heavy convenience sample and the
+emailed response rate was about 2%, so selection and counterfactual-reporting
+limits are substantial. The survey measures beliefs about value and speed; it
+does not measure Shipshape or prove its gains
+([METR, 11 May 2026](https://metr.org/blog/2026-05-11-ai-usage-survey/)).
+
 **Genuinely contested — don't build on these:**
-- Delivery-level throughput direction (DORA 2024 no / 2025 yes / Faros:
-  task throughput up but deploy frequency down).
+- Delivery-level throughput association (DORA's 2024 and 2025 survey models
+  differ; Faros reports task throughput up but deploy frequency down).
 - Whether juniors or seniors benefit more (the Management Science
   experiments: juniors; the
   [*Science* 30M-commit study](https://www.science.org/doi/10.1126/science.adz9311):
@@ -470,7 +482,8 @@ is citing the walkback as proof of speedup.
 - Whether trust is rising (DORA: distrust 39%→30%) or falling
   ([Stack Overflow](https://survey.stackoverflow.co/2025/ai): trust
   40%→29%) — different populations, not reconcilable.
-- Whether engineering maturity protects quality (DORA yes;
+- Whether engineering maturity moderates the observed quality association
+  (DORA's models suggest it may;
   [Faros](https://www.faros.ai/research/ai-acceleration-whiplash):
   "maturity is not a shield").
 
@@ -501,19 +514,20 @@ figure — and Google measure task speed and find gains. Analytics vendors
 health and find degradation, each selling the finding that makes its
 product necessary.
 
-The independent middle — METR, *Science*, and the
-[Auckland longitudinal study](https://arxiv.org/abs/2605.23135) — finds
-real individual gains, real system costs, and a well-replicated
-perception gap. The Management Science experiments sit between camps —
-peer-reviewed, but partly authored by Microsoft about Microsoft's tool,
-and measuring task count rather than value.
+The independent studies do not resolve to a uniform gain. METR's early-2025
+experiment found longer task times in its experienced-developer setting;
+the [*Science* study](https://www.science.org/doi/10.1126/science.adz9311)
+and the [Auckland longitudinal study](https://arxiv.org/abs/2605.23135)
+measure different populations and outcomes. The Management Science
+experiments sit between camps — peer-reviewed, but partly authored by
+Microsoft about Microsoft's tool, and measuring task count rather than value.
 
-The evidence therefore supports a qualified one-sentence conclusion: AI
-increases the rate of code production while degrading system stability
-and maintainability, with benefits inversely proportional to codebase
-complexity and maturity — and developers' own perception of speedup
-repeatedly contradicted in sign. The lifecycle we propose next must
-capture the individual gains without pretending those system costs away.
+The evidence supports a narrower conclusion: AI-assisted production can
+coexist with higher throughput, higher verification load, and delivery
+instability, while the direction and size of effects vary by population,
+task, tool, codebase, and outcome. Self-report and measured effects must be
+kept distinct. The lifecycle proposed next is therefore a design hypothesis
+for managing those tensions, not proven product efficacy.
 
 ## 6. Toward an AI-native SDLC (v0)
 
@@ -600,8 +614,9 @@ The evidence puts an honest brake on all of this. Anthropic's 2026
 Agentic Coding Trends report — seen only via
 [secondary coverage](https://pathmode.io/blog/orchestration-era-needs-intent);
 primary not yet verified — reports developers use AI in ~60% of their
-work but can *fully delegate* only 0–20% of tasks; DORA 2025 measures
-delivery throughput gains of only ~2–18%
+work but can *fully delegate* only 0–20% of tasks; DORA 2025 survey models
+associate AI adoption with delivery-throughput changes rather than measuring
+a universal causal gain
 ([dora.dev](https://dora.dev/dora-report-2025/)).
 The orchestration story is therefore running well ahead of the delegation
 evidence. Our model should be read as a direction of travel, not a
@@ -631,8 +646,9 @@ which a change flows continuously*:
    truth. Red is a stop sign. This layer scales with compute, so pour the
    growth here.
 5. **Semantic verification** (inferential sensors). AI review tiered by
-   risk: comment-only → suggest-and-approve → auto-merge for low-risk
-   globs; adversarial/multi-agent review for critical paths; a
+   risk: comment-only → suggest-and-approve → a narrowly predeclared,
+   source-bound ordinary-documentation exception; adversarial/multi-agent
+   review for critical paths; a
    calibrated judge — "a broken judge is worse than no judge, because you
    trust it"
    ([Pragmatic Engineer on evals](https://newsletter.pragmaticengineer.com/p/evals)).
@@ -668,22 +684,20 @@ rather than overturning it. The keepers are the practices that turn
 observed failures into durable, deterministic controls; the gaps are on
 the sensor side of the harness.
 
-- **"Automation proposes, CI checks, a human merges"** — keeper for now,
-  with a horizon. It's exactly the LinearB failure mode (human gate
-  queues under volume) — but shipshape targets small teams and
-  non-engineers, where Tornhill's attention limit binds long before
-  merge-queue math does. The v0 evolution isn't removing the human; it's
-  Finster's move: present the human with verified findings and an
-  intent-conformance summary rather than a raw diff. A tiered-authority
-  future (auto-merge for docs/deps behind green gates) is plausible ADR
-  material, not policy yet.
+- **"Automation proposes, CI checks, a human merges"** — remains the default.
+  [ADR 0010](../adr/0010-source-bound-automation-and-control-policy.md) permits
+  only ordinary documentation to bypass the human, and only from an explicit
+  PR configuration through current-head, source-bound checks and strict
+  server enforcement. Dependencies and all control, process, security, code,
+  and uncertain paths remain human-reviewed.
 - **Frozen fixtures as ground truth** — keeper, and quietly ahead of the
   curve. "Never regenerate to make a regression pass" is precisely the
   anti-reward-hacking control the harness-engineering literature calls a
   computational sensor with teeth (Beck's "cheating" tripwire,
   operationalized).
-- **Red CI is a stop sign** — keeper; DORA 2025 says this discipline is
-  what determines whether AI amplifies you upward or downward.
+- **Red CI is a stop sign** — keeper. DORA's survey findings support the risk
+  hypothesis, not a claim that green checks prove safety or that this rule
+  alone causes better delivery.
 - **Every bug leaves a dated regression test** — keeper; it's a steering
   loop in miniature (observed failure → permanent sensor).
 - **Security guardrails on by default, disabling requires hearing the
@@ -692,12 +706,12 @@ the sensor side of the harness.
 - **Model-neutral harness doc mirrored by thin adapters** (ADR 0004) —
   keeper; this is the AGENTS.md/SKILL.md convergence arriving
   independently.
-- **Gap worth an eventual ADR:** shipshape's kit has no *sensor* for test
-  quality (mutation score), and no scheduled drift/health monitoring
-  beyond the weekly CodeQL scan its templates ship — doctor, the kit's
-  drift sensor, runs on invocation only. Both sit in the sensor half of
-  Böckeler's 2x2, the side her feed-forward-only failure mode warns
-  about.
+- **Test-quality evidence remains advisory:** a four-repository assertion
+  prototype found some assertion-free tests, but measured neither recall nor
+  mutation sensitivity and cannot establish general test quality. It stays a
+  bounded warning experiment, not a `test_quality` gate. Scheduled health can
+  report collected data and unknowns; unavailable alert APIs or skipped agent
+  assignment do not constitute a completed inferential review loop.
 
 This leaves the project with a direction but not a finished doctrine. The
 remaining uncertainties are specific enough to investigate rather than
@@ -709,14 +723,14 @@ The next round of research should focus on the claims that would most
 change shipshape's design or the proposed lifecycle. These are open
 questions, not conclusions waiting to be confirmed:
 
-1. **Mutation testing in practice** — is there a stdlib-only-compatible
-   way for shipshape to score test quality, or at least detect
-   assertion-free tests? (mutmut/cosmic-ray survey; cost at CI scale.)
-2. **Tiered review authority** — design what auto-merge-behind-green-gates
-   would need (path globs, risk classes, break-glass audit) before
-   deciding whether to ever propose it.
-   [Cloudflare's](https://blog.cloudflare.com/ai-code-review/) 0.6%
-   break-glass rate is the benchmark.
+1. **Mutation testing in practice** — can mutation sensitivity and runtime be
+   measured without turning structural assertion presence into a quality
+   claim? The current prototype has no recall or mutation result.
+2. **Tiered review calibration** — collect Shipshape-specific false-eligibility
+   and refusal data. Cloudflare's reported 0.6% measured humans overriding an
+   AI review approval in Cloudflare's system; it is context, not a Shipshape
+   eligibility or deployment threshold
+   ([Cloudflare](https://blog.cloudflare.com/ai-code-review/)).
 3. **The deployment evidence gap** — track for controlled data on
    change-failure rate under high change volume with flags/rollback as
    primary safety net. Currently vendor assertion only.
@@ -730,8 +744,11 @@ questions, not conclusions waiting to be confirmed:
 5. **Comprehension debt metrics** — can Ronacher's tower problem be
    measured? (Candidate proxies: bus factor tooling, knowledge-map drift,
    time-to-explain in incident reviews.)
-6. **DORA 2026** — not yet published as of Aug 2026; revisit when it
-   lands, especially whether the stability penalty finally closes.
+6. **DORA publication updates** — the publications index checked on
+   2026-09-09 still presented the 2025 state report plus companion guides.
+   Recheck the index rather than treating that observation as proof that no
+   2026 publication exists
+   ([DORA publications](https://dora.dev/research/publications/)).
 7. **Where does shipshape sit** on the guides/sensors balance? Audit the
    kit's templates against Böckeler's 2x2 and consider whether v0.3
    should ship any inferential sensor at all.

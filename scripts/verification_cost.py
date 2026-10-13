@@ -12,7 +12,7 @@ import os
 import sys
 import urllib.parse
 import urllib.request
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def fetch_json(path: str):
@@ -26,10 +26,6 @@ def fetch_json(path: str):
             return json.load(response)
     except (OSError, ValueError):
         return None
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
 
 
 def _timestamp(value: str) -> datetime:
@@ -52,11 +48,13 @@ def _failure(days: int, action: str) -> dict:
     }
 
 
-def summarize(repo: str, days: int) -> dict:
+def summarize(repo: str, days: int, now: datetime | None = None) -> dict:
     if not os.environ.get("GITHUB_TOKEN"):
         return _failure(days, "Set GITHUB_TOKEN with repository read access and try again.")
 
-    since = _now() - timedelta(days=days)
+    current = datetime.now(timezone.utc) if now is None else now
+    since = current.astimezone(timezone.utc).replace(microsecond=0) - timedelta(days=days)
+    since_text = since.isoformat(timespec="seconds")
     runs = []
     warnings = []
     page = 1
@@ -85,7 +83,7 @@ def summarize(repo: str, days: int) -> dict:
                 warnings.append("A malformed pagination timestamp was ignored.")
         page += 1
 
-    query = urllib.parse.quote(f"repo:{repo} is:pr is:merged merged:>={since.date().isoformat()}")
+    query = urllib.parse.quote(f"repo:{repo} is:pr is:merged merged:>={since_text}")
     search = fetch_json(f"search/issues?q={query}&per_page=1")
     if not isinstance(search, dict) or not isinstance(search.get("total_count"), int):
         return _failure(

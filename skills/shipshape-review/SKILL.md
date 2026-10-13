@@ -1,7 +1,6 @@
 ---
 name: shipshape-review
 description: Review a change in plain language — verified findings, whether it matches the request, what could not be verified, and a clear "looks safe" or "needs attention" verdict with reasons. Works on a pull request, a branch, or uncommitted changes. Use when the user says "review this change", "review PR 12", "what does this change do", "is this safe to merge", or "explain this diff".
-disable-model-invocation: true
 ---
 
 # shipshape-review
@@ -13,6 +12,8 @@ approves. Follow
 inspect with [references/review-rubric.md](references/review-rubric.md), then
 report through
 [references/finding-contract.md](references/finding-contract.md).
+
+Use this entrypoint only when the user requests a review or change explanation.
 
 ## Steps
 
@@ -33,6 +34,9 @@ report through
 
 4. **Read the whole diff** and work through the rubric. For large diffs,
    inspect every file but organize findings by severity, not by file.
+   Inspect both names of renames and file-mode changes. A scanner pass is
+   bounded evidence, not a guarantee; verify control and security changes from
+   the diff and report material heuristic gaps or false-positive uncertainty.
 
 5. **Report through the finding contract.** Keep its five parts in order.
    Translate check failures and code evidence into plain-language

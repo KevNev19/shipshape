@@ -5,12 +5,11 @@ written output, every managed file self-identifies, and the right CI variant
 is chosen per detected stack.
 """
 
+import importlib.util
 import json
 import os
 import re
-import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -35,18 +34,20 @@ BASE_FILES = {
     ".github/agents/reviewer.md",
     ".github/copilot-instructions.md",
     ".sdlc/scripts/doctor.py",
+    ".sdlc/scripts/review-gates.py",
+    ".sdlc/scripts/release-preflight.py",
     ".github/workflows/shipshape-doctor.yml",
     ".sdlc/templates/change-intent.md",
 }
 CODEQL = ".github/workflows/codeql.yml"
 LOW_RISK_AUTOMERGE = ".github/workflows/low-risk-automerge.yml"
+REVIEW_GATES = ".sdlc/scripts/review-gates.py"
 
 # fixture name -> (has codeql, marker expected inside the rendered CI workflow)
 FIXTURE_EXPECT = {
     "repo-python": (True, "actions/setup-python"),
     "repo-node": (True, "actions/setup-node"),
     "repo-go": (True, "actions/setup-go"),
-    "repo-mixed": (True, "actions/setup-node"),  # node sorts first among detected languages
     "repo-empty": (False, "No tests configured yet"),
 }
 
@@ -101,12 +102,12 @@ def test_rendered_doctor_is_executable(tmp_path):
 
 
 def test_codeql_language_and_dependabot_ecosystems(tmp_path):
-    repo = init_repo("repo-mixed", tmp_path)
+    repo = init_repo("repo-node", tmp_path)
     run_script("render.py", "apply", repo)
     codeql = (repo / CODEQL).read_text()
     assert 'languages: "javascript-typescript"' in codeql
     dependabot = (repo / ".github/dependabot.yml").read_text()
-    for ecosystem in ("github-actions", "npm", "pip"):
+    for ecosystem in ("github-actions", "npm"):
         assert f'package-ecosystem: "{ecosystem}"' in dependabot
 
 
@@ -159,6 +160,8 @@ def test_tiered_review_requires_pr_style_and_feature_flag(tmp_path, overrides, e
     assert code == 0, result
     assert (LOW_RISK_AUTOMERGE in result["written"]) is expected
     assert (repo / LOW_RISK_AUTOMERGE).is_file() is expected
+    assert REVIEW_GATES in result["written"]
+    assert (repo / REVIEW_GATES).is_file()
 
 
 def test_disabling_tiered_review_removes_the_managed_workflow(tmp_path):
@@ -180,6 +183,7 @@ def test_disabling_tiered_review_removes_the_managed_workflow(tmp_path):
     code, disabled = run_script("render.py", "apply", repo)
     assert code == 0, disabled
     assert disabled["removed"] == [LOW_RISK_AUTOMERGE]
+    assert (repo / REVIEW_GATES).is_file()
     assert not (repo / LOW_RISK_AUTOMERGE).exists()
 
 
@@ -200,6 +204,7 @@ def test_disabling_tiered_review_never_deletes_a_drifted_workflow(tmp_path):
 
     assert code == 0, disabled
     assert disabled["removed"] == []
+    assert (repo / REVIEW_GATES).is_file()
     assert workflow.is_file()
     assert [item["path"] for item in disabled["conflicts_untouched"]] == [LOW_RISK_AUTOMERGE]
 
@@ -208,6 +213,52 @@ def test_disabling_tiered_review_never_deletes_a_drifted_workflow(tmp_path):
     assert confirmed["removed"] == [LOW_RISK_AUTOMERGE]
     assert confirmed["forced"] == [LOW_RISK_AUTOMERGE]
     assert not workflow.exists()
+
+
+def test_always_available_review_helper_preserves_owner_drift(tmp_path):
+    repo = init_repo("repo-python", tmp_path)
+    code, applied = run_script("render.py", "apply", repo)
+    assert code == 0, applied
+    helper = repo / REVIEW_GATES
+    owner_edit = helper.read_text() + "\n# owner edit\n"
+    helper.write_text(owner_edit)
+
+    code, reapplied = run_script("render.py", "apply", repo)
+
+    assert code == 0, reapplied
+    assert helper.read_text() == owner_edit
+    assert [item["path"] for item in reapplied["conflicts_untouched"]] == [REVIEW_GATES]
+
+
+def test_default_trunk_renders_passive_protection_inspector(tmp_path):
+    repo = init_repo("repo-python", tmp_path, overrides=["features.branch_protection=false"])
+
+    code, applied = run_script("render.py", "apply", repo)
+
+    assert code == 0, applied
+    helper = repo / REVIEW_GATES
+    assert helper.is_file()
+    module_name = "_rendered_default_trunk_review_gates"
+    spec = importlib.util.spec_from_file_location(module_name, helper)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(module_name, None)
+    config = json.loads((repo / ".sdlc/config.json").read_text())
+    result = module.inspect_configured_protection(
+        module.GitHubClient(),
+        config,
+        {
+            ".github/workflows/ci.yml",
+            ".github/workflows/secret-scan.yml",
+            ".github/workflows/codeql.yml",
+        },
+    )
+    assert result["ok"] is True
+    assert result["requested"] is False
 
 
 def test_tiered_review_workflow_never_executes_proposed_content(tmp_path):
@@ -224,10 +275,12 @@ def test_tiered_review_workflow_never_executes_proposed_content(tmp_path):
     permissions = workflow.split("\npermissions:\n", 1)[1].split("\nconcurrency:\n", 1)[0]
 
     assert "# managed-by: shipshape" in "\n".join(workflow.splitlines()[:5])
-    assert trigger == (
-        "  pull_request_target:\n    types: [opened, synchronize, reopened, labeled]\n"
+    assert "pull_request_target:" in trigger
+    assert "workflow_run:" in trigger
+    assert "edited" in trigger and "unlabeled" in trigger
+    assert permissions == (
+        "  actions: read\n  checks: read\n  contents: write\n  pull-requests: write\n"
     )
-    assert permissions == "  contents: write\n  pull-requests: write\n"
     assert not re.search(r"(?m)^\s*uses\s*:", workflow)
     for forbidden in (
         "actions/checkout",
@@ -244,8 +297,6 @@ def test_tiered_review_workflow_never_executes_proposed_content(tmp_path):
         "eval ",
         "source ",
         "/archive/",
-        "/blobs/",
-        "/contents/",
         "actions/upload-artifact",
         "actions/cache",
     ):
@@ -269,23 +320,39 @@ def test_tiered_review_workflow_fails_closed_on_incomplete_metadata(tmp_path):
     assert code == 0, result
 
     workflow = (repo / LOW_RISK_AUTOMERGE).read_text()
-    assert "gh pr view" in workflow
-    assert "author,body,commits,headRefOid,changedFiles,labels" in workflow
-    assert 'API_PAGE_SIZE: "100"' in workflow
-    assert "/pulls/" in workflow and "/files?per_page=$API_PAGE_SIZE" in workflow
-    assert "--paginate" in workflow and "--slurp" in workflow
-    assert "MAX_INSPECTABLE_FILES = 3000" in workflow
-    assert "changedFiles" in workflow
-    assert "len(files) != changed_files" in workflow
+    assert "GITHUB_EVENT_PATH" in workflow
+    assert "len(pulls) != 1" in workflow
     assert "json.loads" in workflow
-    assert "filename" in workflow and "status" in workflow
-    assert "metadata:" in workflow
-    assert "file count:" in workflow
-    assert "file records:" in workflow
-    assert 'if ! python3 - \\\n            "$pr_json"' in workflow
+    assert "git/commits/$TRUSTED_SHA" in workflow
+    assert "git/trees/$tree_sha?recursive=1" in workflow
+    assert "git/blobs/$blob_sha" in workflow
+    assert 'item.get("mode") == "100644"' in workflow
+    assert "base64.b64decode" in workflow
 
 
-def test_tiered_review_workflow_pins_the_two_low_risk_classes(tmp_path):
+def test_tiered_review_workflow_pins_ordinary_documentation_only(tmp_path):
+    repo = init_repo(
+        "repo-python",
+        tmp_path,
+        overrides=["workflow_style=pr", "features.tiered_review=true"],
+    )
+    code, result = run_script("render.py", "apply", repo)
+    assert code == 0, result
+
+    helper = Path(__file__).resolve().parent.parent / "templates/scripts/review-gates.py.tmpl"
+    policy = helper.read_text()
+    assert '"README.md"' in policy
+    assert '"LICENSE.md"' not in policy
+    assert '"CODE_OF_CONDUCT.md"' not in policy
+    assert '"CONTRIBUTING.md"' not in policy
+    assert "SENSITIVE_WORDS" in policy
+    assert "previous_filename" in policy
+    assert 'item.get("mode") == "100644"' in policy
+    assert "dependabot[bot]" not in policy
+    assert "semver-patch" not in policy
+
+
+def test_tiered_review_workflow_has_no_automatic_break_glass(tmp_path):
     repo = init_repo(
         "repo-python",
         tmp_path,
@@ -295,45 +362,13 @@ def test_tiered_review_workflow_pins_the_two_low_risk_classes(tmp_path):
     assert code == 0, result
 
     workflow = (repo / LOW_RISK_AUTOMERGE).read_text()
-    for protected in (
-        '".github/"',
-        '".sdlc/"',
-        '".claude/"',
-        '".vscode/"',
-        '"AGENTS.md"',
-        '"CLAUDE.md"',
-        '"SECURITY.md"',
-        '"docs/sdlc/"',
-        '"docs/adr/"',
-    ):
-        assert protected in workflow
-    for dependency_file in (
-        "package.json",
-        "package-lock.json",
-        "yarn.lock",
-        "pnpm-lock.yaml",
-        "pyproject.toml",
-        "poetry.lock",
-        "uv.lock",
-        "requirements*.txt",
-        "go.mod",
-        "go.sum",
-        "Cargo.toml",
-        "Cargo.lock",
-        "Gemfile",
-        "Gemfile.lock",
-        "*.gradle",
-        "gradle.lockfile",
-    ):
-        assert dependency_file in workflow
-    assert 'author_login == "dependabot[bot]"' in workflow
-    assert 'status == "modified"' in workflow
-    assert "version-update:semver-patch" in workflow
-    assert "version-update:semver-minor" in workflow
-    assert "version-update:semver-major" in workflow
+    helper = Path(__file__).resolve().parent.parent / "templates/scripts/review-gates.py.tmpl"
+    policy = workflow + helper.read_text()
+    assert "break-glass-automerge" not in policy
+    assert "gh pr comment" not in policy
 
 
-def test_tiered_review_workflow_authenticates_and_audits_break_glass(tmp_path):
+def test_tiered_review_workflow_blocks_existing_persistent_auto_merge(tmp_path):
     repo = init_repo(
         "repo-python",
         tmp_path,
@@ -342,39 +377,12 @@ def test_tiered_review_workflow_authenticates_and_audits_break_glass(tmp_path):
     code, result = run_script("render.py", "apply", repo)
     assert code == 0, result
 
-    workflow = (repo / LOW_RISK_AUTOMERGE).read_text()
-    assert "break-glass-automerge" in workflow
-    assert "/issues/" in workflow and "/events?per_page=$API_PAGE_SIZE" in workflow
-    assert "/collaborators/" in workflow and "/permission" in workflow
-    assert '"admin"' in workflow and '"write"' in workflow
-    assert "/comments?per_page=$API_PAGE_SIZE" in workflow
-    assert "gh pr comment" in workflow
-    assert "shipshape-break-glass" in workflow
-    assert "label_event_id" in workflow
-    assert "classified_head" in workflow
-    assert "label_actor" in workflow
-    assert "label_timestamp" in workflow
-    assert "class rules were bypassed" in workflow
-    assert "marker_count != 1" in workflow
-    assert "break-glass must be reapplied to the classified head" in workflow
-    assert '[ "$EVENT_ACTION" != "labeled" ]' in workflow
-    assert workflow.count('[ "$marker_count" != "1" ]') == 1
-
-
-def test_tiered_review_workflow_revokes_its_auto_merge_for_an_ineligible_head(tmp_path):
-    repo = init_repo(
-        "repo-python",
-        tmp_path,
-        overrides=["workflow_style=pr", "features.tiered_review=true"],
-    )
-    code, result = run_script("render.py", "apply", repo)
-    assert code == 0, result
-
-    workflow = (repo / LOW_RISK_AUTOMERGE).read_text()
-    assert "autoMergeRequest,headRefOid" in workflow
-    assert 'enabled_by == "github-actions[bot]"' in workflow
-    assert "--disable-auto" in workflow
-    assert "Removed workflow-owned auto-merge" in workflow
+    helper = Path(__file__).resolve().parent.parent / "templates/scripts/review-gates.py.tmpl"
+    policy = helper.read_text()
+    assert "autoMergeRequest" in policy
+    assert "cancel auto-merge manually" in policy.lower()
+    assert "disablePullRequestAutoMerge" not in policy
+    assert "enablePullRequestAutoMerge" not in policy
 
 
 def test_tiered_review_workflow_binds_merge_to_the_classified_head(tmp_path):
@@ -387,61 +395,47 @@ def test_tiered_review_workflow_binds_merge_to_the_classified_head(tmp_path):
     assert code == 0, result
 
     workflow = (repo / LOW_RISK_AUTOMERGE).read_text()
-    assert workflow.count("headRefOid") >= 2
-    assert "recheck_head" in workflow
-    assert "head changed after classification" in workflow
-    assert "gh pr merge" in workflow
-    assert '--match-head-commit "$CLASSIFIED_HEAD"' in workflow
-    assert "--auto --squash" in workflow
+    helper = Path(__file__).resolve().parent.parent / "templates/scripts/review-gates.py.tmpl"
+    policy = helper.read_text()
+    assert "_same_candidate(snapshot, final_snapshot)" in policy
+    assert '"sha": final_snapshot["head_sha"]' in policy
+    assert '"merge_method": "squash"' in policy
+    assert "--auto" not in workflow + policy
 
 
 def run_tiered_review_classifier(tmp_path, *, author, body, files, commits):
-    repo = init_repo(
-        "repo-python",
-        tmp_path,
-        overrides=["workflow_style=pr", "features.tiered_review=true"],
-    )
-    code, result = run_script("render.py", "apply", repo)
-    assert code == 0, result
-    workflow = (repo / LOW_RISK_AUTOMERGE).read_text()
-    match = re.search(r"<<'PY'\n(?P<script>.*?)\n          PY", workflow, re.DOTALL)
-    assert match, "classifier script not found in rendered workflow"
+    del tmp_path, author, body, commits
+    from scripts import review_gates
 
-    pr = {
-        "author": {"login": author},
-        "body": body,
-        "changedFiles": len(files),
-        "commits": commits,
-        "headRefOid": "a" * 40,
-        "labels": [],
-    }
-    pr_path = tmp_path / "pr.json"
-    files_path = tmp_path / "files.json"
-    commits_path = tmp_path / "commits.json"
-    output_path = tmp_path / "github-output"
-    pr_path.write_text(json.dumps(pr))
-    files_path.write_text(json.dumps([files]))
-    commits_path.write_text(json.dumps([commits]))
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-",
-            str(pr_path),
-            str(files_path),
-            str(commits_path),
-            str(output_path),
-        ],
-        input=textwrap.dedent(match.group("script")),
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 0, proc.stderr
-    return dict(line.split("=", 1) for line in output_path.read_text().splitlines())
+    blob_sha = "f" * 40
+    base_tree = {}
+    head_tree = {}
+    for item in files:
+        path = item["filename"]
+        entry = {"path": path, "mode": "100644", "type": "blob", "sha": blob_sha}
+        if item["status"] in {"modified", "removed"}:
+            base_tree[path] = entry
+        if item["status"] in {"added", "modified", "renamed"}:
+            head_tree[path] = entry
+        previous = item.get("previous_filename")
+        if previous:
+            base_tree[previous] = {
+                "path": previous,
+                "mode": "100644",
+                "type": "blob",
+                "sha": blob_sha,
+            }
+    class_name, _ = review_gates.classify_documentation(files, base_tree, head_tree)
+    return {"class_name": class_name}
 
 
 @pytest.mark.parametrize(
     ("path", "expected"),
-    [("docs/guide.rst", "docs-only"), ("docs/build.sh", "none")],
+    [
+        ("docs/guides/guide.rst", "docs-only"),
+        ("docs/guide.rst", "none"),
+        ("docs/build.sh", "none"),
+    ],
 )
 def test_tiered_review_docs_class_rejects_executable_paths(tmp_path, path, expected):
     result = run_tiered_review_classifier(

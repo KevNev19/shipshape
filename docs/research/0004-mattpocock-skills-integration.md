@@ -1,12 +1,11 @@
 # Integrating the mattpocock-skills processes: worth the effort?
 
-- Status: Research results (2026-08-14). Accepted 2026-08-22: all four
-  proposals (three binds and the research fence) applied to
-  [docs/agents/harness.md](../agents/harness.md).
+- Status: Research results (2026-08-14). Accepted 2026-08-22: the workflow
+  bindings remain policy; evidence limits clarified 2026-09-09.
 - Purpose: per-skill decision on binding the mattpocock-skills plugin's
-  processes into shipshape's pipeline. Changes no policy; recommended
-  binds are proposals for [docs/agents/harness.md](../agents/harness.md)
-  pending Kevin's acceptance. Design:
+  processes into shipshape's pipeline. This document records the rationale;
+  current policy and host routing live in
+  [docs/agents/harness.md](../agents/harness.md). Design:
   [study design](../superpowers/specs/2026-08-14-mattpocock-skills-integration-study-design.md).
 
 ## Method
@@ -23,8 +22,11 @@ the skill survives ADR 0001's inert-tooling rule. Every verdict cites a
 skill-file fact or a run-history event traceable to the two agent inputs;
 some rationales additionally reference repo facts (an ADR, a file layout)
 verified directly against the repository — no verdict rests on one alone.
+This design supplies an inventory and selected historical cases, not a
+controlled comparison of engineering quality, elapsed time, or cost with and
+without the skills.
 
-## The pipeline as it stands
+## Pipeline examined in the August study
 
 | Stage | Bound today (harness) | Owner |
 |---|---|---|
@@ -36,6 +38,12 @@ verified directly against the repository — no verdict rests on one alone.
 
 Conflict rule: the orchestrator wins on who implements and on run records;
 superpowers wins on how work is shaped, tested, and verified.
+
+This table is historical, not the current host map. The later user-requested
+dual-host migration stands: a Claude host routes scoped Codex workers through
+`codex-orchestrator`, while a Codex host routes scoped Claude workers through
+`codex-claude-orchestrator`. The active harness owns the exact lifecycle and
+journal contract. The skill conclusions do not reverse or collapse that map.
 
 ## Verdict table
 
@@ -55,22 +63,23 @@ superpowers wins on how work is shaped, tested, and verified.
 
 ## Per-skill rationale
 
-**code-review — bind.** Eighteen uninvited self-invocations with two
-traced instances of real defects caught pre-handoff (magic-number window;
+**code-review — bind.** Eighteen uninvited self-invocations included two
+traced cases where issues were caught pre-handoff (magic-number window;
 fail-soft crash plus three safety edge cases). Its two-axes structure
 (Standards vs Spec, never merged) occupies a different layer than ADR
 0007's findings-first contract: this is the *implementer's* self-check
 before handoff; ADR 0007 governs what the *reviewer* reports to the human.
 Formalizing means task prompts acknowledge the chain rather than each
-Codex agent rediscovering it. For symmetry with the redundancy test
+worker rediscovering it. These cases do not estimate how often the pass changes
+an outcome or whether its benefit exceeds its cost. For symmetry with the redundancy test
 applied elsewhere: superpowers ships `requesting-code-review` and
 `receiving-code-review`, but neither is bound anywhere in the harness or
 `CLAUDE.md`, so there is no equivalent to defer to. What would change
 this verdict: evidence that the self-review pass materially lengthens
 runs without catching defects.
 
-**writing-for-agents — bind.** No run evidence (it fires on skill/agent-doc
-authoring, which Codex tasks so far have not been), but the strongest
+**writing-for-agents — bind.** The August history contained no run evidence for
+its target authoring tasks, but the strongest
 skill-file case in the set: shipshape's *product* is agent-consumed
 documents — adapters, harness templates, skill files — and this is a
 discipline for exactly that (context pointers, progressive disclosure,
@@ -81,8 +90,8 @@ are edited. What would change this verdict: a trial period in which
 consulting it demonstrably adds authoring overhead without improving the
 docs agents actually follow.
 
-**codebase-design — bind.** Eleven uninvited self-invocations during
-engine work; no superpowers equivalent for its deep-module vocabulary
+**codebase-design — bind.** Eleven uninvited self-invocations were observed
+during engine work; no superpowers equivalent exists for its deep-module vocabulary
 (depth, seams, adapters, the deletion test). Natural home is shape-stage
 design discussions for scripts/ and template structure. What would change
 this verdict: shape-stage sessions where the vocabulary is invoked
@@ -148,27 +157,27 @@ suite (`to-spec`, `to-tickets`, `triage`, `wayfinder`) is noted as future
 research relevant to the intent-capture story around ADR 0009 — a separate
 decision with its own evidence bar.
 
-## Evidence: where his skills already fired
+## Historical observations
 
-The study set out to ask whether these processes *should* be tied into
-the pipeline; the sweep answered a different question — they already are.
-Codex implementation agents have been reading Kevin's personal skills
+The sweep found that Codex implementation agents had been reading Kevin's personal skills
 library at `~/.agents/skills/` (verified present; the staging source of
 the packaged plugin) on their own initiative in nearly every
 implementation execution, in a consistent chain: "implement → tdd →
 review" at task start, superpowers' `verification-before-completion`
 before handoff. No prompt invited this; no config names that directory.
-The real decision is therefore not "integrate or ignore" but formalize,
-fence, or leave tacit — per skill. The instances, each classified:
+Those observations motivated formalizing, fencing, or leaving each skill
+tacit. They are selected historical cases without a no-skill control group,
+so "caught before handoff" is not evidence of net quality, time, or cost
+benefit. The instances were classified as follows:
 
-- **Helped** — dead-flag/doctor-checks run: the self-invoked two-axes
+- **Observed catch** — dead-flag/doctor-checks run: the self-invoked two-axes
   `review` pass found an unexplained magic-number window in a new loop
   scan, fixed before handoff.
-- **Helped** — ADR 0008 run: the same self-invoked `review` pass found a
+- **Observed catch** — ADR 0008 run: the same self-invoked `review` pass found a
   fail-soft bug (a wrong-shaped JSON API response could crash the doctor
   instead of WARNing) plus three safety edge cases, all fixed before
   Claude's independent verification ever saw the work.
-- **Helped (aggregate)** — the personal-library read counts across runs:
+- **Usage observation** — the personal-library read counts across runs:
   review ×18, implement ×18, codebase-design ×11, tdd ×10,
   edit-article ×2 — self-directed in every case, with no observed clash:
   the chain runs inside the implementer's turn, and Claude's independent
@@ -193,9 +202,9 @@ that Codex agents read a personal skills library uninvited is itself a
 control-surface observation adjacent to ADR 0005's theme — the library is
 outside the repo, so the guard does not see it.
 
-## Draft harness amendment (for the binds only)
+## Accepted binding shape
 
-Three sentences, at three points in `docs/agents/harness.md`:
+The August study proposed three sentences at three policy points:
 
 1. *Implement stage:* "Codex task prompts sanction the implementer's
    pre-handoff two-axes self-review (the local `review` skill it already
@@ -205,10 +214,9 @@ Three sentences, at three points in `docs/agents/harness.md`:
 3. *Design rules section:* "Edits to templates/, skills/, or agent-facing
    docs consult `writing-for-agents` before writing."
 
-Each sentence is severable — accepting one does not imply another. The
-`research` fence is deliberately not here: it is the output of a
-conflicts verdict, not a bind, and stands in that skill's rationale as
-its own fourth, separately decidable proposal.
+They were accepted with the separate `research` fence. The authoritative,
+current wording remains the harness; this research record does not duplicate
+or override its host-specific lifecycle.
 
 ## What this study does not decide
 
@@ -217,4 +225,7 @@ story (ADR 0009 territory); whether grilling earns its pre-ADR bind (one
 trial decides); anything about the consumer surface beyond the ADR 0001
 default; and the governance question of whether uninvited personal-library
 reads by implementation agents should themselves be fenced — that is a
-control-surface decision for Kevin, recorded here as an observation only.
+control-surface decision for Kevin, recorded here as an observation only. It
+also does not measure a comparative effect on defects, review quality,
+completion time, token use, or money. Those outcomes require a predeclared
+comparison rather than more selected run anecdotes.

@@ -1,7 +1,6 @@
 ---
 name: shipshape-access
 description: Manage who can do what on this GitHub repository — invite or remove collaborators, set their access level, and protect branches — from a plain-English request. Use when the user says "give Sam access", "add my colleague to this repo", "who can push here", "remove someone's access", or "protect the main branch".
-disable-model-invocation: true
 ---
 
 # shipshape-access
@@ -10,6 +9,20 @@ Turn plain-English access requests into explicit `gh` commands. Follow
 [../shipshape-init/references/voice.md](../shipshape-init/references/voice.md);
 recipes and permission mappings live in
 [references/gh-recipes.md](references/gh-recipes.md).
+
+Use this entrypoint only when the user requests an access or branch-protection action.
+
+## Bundle path
+
+Before running a bundled script, set `SHIPSHAPE_ROOT` to the actual absolute
+bundle path discovered from this loaded skill: from the directory containing
+this loaded `SKILL.md`, go up two parent directories. This is the Shipshape
+bundle, not the target repository or current working directory. Replace the
+example value with the path you discovered and keep it quoted:
+
+```bash
+export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
+```
 
 ## Steps
 
@@ -34,11 +47,11 @@ recipes and permission mappings live in
    get a yes, then run it:
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/gh_helpers.sh" add-collaborator <user> <permission>
+   bash "${SHIPSHAPE_ROOT}/scripts/gh_helpers.sh" add-collaborator <user> <permission>
    ```
 
    (Also: `remove-collaborator <user>`, `list-collaborators`,
-   `protect <branch> [--require-review]`, `protection-status <branch>`.)
+   `protect <branch> <trunk|pr>`, `protection-status <branch>`.)
 
 4. **Report.** Say what changed and what happens next ("Sam gets an email
    invitation; access starts when they accept"). On failure, relay the

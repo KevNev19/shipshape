@@ -10,40 +10,54 @@ Strictly read-only: this skill never writes, fixes, or installs anything —
 it recommends, and other skills act. Follow the voice rules in
 [../shipshape-init/references/voice.md](../shipshape-init/references/voice.md).
 
+## Bundle path
+
+Before running a bundled script, set `SHIPSHAPE_ROOT` to the actual absolute
+bundle path discovered from this loaded skill: from the directory containing
+this loaded `SKILL.md`, go up two parent directories. This is the Shipshape
+bundle, not the target repository or current working directory. Replace the
+example value with the path you discovered and keep it quoted:
+
+```bash
+export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
+```
+
 ## Steps
 
 1. **Run the check.**
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" .
+   python3 "${SHIPSHAPE_ROOT}/scripts/doctor.py" .
    ```
 
    If the JSON says `set_up: false`, tell the user this repo has no
    shipshape setup yet and that `/shipshape-init` is the next step. Stop.
 
-2. **Render the scorecard.** Security section first, always. One line per
-   check: the status word (PASS / WARN / FAIL), the check name, and the
-   detail translated per the voice rules. Lead the summary with security:
-   "Your secret guard is active and CI is green" beats a table of counts.
+2. **Render the bounded scorecard.** Security leads. Give each check's status,
+   name, and translated detail without widening the claim. Static hook wiring
+   is not an observed scanner run; workflow/configuration presence is not a
+   successful run or an alert query. For ordinary trunk setup, say CI is
+   configured after push and provides no proved pre-landing enforcement.
+   Treat `features.branch_protection` as local intent until the `remote
+   protection` check verifies the configured trunk, ordinary PR, or tiered PR
+   mode through the shared read-only inspector. Missing helper, CLI, API, or
+   exact-typed configuration evidence is not proof and must remain a failure
+   or an explicitly unknown result.
+   A partial setup apply is incomplete; report its pending conflicts/errors,
+   rather than folding them into the harmless user-edit case.
+   The `remote protection` result also checks that the privileged auto-merge
+   workflow is present only for a valid tiered PR configuration; helper
+   presence by itself grants no authority.
 
-3. **Branch protection (only if `gh` is available and authenticated).**
-
-   ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/gh_helpers.sh" protection-status <default-branch>
-   ```
-
-   Report `"protected": false` as a WARN in the security section: changes
-   can land even when the automated tests fail. If `gh` is missing or not
-   logged in, say the check was skipped and why — never guess.
-
-4. **Close with the one next action** from the JSON's `next_action` field —
+3. **Close with the one next action** from the JSON's `next_action` field —
    one thing, not a list. If everything passes, say so plainly and stop.
 
 ## Don't
 
 - Don't fix anything, however small — doctor diagnoses, init/customize treat.
 - Don't bury a FAIL under a wall of PASSes; failures lead.
-- Don't report a user-edited managed file as a problem — editing their own
-  files is fine and the report says so.
+- Don't report ordinary drift after a completed setup as a problem — editing
+  managed files is fine. A conflict recorded by a partial apply is incomplete,
+  not ordinary drift.
 - Don't dump the raw JSON; translate it.
 - Don't invent checks the script didn't run.

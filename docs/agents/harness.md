@@ -1,8 +1,8 @@
 # How We Work on shipshape
 
-Model-neutral source of truth for every coding agent working on the
-shipshape kit itself. Tool-specific files (`CLAUDE.md`) add runtime wiring
-only and must mirror this file by reference, not rewrite it differently.
+Host-neutral source of truth for every coding agent working on the shipshape
+kit itself. Tool-specific files (`AGENTS.md`, `CLAUDE.md`) add small entrypoint
+pointers only and must not rewrite this policy differently.
 
 ## First steps
 
@@ -16,100 +16,63 @@ only and must mirror this file by reference, not rewrite it differently.
 - Kit scripts: Python 3 stdlib only, JSON-only stdout (ADR 0002).
 - Templates: `{{TOKEN}}` substitution only, variants over logic, every
   artifact self-documenting with a managed-by header (ADR 0003).
-- Skills sequence scripts and follow the voice contract in
-  `skills/shipshape-init/references/voice.md`; they contain no logic.
+- User-facing setup skills sequence scripts and follow the voice contract in
+  `skills/shipshape-init/references/voice.md`. Orchestration skills remain thin
+  adapters over installed runtimes; they do not duplicate worker engines.
 - The never-clobber drift contract is inviolable: nothing overwrites a
   user-edited file without an explicit per-file force.
 - Edits to templates/, skills/, or agent-facing docs consult
   `writing-for-agents` before writing (accepted from
   `docs/research/0004-mattpocock-skills-integration.md`).
 
-## Default workflow: orchestrated implementation (the only way)
+## Default workflow: host-selected orchestration
 
-All implementation work on this repo runs through one layered pipeline
-combining the superpowers plugin (discipline for the driving session) and
-the codex-orchestrator plugin (delegated implementation). The driving
-Claude session shapes, plans, and independently verifies; Codex agents
-implement. This is not a preference — it is the standing working mode for
-this project.
+The user-directed platform mapping adopted on 2026-09-09 is based on the
+actual tool host, not the coordinator's model:
 
-The pipeline, phase by phase:
+- Claude host → `codex-orchestrator` → scoped Codex workers.
+- Codex host → `codex-claude-orchestrator` → scoped Claude workers.
 
-1. **Shape (superpowers).** Any creative work — features, components,
-   behavior changes — starts with the `brainstorming` skill: intent,
-   requirements, and design explored with Kevin before anything else.
-   Interface and seam design for the engine consults the
-   `codebase-design` vocabulary (deep modules, the deletion test).
-2. **Plan (superpowers → orchestrator).** `writing-plans` produces the
-   plan; its steps map one-to-one into orchestrator `task` entries with
-   goals, acceptance criteria, and owned files. Use the orchestrator's
-   Codex plan-review step when a second opinion materially reduces risk.
-3. **Implement (codex-orchestrator only).** Superpowers'
-   `subagent-driven-development` and `executing-plans` are subordinated
-   here: the "subagents" that implement are ALWAYS Codex agents launched
-   via `/codex-orchestrator:orchestrate` — never Claude subagents editing
-   files. The `test-driven-development` skill governs execution *content*:
-   task prompts demand red-green-refactor, and acceptance criteria include
-   the failing-test-first evidence. Codex task prompts sanction the
-   implementer's pre-handoff two-axes self-review (the local `review`
-   skill it already reaches for), and must not invite the `research`
-   skill's background delegation, which bypasses the run journal (both
-   accepted from `docs/research/0004-mattpocock-skills-integration.md`).
-4. **Verify (superpowers, binding on Claude).**
-   `verification-before-completion` is the verifier's law: evidence before
-   assertions, gates actually run, never accept an implementing agent's
-   claim of success. `systematic-debugging` drives any failed-execution
-   diagnosis before a retry cycle.
-5. **Review and close (both).** Code-review discipline feeds the journal's
-   `verification` entries; the orchestrator's close sequence
-   `validate → run_closed → report.md` remains canonical and final.
+Use the model-invokable
+[`shipshape-orchestrate`](../../skills/shipshape-orchestrate/SKILL.md) skill
+for the deterministic route, installed entrypoint, provider-specific lifecycle,
+and handoff rules. Preserve the user's selected coordinator and model. Small
+routine work may stay in that coordinator when delegation has no net value.
 
-- Front doors: `/codex-orchestrator:workflow` owns a full run end to end;
-  `/codex-orchestrator:orchestrate` runs each focused agent cycle inside it;
-  `/codex-orchestrator:report` writes the final report after `run_closed`.
-- **Every Codex execution launches with `--profile shipshape`** (defined in
-  `~/.codex/shipshape.config.toml`: model `gpt-5.6-sol`,
-  `model_reasoning_effort = "xhigh"`). No unprofiled or lower-effort
-  executions.
-- Follow the plugin's orchestration contract exactly: run initialization
-  with the local git exclude of `/.codex-orchestrator/`; an append-only
-  `journal.jsonl` (never rewrite history); `task` entries with goals,
-  acceptance criteria, and owned files; `execution` records carrying the
-  exact prompt, events, and handoff; `verification` entries for material
-  checks; and the canonical close sequence `validate → run_closed →
-  report.md`.
-- Delegation never waives a gate: every delegated result runs the Build and
-  test gates below before acceptance, verified by Claude, not by the
-  implementing agent's word.
-- Exceptions: none by default. A direct (non-orchestrated) edit happens only
-  when Kevin explicitly directs it for that specific task. Analysis-only or
-  conversational work that changes no files needs no run.
-- Plugin conflict rules: where superpowers and the orchestrator disagree,
-  the orchestrator wins on WHO implements (Codex agents, profiled) and on
-  run records (its journal is the record of work, not a parallel one);
-  superpowers wins on HOW work is shaped, tested, and verified.
-  `using-git-worktrees` applies only when the orchestrator's compute
-  reference calls for isolated worktrees; `finishing-a-development-branch`
-  applies only when work happens on a branch (this repo is trunk-based).
+The common flow is:
 
-## Worktree carve-out (explicit exception to the global no-worktrees rule)
+1. **Shape and plan.** Establish the goal, observable acceptance criteria,
+   risks, exact owned paths, and verification path. Resolve only material
+   ambiguity; already-authorized work needs no repeated approval.
+2. **Route.** Pass the explicit host to `scripts/orchestrator.py`; never infer
+   it from model names or inherited process variables. Record the selected
+   host, provider, entrypoint, and reason.
+3. **Execute.** Give one worker one bounded task. Behavior changes use a
+   red-green-refactor loop. A worker never delegates back to the coordinator's
+   provider or starts Shipshape recursively.
+4. **Verify and close.** The coordinator inspects repository state and runs
+   the material checks independently. A worker handoff is evidence to inspect,
+   not authority to accept the task.
 
-Kevin's global rules forbid branches and worktrees; for this project ONLY,
-orchestrator-managed isolation is the sanctioned exception, under these
-bounds:
+The selected upstream workflow owns lifecycle and records:
 
-- Worktrees exist only when the orchestrator's compute rules require them
-  (overlapping task `files` or shared resources — disjoint tasks stay in
-  the main tree), created exactly as the contract prescribes
-  (`git worktree add ../shipshape-codex-impl-NN -b codex-impl-NN`).
-- They are machine-managed and MUST NOT outlive their run: after
-  integration and target-side acceptance checks, the worktree is removed
-  and its `codex-impl-NN` branch deleted in the same task cycle.
-- Session close adds a hygiene check: `git worktree list` shows only the
-  main tree, and `git branch --list 'codex-impl-*'` is empty. A stray
-  worktree or branch found at close is cleaned up (after confirming its
-  run is terminal) before the session reports done.
-- Humans never work in these worktrees; Kevin's own work stays on `main`.
+- On Claude hosts, `/codex-orchestrator:workflow` owns its append-only journal,
+  exact prompts/events/handoffs, verification, validation, closure, and report.
+  Every Codex CLI execution uses the existing `shipshape` profile; the profile
+  retains its configured model and reasoning settings.
+- On Codex hosts,
+  `$codex-claude-orchestrator:claude-pty-agents` owns PTY admission, session
+  identity, custody, handoff, process death, and retirement. The Codex host
+  retains exact prompts, handoffs, and observed evidence in its normal task
+  record without imposing the other plugin's journal.
+- A run already in progress closes under the contract it started with. Never
+  create a parallel journal for the same work.
+
+All work stays in the canonical checkout on `main`: no branches or worktrees.
+There is one writer at a time; serialize overlapping work, respect externally
+owned paths, and preserve every unrelated dirty change. Changing providers
+requires explicit authorization plus proven custody return from the current
+runtime.
 
 ## Build and test
 
@@ -125,22 +88,11 @@ ruff check . && ruff format --check .
 
 ## Commit messages
 
-Every commit tells its story: subject, why, what, and who. Enforced by
-`scripts/check_commit_msg.sh` at commit-msg stage (merges/reverts exempt).
-
-- Subject: conventional type (`feat:`/`fix:`/`docs:`/`chore:`/`test:`),
-  imperative mood, aim for 50 characters, hard cap 72. Blank line after.
-- Body: a `Why:` line (the problem or reason) and a `What:` line (the
-  change itself — prose or bullets), wrapped at 72.
-- Attribution: a `Co-authored-by:` trailer for EVERY AI agent whose work is
-  in the commit, using these canonical identities:
-  - `Co-authored-by: Claude <noreply@anthropic.com>`
-  - `Co-authored-by: Codex (gpt-5.6-sol) <noreply@openai.com>`
-  - `Co-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>`
-- **Explicit override (Kevin, 2026-08-11):** the global rule forbidding AI
-  attribution in commits does NOT apply to this project. Shipshape is an
-  AI-native SDLC project; honest agent attribution is part of its git
-  history by design. This override is scoped to this repository only.
+- Commit only when the user explicitly asks. Never push without being asked.
+- Use a conventional type when appropriate, imperative mood, and a subject
+  under 50 characters. Add a wrapped body when the change needs explanation.
+- Write commit text as Kevin's work. Include no AI attribution or wording that
+  discloses model or assistant involvement.
 
 ## Session close
 

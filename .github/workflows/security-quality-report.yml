@@ -1,11 +1,11 @@
 # Repo-local automation (not part of the shipshape kit's templates): every
 # Monday, gather the raw security and quality data for this repository into
-# an issue, and hand it to the security-quality custom agent
+# an issue, and request handoff to the security-quality custom agent
 # (.github/agents/security-quality.md) to write the prioritized report.
 #
 # Assignment to Copilot requires a user token: set the ACTIONS_PAT repo
-# secret (fine-grained PAT, contents+issues+PR write, owned by a user with
-# Copilot access). Without it, the issue is still created each week and can
+# secret with the repository and alert access needed by this workflow, owned
+# by a user with Copilot access. Without it, the issue is still created and can
 # be handed to the agent manually:
 #   gh agent-task create --custom-agent security-quality -F <issue-body>
 name: Security & quality report
@@ -36,45 +36,25 @@ jobs:
           GH_TOKEN: ${{ secrets.ACTIONS_PAT || github.token }}
           REPO: ${{ github.repository }}
         run: |
-          {
-            echo "Weekly security and quality data for $REPO, gathered $(date -u +%Y-%m-%d)."
-            echo
-            echo "Agent: read .github/agents/security-quality.md for your briefing."
-            echo
-            echo "## CodeQL alerts (open)"
-            gh api "repos/$REPO/code-scanning/alerts?state=open&per_page=100" \
-              --jq '.[] | "- [\(.rule.security_severity_level // .rule.severity)] \(.rule.description) — \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line) (\(.html_url))"' \
-              2>/dev/null || echo "- (code scanning unavailable)"
-            echo
-            echo "## Dependabot alerts (open)"
-            gh api "repos/$REPO/dependabot/alerts?state=open&per_page=100" \
-              --jq '.[] | "- [\(.security_advisory.severity)] \(.dependency.package.name): \(.security_advisory.summary) (\(.html_url))"' \
-              2>/dev/null || echo "- (dependabot alerts unavailable)"
-            echo
-            echo "## Secret scanning alerts (open)"
-            gh api "repos/$REPO/secret-scanning/alerts?state=open&per_page=100" \
-              --jq '.[] | "- \(.secret_type_display_name) (\(.html_url))"' \
-              2>/dev/null || echo "- (secret scanning unavailable)"
-            echo
-            echo "## CI health (last 20 runs on the default branch)"
-            gh api "repos/$REPO/actions/runs?branch=main&per_page=20" \
-              --jq '.workflow_runs[] | "- \(.name): \(.conclusion // .status) (\(.created_at))"' \
-              2>/dev/null || echo "- (runs unavailable)"
-            echo
-            echo "## Workflow permissions audit"
-            for wf in .github/workflows/*.yml; do
-              if ! grep -q "permissions:" "$wf"; then
-                echo "- $wf has no explicit permissions block"
-              fi
-            done
-            echo "- (all other workflows declare explicit permissions)"
-            echo
-            echo "## Open pull requests"
-            gh api "repos/$REPO/pulls?state=open&per_page=50" \
-              --jq '.[] | "- #\(.number) \(.title) (opened \(.created_at), draft: \(.draft))"' \
-              2>/dev/null || echo "- none"
-          } > /tmp/report-data.md
-          cat /tmp/report-data.md
+          assignment_status=manual_handoff
+          if [ "$HAS_PAT" = "true" ]; then
+            assignment_status=requested
+          fi
+          python3 scripts/security_report.py \
+            --repo "$REPO" \
+            --root . \
+            --assignment-status "$assignment_status" \
+            > "$RUNNER_TEMP/security-quality-report.json"
+          python3 - "$RUNNER_TEMP/security-quality-report.json" \
+            "$RUNNER_TEMP/security-quality-report.md" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          Path(sys.argv[2]).write_text(report["body"], encoding="utf-8")
+          print(json.dumps({"status": report["status"], "ok": report["ok"]}))
+          PY
       - name: Create the report issue
         id: issue
         env:
@@ -83,7 +63,7 @@ jobs:
         run: |
           url=$(gh issue create --repo "$REPO" \
             --title "Security & quality report $(date -u +%Y-%m-%d)" \
-            --body-file /tmp/report-data.md)
+            --body-file "$RUNNER_TEMP/security-quality-report.md")
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "number=${url##*/}" >> "$GITHUB_OUTPUT"
       - name: Assign to the security-quality agent (needs ACTIONS_PAT)
@@ -93,13 +73,28 @@ jobs:
           REPO: ${{ github.repository }}
           ISSUE: ${{ steps.issue.outputs.number }}
         run: |
+          set -u
           owner="${REPO%%/*}"; name="${REPO##*/}"
           bot_id=$(gh api graphql -f query="query { repository(owner:\"$owner\", name:\"$name\") { suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 50) { nodes { login ... on Bot { id } } } } }" \
-            --jq '.data.repository.suggestedActors.nodes[] | select(.login=="copilot-swe-agent") | .id')
-          issue_id=$(gh api "repos/$REPO/issues/$ISSUE" --jq .node_id)
-          if [ -n "$bot_id" ] && [ -n "$issue_id" ]; then
-            gh api graphql -f query="mutation { replaceActorsForAssignable(input: {assignableId: \"$issue_id\", actorIds: [\"$bot_id\"]}) { assignable { ... on Issue { number } } } }"
-            echo "Assigned issue #$ISSUE to copilot-swe-agent."
+            --jq '.data.repository.suggestedActors.nodes[] | select(.login=="copilot-swe-agent") | .id' 2>/dev/null || true)
+          issue_id=$(gh api "repos/$REPO/issues/$ISSUE" --jq .node_id 2>/dev/null || true)
+          if [ -n "$bot_id" ] && [ -n "$issue_id" ] && \
+             gh api graphql -f query="mutation { replaceActorsForAssignable(input: {assignableId: \"$issue_id\", actorIds: [\"$bot_id\"]}) { assignable { ... on Issue { number } } } }" >/dev/null 2>&1; then
+            echo "status=assigned" >> "$GITHUB_OUTPUT"
           else
-            echo "Copilot agent not assignable with the provided token; issue left for manual hand-off." >&2
+            echo "status=manual_handoff" >> "$GITHUB_OUTPUT"
           fi
+        id: assignment
+      - name: Record assignment status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ steps.issue.outputs.number }}
+          ASSIGNMENT_STATUS: ${{ steps.assignment.outputs.status }}
+        run: |
+          if [ "$ASSIGNMENT_STATUS" = "assigned" ]; then
+            note="Agent assignment recorded. Inference and review are not complete until the agent produces its report."
+          else
+            note="Agent assignment was not completed; manual handoff is required. Inference and review have not run."
+          fi
+          gh issue comment "$ISSUE" --repo "$REPO" --body "$note"

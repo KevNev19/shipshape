@@ -28,8 +28,10 @@ mirrored only by reference, not rewritten differently.
 
 - Run the tests with: `python3 -m pytest tests/ -q`
 - The same checks run automatically on GitHub every time code is pushed
-  (see `.github/workflows/ci.yml`). A green check means the change is safe;
-  a red X means something broke — open the failed step to see what.
+  (see `.github/workflows/ci.yml`). In trunk style this is after landing; in PR
+  style required checks can run before merge. Green means the configured checks
+  passed for that exact commit, not that the change is safe or every relevant
+  check ran. A red X is a stop sign — open the failed step to see what broke.
 
 ## Security
 

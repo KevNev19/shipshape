@@ -1,20 +1,22 @@
 # Test-quality scanner precision study, and a cost-prototype smoke
 
-- Status: Research results (2026-08-14)
+- Status: Research results (2026-08-14; limitations corrected 2026-09-09)
 - Purpose: first real-world evidence for two research-first gates from
   [0002 — the gap analysis](0002-shipshape-vs-ai-native-sdlc.md): open
   question 1 (is stdlib-only test-quality sensing feasible with acceptable
   precision?) and the metric question behind gap 10 (which verification-cost
-  measure would actually change a decision?). Changes no policy; feeds a
-  future ADR on the `test_quality` feature.
+  measure would actually change a decision?). Changes no policy. The scanner
+  remains a kit-local advisory prototype, not a `test_quality` feature.
 
 ## Method
 
 `scripts/test_quality.py scan` was run against shallow clones of three
 widely used, pytest-heavy Python codebases — flask, requests, and click —
-plus shipshape's own suite. Every flagged test was categorized by reading
-its source (AST-assisted for the bulk categorization, manual reading for
-samples of each category).
+plus shipshape's own suite. Flagged tests were categorized with AST-assisted
+bulk review and manual samples. This is an observational four-repository
+precision exercise: the repositories were not randomly selected, the labels
+were not independently blinded, and unflagged tests were not sampled to
+estimate recall.
 
 ## Before: 38 of 1,269 tests flagged (3.0%)
 
@@ -59,22 +61,31 @@ regression cases in `tests/test_test_quality.py`:
 | click | 530 | 9 → 5 |
 | shipshape | 94 | 0 → 0 |
 
-All 12 categorized false positives are gone. Of the remaining 26 flags,
-roughly half are true assertion-free tests and half are helper-delegation
-misses — the residual precision is therefore around 50–60% on
-helper-heavy codebases and near 100% on codebases that assert inline.
+All 12 categorized false positives identified by the initial review are gone.
+Of the remaining 26 flags, roughly half were genuine assertion-free tests and
+half delegated assertions to helpers. That yields about 50–60% precision for
+the helper-heavy repositories in this small sample. It does not support a
+near-100% projection for other repositories, even when their reviewed samples
+mostly assert inline.
+
+The scan also cannot tell whether a recognized assertion is meaningful. Two
+root-level counterexamples both return no flags: a test containing only
+`assert True`, and a test that defines but never calls a nested function
+containing `assert False`. The second follows from the earlier false-positive
+fix that credits nested assertions. These examples demonstrate unmeasured
+false negatives for the broader question, "can this test catch wrong code?"
 
 ## Verdict against open question 1
 
-- **Feasible as a WARN-level advisory sensor**: stdlib-only, fast (~1s per
-  repo), zero false positives on two of four codebases after the fixes,
-  and every remaining false-positive class is known and documented.
+- **Feasible only as a bounded WARN-level assertion-absence advisory**:
+  stdlib-only and fast (~1s per sampled repo). The observed flag precision is
+  useful for deciding which tests to inspect, not for grading a suite.
 - **Not gate-grade**: helper-delegation misses are common in mature suites
   (flask's config tests are idiomatic, not sloppy), so a FAIL or a merge
-  gate on this signal would misfire. Any shipped form must be WARN-only —
-  consistent with the doctor's existing naive-check philosophy.
-- A real mutation score remains the stronger meta-gate and remains
-  unstudied (cost at CI scale is the open half of question 1).
+  gate on this signal would misfire. Meaningless and uncalled nested
+  assertions also pass. Any use must state those heuristic gaps.
+- No recall, mutation score, cross-language behavior, or general test-quality
+  effect was measured. Mutation-testing sensitivity and CI cost remain open.
 
 ## Cost-prototype smoke (gap 10)
 
@@ -92,9 +103,8 @@ flake-DoS concern.
 
 ## Next steps
 
-1. If the `test_quality` feature is to ship (a future ADR per gap 1 of
-   0002), it ships as a WARN-only advisory in doctor or CI summary form,
-   never a gate, with the helper-delegation boundary stated in its output.
+1. Keep the current prototype kit-local and advisory. Do not turn it into a
+   full `test_quality` tool or a gate on this evidence.
 2. Mutation-testing cost measurement (mutmut on a small real repo) is the
    remaining unstudied half of open question 1.
 3. The cost prototype needs the denominator change before any further

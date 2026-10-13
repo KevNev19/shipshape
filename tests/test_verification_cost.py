@@ -1,18 +1,14 @@
 """Offline tests for verification-cost aggregation."""
 
 import sys
-from datetime import UTC, datetime
+import urllib.parse
+from datetime import datetime, timezone
 from pathlib import Path
-
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import verification_cost  # noqa: E402
 
-
-@pytest.fixture(autouse=True)
-def pin_verification_cost_clock(monkeypatch):
-    monkeypatch.setattr(verification_cost, "_now", lambda: datetime(2026, 8, 20, tzinfo=UTC))
+FIXED_NOW = datetime(2026, 8, 13, 10, 0, tzinfo=timezone.utc)
 
 
 def test_happy_path_aggregates_runs_and_merged_changes(monkeypatch):
@@ -38,7 +34,7 @@ def test_happy_path_aggregates_runs_and_merged_changes(monkeypatch):
 
     monkeypatch.setattr(verification_cost, "fetch_json", fake_fetch)
 
-    result = verification_cost.summarize("owner/repo", 30)
+    result = verification_cost.summarize("owner/repo", 30, now=FIXED_NOW)
 
     assert result == {
         "ok": True,
@@ -73,7 +69,7 @@ def test_retried_run_counts_all_attempts(monkeypatch):
 
     monkeypatch.setattr(verification_cost, "fetch_json", fake_fetch)
 
-    result = verification_cost.summarize("owner/repo", 30)
+    result = verification_cost.summarize("owner/repo", 30, now=FIXED_NOW)
 
     assert result["runs"] == 1
     assert result["attempts"] == 3
@@ -89,7 +85,7 @@ def test_missing_token_fails_without_network(monkeypatch):
 
     monkeypatch.setattr(verification_cost, "fetch_json", unexpected_fetch)
 
-    result = verification_cost.summarize("owner/repo", 30)
+    result = verification_cost.summarize("owner/repo", 30, now=FIXED_NOW)
 
     assert result["ok"] is False
     assert result["estimated_cost"]["status"] == "unknown"
@@ -114,7 +110,7 @@ def test_malformed_run_attempt_is_graceful(monkeypatch):
 
     monkeypatch.setattr(verification_cost, "fetch_json", fake_fetch)
 
-    result = verification_cost.summarize("owner/repo", 30)
+    result = verification_cost.summarize("owner/repo", 30, now=FIXED_NOW)
 
     assert result["ok"] is True
     assert result["runs"] == 1
@@ -148,8 +144,60 @@ def test_malformed_pagination_timestamp_is_graceful(monkeypatch):
 
     monkeypatch.setattr(verification_cost, "fetch_json", fake_fetch)
 
-    result = verification_cost.summarize("owner/repo", 30)
+    result = verification_cost.summarize("owner/repo", 30, now=FIXED_NOW)
 
     assert result["ok"] is True
     assert result["runs"] == 99
     assert result["warnings"]
+
+
+def test_run_at_exact_cutoff_is_included(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    now = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)
+
+    def fake_fetch(path):
+        if path.startswith("repos/"):
+            return {
+                "workflow_runs": [
+                    {
+                        "run_attempt": 1,
+                        "run_started_at": "2026-08-10T12:00:00Z",
+                        "updated_at": "2026-08-10T12:01:00Z",
+                    }
+                ]
+            }
+        query = urllib.parse.unquote(path.split("q=", 1)[1].split("&", 1)[0])
+        assert query == ("repo:owner/repo is:pr is:merged merged:>=2026-08-10T12:00:00+00:00")
+        return {"total_count": 1}
+
+    monkeypatch.setattr(verification_cost, "fetch_json", fake_fetch)
+
+    result = verification_cost.summarize("owner/repo", 30, now=now)
+
+    assert result["runs"] == 1
+    assert result["minutes"] == 1
+
+
+def test_run_just_outside_cutoff_is_excluded(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    now = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)
+
+    def fake_fetch(path):
+        if path.startswith("repos/"):
+            return {
+                "workflow_runs": [
+                    {
+                        "run_attempt": 1,
+                        "run_started_at": "2026-08-10T11:59:59.999999Z",
+                        "updated_at": "2026-08-10T12:01:00Z",
+                    }
+                ]
+            }
+        return {"total_count": 0}
+
+    monkeypatch.setattr(verification_cost, "fetch_json", fake_fetch)
+
+    result = verification_cost.summarize("owner/repo", 30, now=now)
+
+    assert result["runs"] == 0
+    assert result["minutes"] == 0

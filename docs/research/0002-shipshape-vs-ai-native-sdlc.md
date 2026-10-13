@@ -1,6 +1,7 @@
 # shipshape against the AI-native SDLC: a gap analysis
 
-- Status: Research analysis (2026-08-13)
+- Status: Research analysis (2026-08-13; evidence and settled-policy alignment
+  corrected 2026-09-09)
 - Purpose: compare the kit shipshape v0.2.1 actually delivers with the
   verification-centric lifecycle developed in
   [0001 — Challenging the traditional SDLC](0001-ai-native-sdlc.md), and turn
@@ -20,6 +21,11 @@ and classified in Böckeler's guides/sensors × computational/inferential frame.
 Every gap below joins one tiered research finding to one verified fact about the
 kit; where the evidence does not support a change, the register says so rather
 than turning direction-of-travel into doctrine.
+
+The unamended "Current state," proposal, and classification paragraphs below
+are the dated 2026-08-13 snapshot, not assertions about the checkout on
+2026-09-09. Gaps 1, 3, 5, and 6 carry explicit later evidence. The historical
+roadmap at the end records sequencing rationale rather than completed work.
 
 ## What the research validates
 
@@ -54,104 +60,55 @@ and [`templates/adapters/AGENTS.md.tmpl`](../../templates/adapters/AGENTS.md.tmp
 
 **Gap.** The verification-centric lifecycle asks whether tests can detect a
 wrong implementation, not merely whether they execute lines. Shipshape has no
-mutation score, assertion-free-test detector, coverage gate, or other sensor
-for test quality.
+integrated mutation score, coverage gate, or general test-quality sensor; its
+kit-local assertion scan is only a structural advisory.
 
-**Evidence.** Tier 2 evidence says coverage can remain high while mutation
-scores stay low, and treats mutation score as the stronger meta-gate;
-property-based invariants are complementary. The named open question in §7 of
-0001 is whether a useful approximation can be built within shipshape's
-stdlib-only boundary and acceptable CI cost. That open feasibility question is
-part of the evidence, not an implementation detail.
+**Evidence.** The four-repository study in
+[0003](0003-test-quality-precision-study.md) is a small observational precision
+sample of one structural Python heuristic. It measured neither recall nor
+mutation sensitivity. At repository root, both `assert True` and an assertion
+inside an uncalled nested function pass unflagged, demonstrating that assertion
+presence is not evidence that a test can detect wrong behavior. Coverage and
+property-based-testing literature remains design context, not product efficacy.
 
-**Current state.** The four CI variants in
-`templates/github/workflows/ci-*.yml.tmpl` run `{{TEST_CMD}}` once. The
-inventory confirms no test-quality sensor anywhere in
-[`scripts/doctor.py`](../../scripts/doctor.py), the workflow templates, or the
-54-test kit suite.
+**Current state.** `scripts/test_quality.py` is a kit-local prototype. It is
+not rendered into consumer repositories, wired into CI, or treated as a gate.
+Its output identifies tests with no recognized assertion syntax; it does not
+score test quality.
 
-**Proposed change, concretely.** First build a bounded spike as
-`scripts/test_quality.py scan <repo> --language <language>`. It would emit one
-JSON object shaped as
-`{"ok": true, "mode": "assertion-scan", "tests_scanned": 0, "assertion_free": [{"path": "...", "line": 0, "reason": "..."}], "unsupported": [], "next_action": "..."}`.
-The first candidate is a Python-only AST scan using the standard library; a
-real mutation score would remain an integration with a user-supplied command,
-not a bundled dependency. Only if the spike establishes acceptable precision
-and cost should the kit add a `test_quality` feature. The proven scanner would
-become a self-contained
-`templates/scripts/test-quality-python.py.tmpl`, rendered to
-`.sdlc/scripts/test-quality.py`, rather than leaving a consumer workflow
-dependent on the installed plugin. It would be paired with
-`templates/github/workflows/test-quality-python.yml.tmpl`, rendered to
-`.github/workflows/test-quality.yml`; both manifest entries would use pillar
-`workflows`, overwrite policy `ask-if-drifted`, feature flag `test_quality`,
-and condition `{"primary_language": "python"}`. Other languages would get
-separate variants only after validation, and the feature would default off
-until then. A later doctor check named `test quality sensor` would be PASS when
-the enabled feature's script and workflow are present, WARN when tests exist
-but the feature is off, and FAIL when the feature is on but either managed
-artifact is missing. Its FAIL next action would be: "Re-run /shipshape-init to
-restore the test-quality check." A quality finding itself remains a red CI
-result whose next action names the assertion-free test to strengthen.
+**Bounded next step.** Keep the prototype advisory and kit-local. A mutation
+experiment may compare flags with killed mutants and measure runtime; a larger,
+predeclared corpus may estimate recall as well as precision. Until then, do not
+add a `test_quality` feature, consumer workflow, doctor status, or merge gate.
 
-**Classification — `research-first`.** Tier 2 establishes the weakness of
-coverage, but not a stdlib-only, cross-language detector with known false
-positive and CI-cost bounds. Precision/recall against real repositories,
-mutation-runtime measurements, and a decision on user-supplied tool commands
-would unlock an ADR or implementation.
+**Classification — `research-first`.** The prototype supports only a warning
+about recognizable assertion absence. Cross-language behavior, recall,
+mutation sensitivity, and CI cost remain unmeasured.
 
-**Constraint check.** The spike is Python stdlib and JSON-only under ADR 0002;
-any shipped structural differences use token-only variants and
-ask-if-drifted state under ADR 0003; it reports into, rather than bypasses, the
-ADR 0004 agent lane; and the skill translates its result into PASS/WARN/FAIL,
-one consequence, and one next action in the kit's non-engineer voice.
+**Constraint check.** The prototype is Python stdlib and JSON-only under ADR
+0002. It remains kit-local, creates no consumer workflow or doctor state, and
+does not alter the ADR 0003 or ADR 0004 contracts.
 
-### 2. Health and drift are checked only when someone asks
+### 2. Scheduled health exists, but unknown is not healthy
 
-**Gap.** The lifecycle calls for stewardship outside the change path, but
-shipshape's drift and setup sensor is invoke-only. CodeQL and Dependabot run
-weekly, but neither checks whether shipshape's own protections are still
-present and connected.
+**Original gap.** The lifecycle called for stewardship outside the change path,
+but shipshape's drift and setup sensor was invoke-only.
 
 **Evidence.** The named §6 gap is supported by the harness-engineering model:
 continuous drift monitoring closes the feed-forward-only failure mode. This is
 a Tier 2 design pressure, reinforced by the explicit keeper/gap judgment in
 0001; it is not inferred from user perception.
 
-**Current state.** [`scripts/doctor.py`](../../scripts/doctor.py) contains eight
-checks and imports helpers from `scripts/render.py`, but neither script is
-rendered into consumer repositories by
-[`templates/manifest.json`](../../templates/manifest.json). The only shipped
-scheduled jobs are CodeQL and Dependabot.
+**2026-09-09 state.** [ADR 0006](../adr/0006-scheduled-consumer-stewardship.md)
+settled this gap. The manifest now renders a self-contained doctor and weekly
+workflow behind default-on `scheduled_health`, with never-clobber handling.
+The remaining boundary is evidence quality: missing API access, unavailable
+sections, or a skipped handoff must stay WARN/unknown rather than being counted
+as a healthy or completed loop.
 
-**Proposed change, concretely.** Make the consumer dependency explicit rather
-than writing a workflow that calls a missing kit path. Add a self-contained
-stdlib template `templates/scripts/doctor.py.tmpl` at
-`.sdlc/scripts/doctor.py`, plus
-`templates/github/workflows/shipshape-doctor.yml.tmpl` at
-`.github/workflows/shipshape-doctor.yml`. Both manifest entries would use
-pillar `workflows`, overwrite policy `ask-if-drifted`, and a new
-`scheduled_health` feature flag, with no additional `when` condition; the ADR
-would decide whether that flag defaults on. The script would also carry mode
-`755` and embed `{{KIT_VERSION}}`, so it can compare consumer state without the
-plugin being installed.
-The workflow would run on a weekly cron and `workflow_dispatch`, declare
-`contents: read` and `issues: write`, check out the repository, run
-`python3 .sdlc/scripts/doctor.py .`, append the JSON translation to the job
-summary, and open or update one issue only on WARN or FAIL. The rendered
-doctor must not import the plugin's `render.py`; the small hashing and state
-helpers it needs must live in the rendered file. Its command remains
-`doctor.py <repo>` and its one stdout object remains
-`{"ok": true, "set_up": true, "counts": {"PASS": 0, "WARN": 0, "FAIL": 0}, "sections": [], "next_action": "..."}`;
-a stdlib formatting step writes the human-readable job summary. Add a doctor check named
-`scheduled health check`: PASS when both managed files exist and the workflow
-has a schedule, WARN when the feature is deliberately off, and FAIL when the
-feature is on but either file is absent. The FAIL next action would be:
-"Re-run /shipshape-init to restore the scheduled health check."
-
-**Classification — `needs-ADR`.** Scheduling a new recurring workflow,
-writing issues, and distributing executable kit logic are durable policy and
-form-factor commitments even though they fit the research direction.
+**Classification — `settled with an evidence boundary`.** ADR 0010 reinforces
+the unknown-state rule; the production inferential-loop limitation is recorded
+in gap 3.
 
 **Constraint check.** The rendered doctor is stdlib-only and JSON-only under
 ADR 0002; both artifacts are token-only, manifest-selected, and
@@ -176,6 +133,12 @@ data each week, then opens an issue. [`.github/agents/security-quality.md`](../.
 turns it into one dated report-only pull request. Both are explicitly
 kit-local and absent from [`templates/manifest.json`](../../templates/manifest.json);
 automatic assignment also depends on an `ACTIONS_PAT` user secret.
+
+The 2026-09-09 production observation is incomplete: issue 11 contains raw
+collected data, alert APIs were unavailable, and agent assignment was skipped.
+Unavailable alert sections are unknown, not empty, and a raw issue is not an
+inferential review. This is evidence of collection plus a broken handoff, not a
+completed weekly loop.
 
 **Proposed change, concretely.** Treat the existing pair as a prototype, not a
 template ready to copy. After evaluation, create
@@ -247,12 +210,12 @@ briefings stay token-only and never-clobber under ADR 0003; findings still end
 in a human merge decision under ADR 0004; and each finding follows the kit's
 short, evidence-linked, consequence-first voice.
 
-### 5. Agent-control files are not treated as a distinct attack surface
+### 5. Automation and policy controls need conservative path coverage
 
-**Gap.** Secret scanning covers added lines generically, but shipshape does
-not distinguish files that can steer an agent or launch editor tasks from
-ordinary text. A valid credential scan can therefore pass while a repository
-control file changes what a trusted tool executes.
+**Gap.** The original scope covered root `AGENTS.md` and `CLAUDE.md` plus a
+small set of `.claude/` and `.vscode/` paths. It missed nested instructions,
+native `.agents/` and `.codex/` controls, skills and plugin manifests, workflow
+and editor automation, and harness/SDLC policy at other depths.
 
 **Evidence.** Tier 1 evidence from the keyv compromise shows valid provenance
 on malware whose payload used `.claude/` and `.vscode/` files that scanners did
@@ -260,32 +223,23 @@ not read. The supported conclusion is narrow: provenance is not intent, and
 agent/editor configuration needs explicit inspection. It does not support the
 claim that every such file is malicious.
 
-**Current state.** [`templates/hooks/secret-guard.sh.tmpl`](../../templates/hooks/secret-guard.sh.tmpl)
-checks credential-like filenames and known secret patterns across the diff,
-and [`templates/github/workflows/secret-scan.yml.tmpl`](../../templates/github/workflows/secret-scan.yml.tmpl)
-runs it for cloud-authored changes. Neither has path-sensitive rules for
-`.claude/`, `.vscode/`, `.github/agents/`, `.github/copilot-instructions.md`,
-`AGENTS.md`, or `CLAUDE.md`; the review rubric does not name that surface
-either.
+**Current state.** The guard now preserves the file, content, history,
+binary-data, rename, and inspection-error protections already present while
+applying one control-path classifier in staged and range modes. Both sides of a
+rename and mode-only changes are inspected.
 
-**Proposed change, concretely.** Add a third, path-sensitive layer to
-`templates/hooks/secret-guard.sh.tmpl`. Changes under the named control paths
-would always print a WARN requiring explicit review. High-confidence additions
-of executable task, terminal, hook, or encoded-command settings in JSON control
-files would FAIL; markdown instructions would be surfaced, not blocked merely
-for containing commands. The CI template would run the same layer. Update
-[`skills/shipshape-review/references/review-rubric.md`](../../skills/shipshape-review/references/review-rubric.md)
-and both generated GitHub review briefings so every control-file change becomes
-a security finding with purpose and consequence. Add a doctor check named
-`agent control-file coverage`: PASS when the guard and reviewer rule are both
-present, WARN when deterministic scanning exists but the GitHub reviewer is
-disabled, and FAIL when `secret_guard` is enabled without the path-sensitive
-layer. The FAIL next action would be: "Re-run /shipshape-init to restore checks
-for agent and editor control files."
+**Corrected contract.** Changes to those control paths produce a warning and a
+reviewer escalation. Supported agent/editor settings JSON still blocks known
+executable command, hook, task, terminal, or encoded-value patterns. Ordinary
+`.sdlc` state/configuration and plugin-manifest hashes are warning-only unless
+an independent secret or credential rule matches. Markdown outside a named
+control path remains non-blocking. The classifier is conservative and
+heuristic: warnings can be false positives, content patterns can miss risky
+settings, and passing the guard cannot guarantee safety. Legitimate control
+edits remain possible after review; this is not a blanket ban.
 
-**Classification — `needs-ADR`.** Expanding what the security guard blocks and
-what review must escalate changes settled security behavior and needs an
-explicit false-positive and bypass decision.
+**Classification — `settled correction`.** [ADR 0010](../adr/0010-source-bound-automation-and-control-policy.md)
+supersedes the narrower path assumptions without weakening existing security.
 
 **Constraint check.** The existing native shell guard remains ADR 0002's
 allowed hook form and adds no dependency; template changes remain token-only
@@ -293,53 +247,54 @@ and ask-if-drifted under ADR 0003; agent-surface changes are findings for the
 human merger under ADR 0004; and WARN/FAIL output explains the consequence and
 one next action without blame.
 
-### 6. Review authority is one-size-fits-all
+### 6. Review authority needed a bounded exception
 
 **Gap.** Every agent-authored change ends at the same human merge gate,
 regardless of whether it is a docs-only correction or a security-sensitive
 workflow change. The research proposes authority proportional to risk.
 
-**Evidence.** Tier 1 queue and sampling evidence supports reducing universal
-blocking review, while Tier 2 attention evidence explains why adding more
-human contexts is not a free answer. The shipshape-specific conclusion is
-deliberately narrower: auto-merge for low-risk docs or dependency updates
-behind green gates is plausible ADR material, not current policy.
+**Evidence.** Queue and sampling evidence motivates examining the human gate;
+it does not prove that automatic merge improves Shipshape outcomes. Cloudflare
+reported a 0.6% rate for humans overriding its AI reviewer approval, a different
+system and denominator from Shipshape path eligibility. It is context only,
+not a local threshold
+([Cloudflare](https://blog.cloudflare.com/ai-code-review/)).
 
-**Current state.** [ADR 0004](../adr/0004-github-agents-support.md) fixes the
-lane as "automation proposes, CI checks, a human merges."
-[`scripts/gh_helpers.sh`](../../scripts/gh_helpers.sh) can require the `test`
-context and optionally one review, but
-[`templates/manifest.json`](../../templates/manifest.json) renders no branch
-ruleset or tiered-authority artifact.
+**Current state.** [ADR 0008](../adr/0008-tiered-review-authority.md) settled a
+docs/dependency lane using persistent auto-merge and a break-glass concept.
+Implementation review found those bounds too broad and the authorization too
+persistent. [ADR 0010](../adr/0010-source-bound-automation-and-control-policy.md)
+supersedes that contract.
 
-**Proposed change, concretely.** A proposed ADR should define risk classes
-before code. Its narrow implementation would add
-`templates/github/workflows/low-risk-automerge.yml.tmpl` at
-`.github/workflows/low-risk-automerge.yml`, pillar `workflows`, overwrite
-policy `ask-if-drifted`, feature flag `tiered_review`, and condition
-`{"workflow_style": "pr"}`. The workflow would trigger on
-`pull_request_target` but never check out or execute the proposed code. It
-would query changed paths and required checks, and only enable auto-merge for
-an allowlist: ordinary documentation outside security/process/agent-control
-paths, plus authenticated dependency-bot patch updates that modify only an
-existing manifest and lockfile. New dependencies, scripts, workflow files,
-security files, agent controls, failing or absent checks, and unknown paths
-remain human-only. A break-glass action must be labeled, actor-stamped, and
-auditable. A doctor check named `tiered review gates` would PASS when the
-feature is off or all required contexts and path rules are visible, WARN when
-GitHub plan/API access prevents verification, and FAIL when auto-merge is on
-without the required checks. Its next action would be: "Turn off tiered review
-until every required check is enforced."
+**Corrected contract.** Only ordinary documentation can qualify. Code,
+dependencies, legal/governance/process/security material, agent/editor/plugin
+controls, workflows, configuration, skills, harnesses, and uncertain paths are
+human-reviewed. Classification checks old and new rename paths plus file modes.
+Eligibility requires the trusted base to contain explicit current
+`tiered_review: true`, `workflow_style: pr`, and enabled guard configuration.
+Missing, malformed, or revoked configuration fails closed. Every exact
+source-bound required check must be successful for the current head under a
+strict active ruleset; configured-but-missing applicable CodeQL also fails
+closed. Green configured checks show only that those checks passed, not that a
+change is safe.
 
-**Classification — `needs-ADR`.** This directly supersedes ADR 0004's human
-merge rule. The ADR must settle path classes, dependency-bot identity, required
-checks, break-glass audit, and fallback behavior before the feature can exist.
+The worker performs an immediate SHA-conditional REST merge. It never grants
+persistent auto-merge authorization and has no automatic break-glass path.
+GitHub's REST merge can bind the head SHA but cannot atomically freeze the base
+branch observed during classification, so strict server-side enforcement is a
+required second boundary. Unknown pre-existing `auto_merge` state is surfaced
+for manual migration and is never silently disabled.
 
-**Constraint check.** Any helper remains stdlib/JSON under ADR 0002; the one
-workflow is a token-only, condition-selected, never-clobbered template under
-ADR 0003; the exception is introduced only by explicitly superseding ADR 0004
-and never broadens high-risk agent authority; and doctor/report language stays
-plain and action-oriented.
+**Classification — `settled correction`.** ADR 0010 is the authority. It
+removes the dependency lane and persistent authorization from ADR 0008.
+
+**Constraint check.** Setup remains additive and never-clobber. Ordinary trunk
+may add compatible deletion and non-fast-forward safeguards while preserving
+stricter existing controls, but it cannot add pre-landing required statuses
+when the direct push is what starts CI. PR/tiered mode may provision strict
+exact-source status enforcement. Health reports missing or unverifiable remote
+state as unknown, never healthy by assumption. Release binds the exact tested
+default-branch ancestry and named latest runs rather than a merely green branch.
 
 ### 7. Per-change intent is partial and not durable in the repository
 
@@ -641,10 +596,11 @@ token-only, ask-if-drifted template preserves ADR 0003; the guidance explicitly
 keeps the ADR 0004 proposal/CI/human path; and it is written as short,
 non-technical consequences and actions for non-engineers.
 
-## Roadmap sketch
+## Historical roadmap sketch
 
-The order below is dependency- and evidence-driven. A version bucket is not a
-promise to ship an item whose research gate remains closed.
+This is the 2026-08-13 planning snapshot, not a completion report. ADRs 0005–0009
+later settled several items; ADR 0010 corrects the automation and control-path
+assumptions. Prospective work below must still be verified independently.
 
 ### v0.3
 
@@ -671,9 +627,9 @@ promise to ship an item whose research gate remains closed.
    token setup, and cost budget; ship it only if the research-first gate closes.
 3. Prototype verification-cost visibility and choose a decision-relevant,
    provider-neutral measure before adding any budget language.
-4. Write the tiered-review ADR after findings-first review and intent capture
-   are operating; only then pilot the narrow docs/dependency allowlist behind
-   enforced checks.
+4. Pilot the corrected ordinary-docs-only lane from ADR 0010 behind explicit
+   trusted-base configuration and exact source-bound enforcement. Dependencies
+   remain human-reviewed.
 
 ### Later
 
@@ -685,7 +641,7 @@ promise to ship an item whose research gate remains closed.
    deployment evidence and a first supported target exist; it remains additive
    to pre-merge review.
 
-## ADRs to write
+## ADR questions from the 2026-08-13 snapshot
 
 - **Scheduled stewardship for consumer repositories** — Should shipshape
   render a self-contained doctor and run it weekly, and when may it write or
@@ -696,26 +652,28 @@ promise to ship an item whose research gate remains closed.
 - **Agent and editor control files as security-sensitive paths** — Which paths
   and executable settings WARN or FAIL, and how are false positives reviewed
   without weakening the guard?
-- **Tiered review authority behind green gates** — Which paths and actors may
-  auto-merge, which checks are mandatory, and how is break-glass use audited?
+- **Tiered review authority behind green gates** — superseded in implementation
+  by ADR 0010's ordinary-docs-only, immediate-merge contract with no automatic
+  break-glass.
 - **Lightweight durable change intent** — Which changes need an in-repo intent
   artifact, what is the trivial-change escape hatch, and when may intent change?
 
 ## Closing
 
-Three open questions could reorder this register most sharply. A practical,
-stdlib-compatible test-quality experiment would decide whether the most
-obvious sensor gap is tractable. A concrete tiered-authority design with path
-classes, required gates, and break-glass evidence would determine whether the
-human-merge keeper has reached its horizon. Controlled deployment evidence
-would decide whether progressive delivery can become more than a
-platform-specific sketch, though never by retroactively treating it as a
-review replacement.
+Three questions remain material. Test-quality work needs recall and mutation
+evidence before it becomes more than an assertion-absence advisory. The
+ordinary-docs automatic lane needs local refusal and false-eligibility evidence
+under ADR 0010, not a borrowed override threshold. Controlled deployment
+evidence would decide whether progressive delivery can become more than a
+platform-specific sketch, though never by treating it as a review replacement.
 
 Two more findings would change scope rather than order. A measurable proxy for
 comprehension debt could add a stewardship sensor not present in this register,
 and an eval of the kit-local security-quality agent would answer whether
-shipshape should ship any inferential sensor at all. DORA 2026 and the missing
-primary evidence could adjust confidence in the surrounding lifecycle, but
+shipshape should ship any inferential sensor at all. On 2026-09-09 the
+[DORA publications index](https://dora.dev/research/publications/) still
+presented the 2025 state report and companion guides; that observation, rather
+than a categorical claim that no 2026 publication exists, may change on a later
+check. Missing primary evidence could adjust confidence, but
 perception data, panic literature, provenance attestations, and contested
 junior/senior claims would still not justify kit behavior on their own.

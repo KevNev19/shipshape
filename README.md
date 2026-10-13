@@ -21,16 +21,16 @@ heard the word "CI" — either way, your repository deserves automated tests,
 secret protection, dependency monitoring, and releases that don't rely on
 memory and luck.
 
-**Shipshape** is a [Claude Code](https://claude.com/claude-code) plugin that
-sets all of that up for you, conversationally. It scans your repo, asks a
-handful of plain-language questions, shows you exactly what it will create,
-and writes it on your go-ahead. Everything it writes is standard, boring,
-reliable tooling — delete the plugin tomorrow and your setup keeps working.
+**Shipshape** is a plugin for Codex and Claude Code that sets all of that up
+for you, conversationally. It scans your repo, asks a handful of plain-language
+questions, shows you exactly what it will create, and writes it on your
+go-ahead. Everything it writes is standard, boring, reliable tooling — delete
+the plugin tomorrow and your setup keeps working.
 
 ## How it feels
 
 ```text
-you>  /shipshape-init
+you>  $shipshape-init
 
       This looks like a Python project that uses pytest for its tests — is that right?
 
@@ -70,22 +70,71 @@ sentence and saying yes anyway.
 
 | Command | What it does |
 |---|---|
-| ⚓ `/shipshape-init` | Scan, interview, preview, set up. The front door. |
-| 🩺 `/shipshape-doctor` | Health check — security first, one suggested next action. |
-| 👀 `/shipshape-review` | Explains any change in plain language, ends on a clear verdict. |
-| 🚢 `/shipshape-release` | Guided releases: right version number, honest notes, one tag. |
-| 🔑 `/shipshape-access` | "Give Sam access" → the exact GitHub command, shown before it runs. |
-| 🎛️ `/shipshape-customize` | Change anything off the defaults; only the affected files regenerate. |
+| ⚓ `$shipshape-init` | Scan, interview, preview, set up. The front door. |
+| 🩺 `$shipshape-doctor` | Health check — security first, one suggested next action. |
+| 👀 `$shipshape-review` | Explains any change in plain language, ends on a clear verdict. |
+| 🚢 `$shipshape-release` | Guided releases: right version number, honest notes, one tag. |
+| 🔑 `$shipshape-access` | "Give Sam access" → the exact GitHub command, shown before it runs. |
+| 🎛️ `$shipshape-customize` | Change anything off the defaults; only the affected files regenerate. |
+| 🧭 `$shipshape-orchestrate` | Coordinate a bounded change through the worker runtime for the current host. |
+
+The examples use Codex's `$skill-name` syntax; in Claude Code, invoke the same
+entrypoints as `/skill-name`. The six setup, customization, access, intent,
+release, and review skills require explicit `$skill-name` invocation in Codex.
+Claude Code exposes their descriptions to its model, so their shared skill
+bodies independently require a matching user request before they act; all
+existing preview, no-clobber, and confirmation gates still apply.
+
+## Orchestration by host
+
+| Host | Coordinator and worker route |
+|---|---|
+| Codex | The user's selected Codex model coordinates Claude workers through [coredo-eu/codex-claude-orchestrator](https://github.com/coredo-eu/codex-claude-orchestrator), pinned to [`519ccac`](https://github.com/coredo-eu/codex-claude-orchestrator/commit/519ccacda39aafe3ea703cc871d93b141eb8089b). |
+| Claude Code | The user's selected Claude model coordinates Codex workers through [alexzh3/codex-orchestrator](https://github.com/alexzh3/codex-orchestrator). |
+
+The coordinator remains whichever model the user selected in the host; Astra
+is one example, not a requirement. Routing by host is core behavior. Choosing
+individual worker models inside that route is secondary.
 
 ## Get it
 
-Inside Claude Code, in any repository:
+Register the published Shipshape marketplace and install it in Codex:
+
+```bash
+codex plugin marketplace add KevNev19/shipshape
+codex plugin add shipshape@shipshape
+```
+
+Then start a new Codex conversation in the repository you want to set up and
+run `$shipshape-init`. The bundled `.codex-plugin/plugin.json` describes the
+plugin; adding that manifest to a checkout does not install it by itself. Git
+marketplace commands fetch the version published on GitHub, not uncommitted
+changes in a local checkout.
+
+To use an unpublished local checkout with Codex, register its actual absolute
+path instead (after resolving any existing marketplace with the same name):
+
+```bash
+codex plugin marketplace add "/absolute/path/to/shipshape"
+codex plugin add shipshape@shipshape
+```
+
+The local Codex CLI accepts a local marketplace path. Its currently configured
+published Shipshape entry is discovered from the existing
+`.claude-plugin/marketplace.json`; this checkout additionally supplies the
+native `.codex-plugin/plugin.json`. Start a new conversation after installing
+so the skills are loaded from that checkout.
+
+In Claude Code, use its in-app marketplace commands:
 
 ```text
 /plugin marketplace add KevNev19/shipshape
 /plugin install shipshape@shipshape
 /shipshape-init
 ```
+
+Replace `KevNev19/shipshape` with the checkout's absolute path to test local,
+unpublished Claude Code changes.
 
 Needs `git` and `python3` (preinstalled on macOS and most Linux). The
 GitHub CLI (`gh`) unlocks access management and branch protection — shipshape
@@ -111,7 +160,7 @@ will tell you if it's missing, and what to click instead.
 
 One file — `.sdlc/config.json` — drives everything: working style
 (straight-to-main or pull-request), team or solo, features on or off, test
-command, reviewers. Change it with `/shipshape-customize`; shipshape
+command, reviewers. Change it with `$shipshape-customize`; shipshape
 regenerates only what's affected and leaves your edits alone.
 
 ## Under the hood

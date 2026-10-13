@@ -23,8 +23,14 @@
   },
   "toolchain": {
     "python": "3.12",
-    "node": "20",
+    "node": "24",
     "go": "1.22"
+  },
+  "node_package_manager": {
+    "name": "",
+    "version": "",
+    "variant": "",
+    "lockfiles": []
   },
   "release": {
     "versioning": "semver"

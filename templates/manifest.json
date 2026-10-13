@@ -41,7 +41,49 @@
     {
       "src": "github/workflows/ci-node.yml.tmpl",
       "dest": ".github/workflows/ci.yml",
-      "when": { "primary_language": "node" },
+      "when": { "primary_language": "node", "node_package_manager": "npm_legacy" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/ci-node-npm.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language": "node", "node_package_manager": "npm" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/ci-node-npm-corepack.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language": "node", "node_package_manager": "npm_corepack" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/ci-node-pnpm.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language": "node", "node_package_manager": "pnpm" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/ci-node-yarn-classic.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language": "node", "node_package_manager": "yarn_classic" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/ci-node-yarn-modern.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language": "node", "node_package_manager": "yarn_modern" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/ci-node-bun.yml.tmpl",
+      "dest": ".github/workflows/ci.yml",
+      "when": { "primary_language": "node", "node_package_manager": "bun" },
       "pillar": "workflows",
       "overwrite_policy": "ask-if-drifted"
     },
@@ -71,6 +113,12 @@
       "src": "github/workflows/shipshape-doctor.yml.tmpl",
       "dest": ".github/workflows/shipshape-doctor.yml",
       "feature_flag": "scheduled_health",
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "scripts/review-gates.py.tmpl",
+      "dest": ".sdlc/scripts/review-gates.py",
       "pillar": "workflows",
       "overwrite_policy": "ask-if-drifted"
     },
@@ -139,7 +187,55 @@
     {
       "src": "github/workflows/copilot-setup-node.yml.tmpl",
       "dest": ".github/workflows/copilot-setup-steps.yml",
-      "when": { "primary_language": "node" },
+      "when": { "primary_language": "node", "node_package_manager": "npm_legacy" },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-node-npm.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language": "node", "node_package_manager": "npm" },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-node-npm-corepack.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language": "node", "node_package_manager": "npm_corepack" },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-node-pnpm.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language": "node", "node_package_manager": "pnpm" },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-node-yarn-classic.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language": "node", "node_package_manager": "yarn_classic" },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-node-yarn-modern.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language": "node", "node_package_manager": "yarn_modern" },
+      "feature_flag": "github_agents",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/copilot-setup-node-bun.yml.tmpl",
+      "dest": ".github/workflows/copilot-setup-steps.yml",
+      "when": { "primary_language": "node", "node_package_manager": "bun" },
       "feature_flag": "github_agents",
       "pillar": "process",
       "overwrite_policy": "ask-if-drifted"
@@ -184,6 +280,14 @@
       "src": "security/security-explainer.md.tmpl",
       "dest": "docs/sdlc/security.md",
       "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "scripts/release-preflight.py.tmpl",
+      "dest": ".sdlc/scripts/release-preflight.py",
+      "feature_flag": "release_automation",
+      "mode": "755",
+      "pillar": "release",
       "overwrite_policy": "ask-if-drifted"
     },
     {

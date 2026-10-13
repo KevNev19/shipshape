@@ -57,8 +57,10 @@ EXTENSION_THRESHOLD = 3
 
 LOCKFILE_MANAGERS = {
     "package-lock.json": "npm",
+    "npm-shrinkwrap.json": "npm",
     "yarn.lock": "yarn",
     "pnpm-lock.yaml": "pnpm",
+    "bun.lock": "bun",
     "bun.lockb": "bun",
     "uv.lock": "uv",
     "poetry.lock": "poetry",
@@ -67,6 +69,26 @@ LOCKFILE_MANAGERS = {
     "Gemfile.lock": "bundler",
     "go.sum": "go modules",
 }
+
+NODE_LOCKFILE_MANAGERS = {
+    name: manager
+    for name, manager in LOCKFILE_MANAGERS.items()
+    if manager in {"npm", "yarn", "pnpm", "bun"}
+}
+NODE_MANAGER_LOCKFILES = {
+    "npm": ["package-lock.json", "npm-shrinkwrap.json"],
+    "yarn": ["yarn.lock"],
+    "pnpm": ["pnpm-lock.yaml"],
+    "bun": ["bun.lock", "bun.lockb"],
+}
+SUPPORTED_NODE_MANAGERS = set(NODE_MANAGER_LOCKFILES)
+EXACT_MANAGER_VERSION_RE = re.compile(
+    r"^(?:0|[1-9][0-9]*)\."
+    r"(?:0|[1-9][0-9]*)\."
+    r"(?:0|[1-9][0-9]*)"
+    r"(?:-[0-9A-Za-z.-]+)?"
+    r"(?:\+[0-9A-Za-z.-]+)?$"
+)
 
 # Framework detection: substring searched inside a manifest file's text.
 # package.json needles are quoted so "vite" never matches inside "vitest".
@@ -182,13 +204,148 @@ def detect_languages(root: Path, ext_counts: dict[str, int]) -> list[dict]:
     return results
 
 
-def detect_package_managers(root: Path) -> list[str]:
+def _load_package_json(root: Path) -> tuple[dict | None, str]:
+    package_path = root / "package.json"
+    if not package_path.is_file():
+        return None, ""
+    try:
+        package = json.loads(package_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        return None, f"cannot read package.json: {error}"
+    if not isinstance(package, dict):
+        return None, "package.json must contain a JSON object"
+    return package, ""
+
+
+def _yarn_lock_variant(root: Path) -> str:
+    text = _read_text(root / "yarn.lock")
+    if re.search(r"(?m)^__metadata:\s*$", text):
+        return "yarn_modern"
+    if "# yarn lockfile v1" in text:
+        return "yarn_classic"
+    return ""
+
+
+def _manager_signal_error(declared: str, lock_signals: dict[str, list[str]]) -> str:
+    signals = []
+    if declared:
+        signals.append(f"package.json packageManager declares {declared}")
+    for manager in sorted(lock_signals):
+        lockfiles = ", ".join(lock_signals[manager])
+        signals.append(f"{lockfiles} indicate {manager}")
+    return "conflicting Node package-manager signals: " + "; ".join(signals)
+
+
+def detect_node_package_manager(root: Path) -> dict | None:
+    """Resolve Node package-manager evidence without silently breaking ties."""
+    package, package_error = _load_package_json(root)
+    lock_signals: dict[str, list[str]] = {}
+    for lockfile, manager in NODE_LOCKFILE_MANAGERS.items():
+        if (root / lockfile).is_file():
+            lock_signals.setdefault(manager, []).append(lockfile)
+    for lockfiles in lock_signals.values():
+        lockfiles.sort()
+
+    if package is None and not package_error and not lock_signals:
+        return None
+
+    result = {"name": "", "version": "", "variant": "", "lockfiles": []}
+    if package_error:
+        result["error"] = package_error
+        return result
+
+    raw_declaration = package.get("packageManager") if package else None
+    declared_name = ""
+    if raw_declaration is not None:
+        if not isinstance(raw_declaration, str) or "@" not in raw_declaration:
+            result["error"] = (
+                "package.json packageManager must be name@x.y.z with an exact safe version"
+            )
+            return result
+        declared_name, _, version = raw_declaration.partition("@")
+        result["name"] = declared_name
+        if declared_name not in SUPPORTED_NODE_MANAGERS:
+            result["error"] = f"unsupported Node package manager in package.json: {declared_name}"
+            return result
+        if not EXACT_MANAGER_VERSION_RE.fullmatch(version):
+            result["error"] = (
+                "package.json packageManager must use an exact safe version such as "
+                f"{declared_name}@1.2.3"
+            )
+            return result
+        result["version"] = version
+
+    signaled_managers = set(lock_signals)
+    if declared_name:
+        signaled_managers.add(declared_name)
+    if len(signaled_managers) > 1:
+        result["error"] = _manager_signal_error(declared_name, lock_signals)
+        return result
+
+    manager = declared_name or (next(iter(signaled_managers)) if signaled_managers else "npm")
+    lockfiles = lock_signals.get(manager, [])
+    result["name"] = manager
+    result["lockfiles"] = lockfiles
+    if not lockfiles:
+        expected = " or ".join(NODE_MANAGER_LOCKFILES[manager])
+        if declared_name:
+            result["error"] = (
+                f"package.json declares {manager}, but no {expected} was found; "
+                f"commit a {manager} lockfile before initializing shipshape"
+            )
+        else:
+            result["error"] = (
+                f"package.json identifies a Node project, but no {expected} was found; "
+                "commit an npm lockfile before initializing shipshape"
+            )
+        return result
+    if manager != "npm" and not declared_name:
+        result["error"] = (
+            f"{lockfiles[0]} selects {manager}, but fresh setup requires an exact "
+            f'package.json packageManager declaration such as "packageManager": '
+            f'"{manager}@1.2.3"'
+        )
+        return result
+
+    if manager == "yarn":
+        declared_variant = ""
+        if result["version"]:
+            major = int(result["version"].split(".", 1)[0])
+            declared_variant = "yarn_classic" if major == 1 else "yarn_modern"
+        lock_variant = _yarn_lock_variant(root)
+        if declared_variant and lock_variant and declared_variant != lock_variant:
+            result["error"] = (
+                "conflicting Node package-manager signals: package.json declares "
+                f"{declared_variant.replace('_', ' ')}, but yarn.lock is "
+                f"{lock_variant.replace('_', ' ')}"
+            )
+            return result
+        result["variant"] = declared_variant or lock_variant
+        if not result["variant"]:
+            result["error"] = (
+                "cannot distinguish Yarn Classic from modern yarn.lock; add an exact "
+                'packageManager such as "yarn@1.22.22" or "yarn@4.9.2"'
+            )
+            return result
+    elif manager == "npm" and declared_name:
+        result["variant"] = "npm_corepack"
+    else:
+        result["variant"] = manager
+    return result
+
+
+def detect_package_managers(root: Path, node_manager: dict | None = None) -> list[str]:
     found = {
         manager for lockfile, manager in LOCKFILE_MANAGERS.items() if (root / lockfile).is_file()
     }
+    if node_manager and node_manager.get("name") in SUPPORTED_NODE_MANAGERS:
+        found.add(node_manager["name"])
     # A package.json without any JS lockfile still implies npm.
-    js_managers = {"npm", "yarn", "pnpm", "bun"}
-    if (root / "package.json").is_file() and not (found & js_managers):
+    if (
+        node_manager is None
+        and (root / "package.json").is_file()
+        and not (found & SUPPORTED_NODE_MANAGERS)
+    ):
         found.add("npm")
     return sorted(found)
 
@@ -319,10 +476,11 @@ def detect(root: Path, no_network: bool = False) -> dict:
     ext_counts = walk_extensions(root)
     languages = detect_languages(root, ext_counts)
     test_runners, test_guess = detect_test_runners(root, languages)
-    return {
+    node_manager = detect_node_package_manager(root)
+    result = {
         "root": root.name,
         "languages": languages,
-        "package_managers": detect_package_managers(root),
+        "package_managers": detect_package_managers(root, node_manager),
         "frameworks": _scan_markers(root, FRAMEWORK_MARKERS),
         "test_runners": test_runners,
         "test_command_guess": test_guess,
@@ -331,6 +489,9 @@ def detect(root: Path, no_network: bool = False) -> dict:
         "git": detect_git(root, no_network),
         "existing_sdlc": detect_existing_sdlc(root),
     }
+    if node_manager is not None:
+        result["node_package_manager"] = node_manager
+    return result
 
 
 def main() -> int:

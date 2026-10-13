@@ -2,14 +2,14 @@
   What this is: the entry point ANY coding agent reads when it works on this
   project — GitHub Copilot coding agent, Codex, Claude, and others all pick
   this file up. It deliberately stays small — real policy lives in
-  docs/sdlc/harness.md.
+  docs/agents/harness.md.
   Safe to edit: yes, but keep policy in the harness doc, not here.
   managed-by: shipshape v0.2.1
 -->
 
 # shipshape — Instructions for AI Agents
 
-This project's process is defined in `docs/sdlc/harness.md`. Read it before
+This project's process is defined in `docs/agents/harness.md`. Read it before
 making changes; it is the source of truth for how work is built, checked,
 and released here. Keep agent-specific setup in this file small — substantive
 policy belongs in the harness doc and must be mirrored only by reference,

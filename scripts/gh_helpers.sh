@@ -5,7 +5,8 @@
 # branch protection APIs vary by GitHub plan and token scope.
 #
 # Usage:
-#   gh_helpers.sh protect <branch> [--require-review]   apply protection to a branch
+#   gh_helpers.sh protection-plan <branch> <trunk|pr> [options]
+#   gh_helpers.sh protect <branch> <trunk|pr> [options]
 #   gh_helpers.sh protection-status <branch>            show current protection
 #   gh_helpers.sh add-collaborator <user> <pull|push|admin>
 #   gh_helpers.sh remove-collaborator <user>
@@ -14,38 +15,63 @@ set -euo pipefail
 
 fallback() {
   echo "Could not change branch protection automatically (plan or permission limits)." >&2
-  echo "Do it by hand instead: GitHub -> your repository -> Settings -> Branches ->" >&2
-  echo "'Add branch ruleset', target '$1', and enable 'Require status checks to pass'." >&2
+  echo "Do it by hand instead: GitHub -> your repository -> Settings -> Rules -> Rulesets." >&2
+  if [ "$2" = "trunk" ]; then
+    echo "Target '$1'; block branch deletion and non-fast-forward pushes." >&2
+    echo "Do not require post-push CI unless you first adopt a PR or staging path." >&2
+  else
+    echo "Target '$1'; require the exact source-bound checks shown in the plan." >&2
+  fi
 }
 
 repo_slug() {
   gh repo view --json nameWithOwner --jq .nameWithOwner
 }
 
+protection_command() {
+    operation="$1"
+    usage_name="$2"
+    branch="${3:-}"
+    workflow_style="${4:-}"
+    if [ -z "$branch" ] || { [ "$workflow_style" != "trunk" ] && [ "$workflow_style" != "pr" ]; }; then
+      echo "usage: gh_helpers.sh $usage_name <branch> <trunk|pr> [--tiered-review] [--codeql-enabled] [--require-review]" >&2
+      return 2
+    fi
+    slug="$(repo_slug)"
+    script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
+    protection_args=(
+      "$operation"
+      --repo "$slug"
+      --branch "$branch"
+      --workflow-style "$workflow_style"
+    )
+    shift 4
+    for option in "$@"; do
+      case "$option" in
+        --tiered-review|--codeql-enabled|--require-review)
+          protection_args+=("$option")
+          ;;
+        *)
+          echo "usage: gh_helpers.sh $usage_name <branch> <trunk|pr> [--tiered-review] [--codeql-enabled] [--require-review]" >&2
+          return 2
+          ;;
+      esac
+    done
+    if ! python3 "$script_dir/protection.py" "${protection_args[@]}"; then
+      if [ "$operation" = "apply" ]; then
+        fallback "$branch" "$workflow_style"
+      fi
+      return 1
+    fi
+}
+
 cmd="${1:-}"
 case "$cmd" in
+  protection-plan)
+    protection_command plan protection-plan "${@:2}"
+    ;;
   protect)
-    branch="${2:?usage: gh_helpers.sh protect <branch> [--require-review]}"
-    slug="$(repo_slug)"
-    reviews="null"
-    if [ "${3:-}" = "--require-review" ]; then
-      reviews='{"required_approving_review_count":1}'
-    fi
-    if gh api --method PUT "repos/$slug/branches/$branch/protection" \
-      --input - <<EOF
-{
-  "required_status_checks": {"strict": true, "contexts": ["test"]},
-  "enforce_admins": false,
-  "required_pull_request_reviews": $reviews,
-  "restrictions": null
-}
-EOF
-    then
-      echo "Branch '$branch' is now protected (CI must pass before changes land)."
-    else
-      fallback "$branch"
-      exit 1
-    fi
+    protection_command apply protect "${@:2}"
     ;;
   protection-status)
     branch="${2:?usage: gh_helpers.sh protection-status <branch>}"
@@ -77,7 +103,7 @@ EOF
       --jq '.[] | {login: .login, role: .role_name}'
     ;;
   *)
-    echo "usage: gh_helpers.sh protect|protection-status|add-collaborator|remove-collaborator|list-collaborators" >&2
+    echo "usage: gh_helpers.sh protection-plan|protect|protection-status|add-collaborator|remove-collaborator|list-collaborators" >&2
     exit 2
     ;;
 esac
