@@ -2,9 +2,9 @@
   "completed_kit_version": "0.2.1",
   "files": {
     ".github/agents/reviewer.md": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "1b7dae7f6265d23c2a0595e86bc77afd96abc9d37ad9a9e00b6086391a872493",
+      "sha256": "ef07cb2a00452deca06cb0343df825f4ba848bb74c6c3e30ec2a1ec7d042a51f",
       "template": "github/agents/reviewer.md.tmpl"
     },
     ".github/copilot-instructions.md": {
@@ -13,39 +13,39 @@
       "template": "github/copilot-instructions.md.tmpl"
     },
     ".github/dependabot.yml": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "2dfe80798e6de1e7b0483a1267bb9ab966cc83ad595853a2b72f4491b9d2edf2",
+      "sha256": "b1ed0136c257d04a61ce7f8312cf6811dab11961ae3bd998d19b8da346121f9d",
       "template": "github/dependabot.yml.tmpl"
     },
     ".github/workflows/codeql.yml": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "7ff0ca2caea8a65b86d448fdce4f683be9cc8a75addff67bb86569caeb152309",
+      "sha256": "0325d03ce4e5bd0b4b6c90105ea0c5b5a83d79a1c1a8d0884262bac38e94ece1",
       "template": "github/workflows/codeql.yml.tmpl"
     },
     ".github/workflows/copilot-setup-steps.yml": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "e50f53c83479c8211c73da9fd2885acb609ac7eddf289f870354778e02e1c336",
+      "sha256": "da313d28812c1f8f3f499b322cc94bd6d6a522240c0f042628db7ab4fb975afa",
       "template": "github/workflows/copilot-setup-python.yml.tmpl"
     },
     ".github/workflows/release.yml": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "0376bd3f59c0616816c5748e871522968e158bce335eac11c6bd4bb0b05e1406",
+      "sha256": "0c5dc73fce3a88d8df9d2c9fa1c4c7f33c41c745a19fdb712cffd8b633249688",
       "template": "github/workflows/release.yml.tmpl"
     },
     ".github/workflows/secret-scan.yml": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "cc7fe1d048c324fd8aad7b26699a28b66d33c9e60dfec57dbcbd4d09be410ad3",
+      "sha256": "18d22dd276860cfd62511bf3d201c38fc6e5b1ea227ac538d9fc241d03ab66b9",
       "template": "github/workflows/secret-scan.yml.tmpl"
     },
     ".github/workflows/shipshape-doctor.yml": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "0828dc82c28c09b64f3a483f00919acef64da61cab550298886bbd271b9f4b86",
+      "sha256": "a809700d4eaabbbeca6c58cb057b2bf55996e67f14fa7b7fa6a83caa14ebfe86",
       "template": "github/workflows/shipshape-doctor.yml.tmpl"
     },
     ".pre-commit-config.yaml": {
@@ -54,39 +54,39 @@
       "template": "precommit/pre-commit-config.yaml.tmpl"
     },
     ".sdlc/hooks/install.sh": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0755",
-      "sha256": "10a64fae31ea51223d82010ceb6e0feed6980cc23aa193b55aaf87860e55b615",
+      "sha256": "e55a6706e89f1f790b26bebb9b28e4b60882a9973510be76e56d0b1919f2a426",
       "template": "hooks/install.sh.tmpl"
     },
     ".sdlc/hooks/secret-guard.sh": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0755",
-      "sha256": "02ea0765028acecffab5f6b29b2f6faf5d042e75c4c910f4864d917d4d77793a",
+      "sha256": "44457e5bef13c5d484b47a1ecb9b344c3e2dcd7b878a7fb563b9c55be5976fdc",
       "template": "hooks/secret-guard.sh.tmpl"
     },
     ".sdlc/scripts/doctor.py": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0755",
-      "sha256": "f87ef813f6d2bdee21a5870ea8ae23019206cffd531043de009f244573362ccd",
+      "sha256": "e69512a2b500c0caf1c120c1777fc5bdfa5494234d496a9cc1ca8a1e15942515",
       "template": "scripts/doctor.py.tmpl"
     },
     ".sdlc/scripts/release-preflight.py": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0755",
-      "sha256": "a7347603441717d6901fa6ae25854166b43cdd32a19c2f95426007d054736ae2",
+      "sha256": "e8939d9134b0cc17022ddd02983601ce2059cd1d97b0ca718c60cd5965b4b5de",
       "template": "scripts/release-preflight.py.tmpl"
     },
     ".sdlc/scripts/review-gates.py": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "8c9dc225a0da396eedf4469029345d5b1288083044ac859ad7213fa74ecdab34",
+      "sha256": "15bf4be4703f05f80f3feae962f51fbe4afa408a8d5ca7e554cb2d5d5e1e3401",
       "template": "scripts/review-gates.py.tmpl"
     },
     ".sdlc/templates/change-intent.md": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "4a9f239178ddda9f61a93b4272293a9d6657cd0e5d364ca32257430e39ab8b65",
+      "sha256": "5d6ea60266f97d3a763c2a4eb00a93d0d364950c5f8a7e4504783fae3eb951d9",
       "template": "docs/change-intent.md.tmpl"
     },
     "AGENTS.md": {
@@ -95,9 +95,9 @@
       "template": "adapters/AGENTS.md.tmpl"
     },
     "SECURITY.md": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "8c43e3c607622a69da9a27af34315f4cc71872ff93a2a545e637dd38a7988023",
+      "sha256": "1c495c813cb68b307ba4e40b3336d05aa15a3e31abc421b7fcedb9897dc3b565",
       "template": "security/SECURITY.md.tmpl"
     },
     "docs/sdlc/design.md": {
@@ -106,9 +106,9 @@
       "template": "docs/design-doc.md.tmpl"
     },
     "docs/sdlc/glossary.md": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "a5a41486be70cc9c072cae82863dc1df213cd8e46c807fec1bd1f8faadc8e1df",
+      "sha256": "39ed28b80538fcc2cc5702e4ecaa00ecbf5a26b323c091bbb2954863be35d21e",
       "template": "docs/glossary.md.tmpl"
     },
     "docs/sdlc/harness.md": {
@@ -117,15 +117,15 @@
       "template": "harness/sdlc-harness.md.tmpl"
     },
     "docs/sdlc/security.md": {
-      "kit_version": "0.2.1",
+      "kit_version": "0.3.0",
       "mode": "0644",
-      "sha256": "e89677577825cd6f62069882f14eada85630ad7245cde64dff60ff2919388338",
+      "sha256": "c785e5f20447c9b21dab8b5925d1530c1ec703eb2fb5faef4348c272842df46c",
       "template": "security/security-explainer.md.tmpl"
     }
   },
   "kit_version": "0.2.1",
   "last_run_errors": [],
-  "last_run_kit_version": "0.2.1",
+  "last_run_kit_version": "0.3.0",
   "pending_conflicts": [
     ".github/copilot-instructions.md",
     ".github/workflows/ci.yml",

@@ -5,7 +5,7 @@
 # using the framework, and leaves any unrelated existing hook byte-for-byte
 # unchanged.
 # Safe to edit: yes.
-# managed-by: shipshape v0.2.1
+# managed-by: shipshape v0.3.0
 set -euo pipefail
 
 fail() {

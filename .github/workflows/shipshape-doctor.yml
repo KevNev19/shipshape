@@ -1,7 +1,7 @@
 # What this is: a weekly check that makes sure shipshape's protections are
 # still present and connected, with a manual run button for on-demand checks.
 # Safe to edit: yes — shipshape will ask before overwriting your edits.
-# managed-by: shipshape v0.2.1
+# managed-by: shipshape v0.3.0
 name: shipshape health check
 
 on:

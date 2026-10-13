@@ -2,7 +2,7 @@
 # What this is: a self-contained health check for this shipshape-managed
 # repository, suitable for local use and the scheduled GitHub workflow.
 # Safe to edit: yes — shipshape will ask before overwriting your edits.
-# managed-by: shipshape v0.2.1
+# managed-by: shipshape v0.3.0
 """Health check for a shipshape-managed repo (ADR 0002: stdlib only).
 
 Emits one JSON scorecard on stdout: sections in priority order (security
@@ -37,7 +37,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-KIT_VERSION = "0.2.1"
+KIT_VERSION = "0.3.0"
 PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 RETRY_ACTIONS = ("nick-fields/retry", "nick-invision/retry", "wandalen/wretry.action")
 SHELL_LOOP_SCAN_LIMIT = 1000

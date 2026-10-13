@@ -1,7 +1,7 @@
 <!--
   What this is: a short starting point for recording why a change exists.
   Safe to edit: yes — shipshape will ask before overwriting your edits.
-  managed-by: shipshape v0.2.1
+  managed-by: shipshape v0.3.0
 -->
 
 # Change intent

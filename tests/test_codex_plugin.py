@@ -88,12 +88,12 @@ def test_native_manifest_declares_codex_plugin_contract():
     assert manifest_path.is_file()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["name"] == "shipshape"
-    assert manifest["version"] == "0.2.1"
+    assert manifest["version"] == "0.3.0"
     legacy_manifest = json.loads(
         (KIT_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     assert legacy_manifest["version"] == manifest["version"]
-    assert 'version = "0.2.1"' in (KIT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'version = "0.3.0"' in (KIT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert manifest["skills"] == "./skills/"
     assert manifest["interface"]["displayName"] == "Shipshape"
     assert manifest["interface"]["shortDescription"]
@@ -125,7 +125,7 @@ def test_native_only_copied_bundle_reads_version_and_runs_render(tmp_path):
 
     assert proc.returncode == 0, proc.stderr
     assert payload["ok"] is True
-    assert payload["config"]["kit_version"] == "0.2.1"
+    assert payload["config"]["kit_version"] == "0.3.0"
     assert not (bundle / ".claude-plugin").exists()
 
 
@@ -135,7 +135,7 @@ def test_render_falls_back_to_legacy_manifest_when_native_is_absent(tmp_path):
     proc, payload = run_init_config(bundle, tmp_path)
 
     assert proc.returncode == 0, proc.stderr
-    assert payload["config"]["kit_version"] == "0.2.1"
+    assert payload["config"]["kit_version"] == "0.3.0"
 
 
 def test_render_prefers_native_manifest_when_both_are_present(tmp_path):

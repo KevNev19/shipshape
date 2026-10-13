@@ -7,7 +7,7 @@ description: Reviews pull requests on shipshape in plain language — verified f
   What this is: a custom agent profile for GitHub's agent surface. When a
   coding agent reviews a pull request here, this is its briefing.
   Safe to edit: yes — shipshape will ask before overwriting your edits.
-  managed-by: shipshape v0.2.1
+  managed-by: shipshape v0.3.0
 -->
 
 You review pull requests on this repository for people who may not read
