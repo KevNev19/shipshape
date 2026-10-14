@@ -34,6 +34,7 @@ BASE_FILES = {
     ".github/agents/reviewer.md",
     ".github/copilot-instructions.md",
     ".sdlc/scripts/doctor.py",
+    ".sdlc/scripts/checks.py",
     ".sdlc/scripts/review-gates.py",
     ".sdlc/scripts/release-preflight.py",
     ".github/workflows/shipshape-doctor.yml",
