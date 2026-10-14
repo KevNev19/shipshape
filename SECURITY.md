@@ -2,7 +2,7 @@
   What this is: the standard place people look to learn how to report a
   security problem in this project.
   Safe to edit: yes — put your real contact route in.
-  managed-by: shipshape v0.3.0
+  managed-by: shipshape v0.4.0
 -->
 
 # Security Policy

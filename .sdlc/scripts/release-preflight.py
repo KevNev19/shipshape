@@ -2,7 +2,7 @@
 # What this is: proves that one exact commit has the GitHub evidence required
 # before a tag is pushed or a GitHub release is created.
 # Safe to edit: yes — shipshape will ask before overwriting your edits.
-# managed-by: shipshape v0.3.0
+# managed-by: shipshape v0.4.0
 
 import argparse
 import base64

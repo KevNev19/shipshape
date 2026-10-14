@@ -521,7 +521,7 @@ def test_partial_apply_preserves_completed_version_and_conflict_history(tmp_path
     assert final_state["status"] == "partial"
     assert final_state["kit_version"] == "0.1.0"
     assert final_state["completed_kit_version"] == "0.1.0"
-    assert final_state["last_run_kit_version"] == "0.3.0"
+    assert final_state["last_run_kit_version"] == "0.4.0"
     assert final_state["pending_conflicts"] == ["CLAUDE.md"]
     assert final_state["files"]["CLAUDE.md"] == old_record
 
@@ -542,6 +542,6 @@ def test_old_init_and_apply_cli_remain_compatible(tmp_path):
     assert applied["written"]
     state = json.loads((repo / STATE_PATH).read_text(encoding="utf-8"))
     assert state["status"] == "complete"
-    assert state["kit_version"] == "0.3.0"
-    assert state["completed_kit_version"] == "0.3.0"
-    assert state["last_run_kit_version"] == "0.3.0"
+    assert state["kit_version"] == "0.4.0"
+    assert state["completed_kit_version"] == "0.4.0"
+    assert state["last_run_kit_version"] == "0.4.0"

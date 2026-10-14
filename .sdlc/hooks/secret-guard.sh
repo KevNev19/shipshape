@@ -15,7 +15,7 @@
 # control formats are warning-only. This heuristic does not prove semantic
 # safety; every control-file change still needs review.
 # Safe to edit: yes, but keep all three layers — file, content, and control paths.
-# managed-by: shipshape v0.3.0
+# managed-by: shipshape v0.4.0
 set -u
 
 inspection_error() {
