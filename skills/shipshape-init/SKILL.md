@@ -176,8 +176,9 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    result from step 8; a config flag alone is not remote proof. In trunk mode,
    checks run after a direct push, so they are not pre-landing enforcement. Name
    `docs/sdlc/harness.md` as the plan of record,
-   suggest `/shipshape-doctor` as the anytime health check, give one next step,
-   then remove the exact directory created in step 2.
+   suggest `/shipshape-doctor` as the anytime health check and
+   `python3 .sdlc/scripts/checks.py run .` to run the saved checks, give one
+   next step, then remove the exact directory created in step 2.
 
    ```bash
    rm -rf "${SHIPSHAPE_SESSION_DIR}"

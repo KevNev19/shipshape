@@ -6,14 +6,27 @@ description: Review a change in plain language — verified findings, whether it
 # shipshape-review
 
 Translate a change and its automated-check results for someone who may not
-read code. Strictly read-only — this skill never edits, commits, merges, or
-approves. Follow
+read code. Read-only toward the change — this skill never edits, commits,
+merges, or approves; the one thing it runs is the project's own checks, on
+local work only. Follow
 [../shipshape-init/references/voice.md](../shipshape-init/references/voice.md);
 inspect with [references/review-rubric.md](references/review-rubric.md), then
 report through
 [references/finding-contract.md](references/finding-contract.md).
 
 Use this entrypoint only when the user requests a review or change explanation.
+
+## Bundle path
+
+Before running a bundled script, set `SHIPSHAPE_ROOT` to the actual absolute
+bundle path discovered from this loaded skill: from the directory containing
+this loaded `SKILL.md`, go up two parent directories. This is the Shipshape
+bundle, not the target repository or current working directory. Replace the
+example value with the path you discovered and keep it quoted:
+
+```bash
+export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
+```
 
 ## Steps
 
@@ -23,9 +36,26 @@ Use this entrypoint only when the user requests a review or change explanation.
    - otherwise → uncommitted work: `git diff` plus `git diff --cached`
    If the diff is empty, say so and stop.
 
-2. **Get the check results** (PRs only): `gh pr checks <n>`. For a failing
-   check, fetch the failed step's log tail (`gh run view --log-failed`) and
-   find the first real error line.
+2. **Get the check results.**
+   - A PR: `gh pr checks <n>`. For a failing check, fetch the failed step's
+     log tail (`gh run view --log-failed`) and find the first real error
+     line.
+   - Uncommitted work, or the branch checked out here: tell the user you
+     are running the project's checks, then run them once:
+
+     ```bash
+     python3 "${SHIPSHAPE_ROOT}/scripts/checks.py" run .
+     ```
+
+     Each `results` entry is one check: `passed`, the failure count the
+     tool printed (`failures`, `null` when it printed none), and the last
+     lines of its output (`tail`), where the first real error line usually
+     is. A check whose `exit_code` is 126, 127 or `null` did not run to the
+     end: report it as a material uncertainty, with the last line of its
+     `tail`. When `ran` is `false`, report "no checks ran" and its
+     `reason`.
+   - A branch that is not checked out: report that its checks were not
+     run, as a material uncertainty.
 
 3. **Find the intent.** Use the linked intent artifact (a written record of
    what the change is meant to do), originating issue (the task that led to

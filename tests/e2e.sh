@@ -99,6 +99,10 @@ python3 "$KIT/scripts/doctor.py" . > "$session/doctor.json" \
   || { echo "FAIL: doctor reported failures" >&2; cat "$session/doctor.json" >&2; exit 1; }
 python3 -c 'import json, pathlib, sys; d=json.loads(pathlib.Path(sys.argv[1]).read_text()); assert d["ok"] and d["counts"]["FAIL"] == 0, d' "$session/doctor.json"
 
+echo "== checks =="
+python3 .sdlc/scripts/checks.py run . --command="python3 -m pytest -q" > "$session/checks.json"
+python3 -c 'import json, pathlib, sys; r=json.loads(pathlib.Path(sys.argv[1]).read_text()); t=r["results"][0]; assert r["ok"] and r["ran"] and t["name"] == "python3 -m pytest -q" and t["passed"] and t["failures"] == 0, r' "$session/checks.json"
+
 echo ""
 echo "All mechanical checks passed."
 echo ""

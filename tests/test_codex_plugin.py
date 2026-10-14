@@ -15,6 +15,7 @@ SCRIPT_SKILLS = (
     "shipshape-customize",
     "shipshape-intent",
     "shipshape-access",
+    "shipshape-review",
 )
 EXPLICIT_ONLY_SKILLS = (
     "shipshape-init",
