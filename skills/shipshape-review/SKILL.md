@@ -84,18 +84,38 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    - A branch that is not checked out: report that its checks were not
      run, as a material uncertainty.
 
-3. **Find the intent.** Use the linked intent artifact (a written record of
+3. **Check test integrity** (whether the change deletes, skips, or weakens
+   a test). Scan the same change as step 1:
+
+   ```bash
+   # a PR
+   gh pr diff <n> | python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" . --stdin
+   # a branch
+   python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" . --range=<default-branch>...<branch>
+   # uncommitted work
+   python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" .
+   ```
+
+   Every entry in `findings` is a verified finding, green checks or not: a
+   deleted, skipped, or weakened test is how red checks turn green. Its
+   `file` and `line` are the evidence and its `consequence` is the
+   plain-language consequence. Report under material uncertainties each
+   language in `unsupported` (its changes were not checked for weakened
+   tests) and, when `ok` is false or `warnings` is not empty, that test
+   integrity was not checked, with the `error` or the warning.
+
+4. **Find the intent.** Use the linked intent artifact (a written record of
    what the change is meant to do), originating issue (the task that led to
    the change), pull request, task, or the user's request. Link an artifact or
    issue when one exists. Do not guess when none exists.
 
-4. **Read the whole diff** and work through the rubric. For large diffs,
+5. **Read the whole diff** and work through the rubric. For large diffs,
    inspect every file but organize findings by severity, not by file.
    Inspect both names of renames and file-mode changes. A scanner pass is
    bounded evidence, not a guarantee; verify control and security changes from
    the diff and report material heuristic gaps or false-positive uncertainty.
 
-5. **Report through the finding contract.** Keep its five parts in order.
+6. **Report through the finding contract.** Keep its five parts in order.
    Translate check failures and code evidence into plain-language
    consequences. Give every finding exactly one next action.
 
