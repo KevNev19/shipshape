@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "name": "specification",
+      "paths": [
+        "**/specs/**/*.md",
+        "**/*-design.md",
+        "**/adr/**/*.md",
+        "**/decisions/**/*.md",
+        "**/rfcs/**/*.md",
+        "docs/changes/**/*.md"
+      ],
+      "lenses": [
+        {
+          "key": "contradiction",
+          "prompt": "Does any requirement contradict another part of the document, an accepted decision record or the stated intent? Name both places."
+        },
+        {
+          "key": "testability",
+          "prompt": "Does every requirement come with an acceptance check that can pass or fail, so someone can tell when it is met?"
+        },
+        {
+          "key": "security",
+          "prompt": "Does the specification touch secrets, permissions, untrusted input or data that cannot be recovered, without a rule for how each is handled?"
+        },
+        {
+          "key": "ambiguity",
+          "prompt": "Could any requirement be read two ways that lead to different builds? Quote the words and give both readings."
+        },
+        {
+          "key": "completeness",
+          "prompt": "What does the intent ask for that no requirement covers, such as an error case, a limit, a migration or an upgrade path?"
+        }
+      ]
+    },
+    {
+      "name": "plan",
+      "paths": [
+        "**/plans/**/*.md",
+        "**/*-plan.md"
+      ],
+      "lenses": [
+        {
+          "key": "order",
+          "prompt": "Does every step come after the steps it depends on, and is every file, function or name a step uses either already present or created by an earlier step?"
+        },
+        {
+          "key": "verification",
+          "prompt": "Does every step say how it is shown to work, with an exact command and the result to expect, before the next step starts?"
+        },
+        {
+          "key": "security",
+          "prompt": "Does any step weaken a check, widen a permission, turn off the secret guard, or put a secret in a file or on a command line?"
+        },
+        {
+          "key": "coverage",
+          "prompt": "Does every requirement of the specification or intent the plan follows map to a step, and does any step build something nothing asks for?"
+        },
+        {
+          "key": "specificity",
+          "prompt": "Can every step be carried out without guessing, or does one leave a placeholder, a vague instruction such as \"handle the errors\", or a back-reference such as \"like the previous step\"?"
+        }
+      ]
+    },
+    {
+      "name": "documentation",
+      "paths": [
+        "**/*.md",
+        "**/*.mdx",
+        "**/*.rst",
+        "**/*.adoc"
+      ],
+      "lenses": [
+        {
+          "key": "accuracy",
+          "prompt": "Is every statement about commands, options, paths, outputs and behaviour true of the code in this repository? Quote the statement and the code that disagrees."
+        },
+        {
+          "key": "links",
+          "prompt": "Does every link, anchor, file and command the change refers to exist?"
+        },
+        {
+          "key": "security",
+          "prompt": "Does the change publish a secret, a credential or a private address, tell readers to weaken a security setting, or change what an agent instruction, skill or harness file (AGENTS.md, CLAUDE.md, SKILL.md, or a document under docs/agents/ or docs/sdlc/) lets an agent do?"
+        },
+        {
+          "key": "clarity",
+          "prompt": "Can the intended reader follow it without reading the code, with each term of art explained on first use and each procedure in the order it is done?"
+        },
+        {
+          "key": "consistency",
+          "prompt": "Does another document in the repository now say something different about the same thing?"
+        }
+      ]
+    },
+    {
+      "name": "code",
+      "paths": [
+        "**"
+      ],
+      "lenses": [
+        {
+          "key": "behaviour",
+          "prompt": "What does the change actually do, not what its title says, and does anything change for existing users or data, such as a rename, a removal, a format change or a migration?"
+        },
+        {
+          "key": "tests",
+          "prompt": "Is each new or changed behaviour covered by a test, and was any existing test changed to pass: legitimately, because the correct answer changed, or by weakening a check?"
+        },
+        {
+          "key": "security",
+          "prompt": "Does the change add a secret or credential, a new dependency, a widened workflow permission, a disabled check, an edit to an agent or editor control file, or user input that reaches a shell, a query, a file path or a page unescaped?"
+        },
+        {
+          "key": "blast-radius",
+          "prompt": "What depends on the changed code, what happens when it gets bad input or a dependency fails, and is anything irreversible, such as a deletion, a data rewrite or a one-way migration?"
+        }
+      ]
+    }
+  ]
+}
