@@ -2,50 +2,51 @@
   "completed_kit_version": "0.2.1",
   "files": {
     ".github/agents/reviewer.md": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "ef07cb2a00452deca06cb0343df825f4ba848bb74c6c3e30ec2a1ec7d042a51f",
+      "sha256": "8c5a35d7be71bb2617879b8a634008bdac3cd868f07b9469e183b2cf1a69106b",
       "template": "github/agents/reviewer.md.tmpl"
     },
     ".github/copilot-instructions.md": {
-      "kit_version": "0.2.1",
-      "sha256": "431e8485d243a7ba02e7e044f383d7320231facc1d4ea64f91e625527913529c",
+      "kit_version": "0.4.0",
+      "mode": "0644",
+      "sha256": "9f9a1c5266f00e3e71567cd7fd45ab8c0fea1464b92580f3d4ff64bf587497f1",
       "template": "github/copilot-instructions.md.tmpl"
     },
     ".github/dependabot.yml": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "b1ed0136c257d04a61ce7f8312cf6811dab11961ae3bd998d19b8da346121f9d",
+      "sha256": "584a64e9fb7bb1842494c232940cc5564026125a89fd8980e4b0c29de6374881",
       "template": "github/dependabot.yml.tmpl"
     },
     ".github/workflows/codeql.yml": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "0325d03ce4e5bd0b4b6c90105ea0c5b5a83d79a1c1a8d0884262bac38e94ece1",
+      "sha256": "c5a2eadc88c53a448f38dcbe8c64067d221eb71a7fc34513f2176909070e8c34",
       "template": "github/workflows/codeql.yml.tmpl"
     },
     ".github/workflows/copilot-setup-steps.yml": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "da313d28812c1f8f3f499b322cc94bd6d6a522240c0f042628db7ab4fb975afa",
+      "sha256": "931b989143f6ee78644d5c5a85d0295ba27f30d925bee2aa9f8165a497942240",
       "template": "github/workflows/copilot-setup-python.yml.tmpl"
     },
     ".github/workflows/release.yml": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "0c5dc73fce3a88d8df9d2c9fa1c4c7f33c41c745a19fdb712cffd8b633249688",
+      "sha256": "b91d6e18644c2dc17b8a6e1b9ab78c7ad79a9b441aeb075c2203005fc777aac7",
       "template": "github/workflows/release.yml.tmpl"
     },
     ".github/workflows/secret-scan.yml": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "18d22dd276860cfd62511bf3d201c38fc6e5b1ea227ac538d9fc241d03ab66b9",
+      "sha256": "ad97c258463ea7e1f5c1bc00ba073c3121484fea0e7d939ef4b67f3426763635",
       "template": "github/workflows/secret-scan.yml.tmpl"
     },
     ".github/workflows/shipshape-doctor.yml": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "a809700d4eaabbbeca6c58cb057b2bf55996e67f14fa7b7fa6a83caa14ebfe86",
+      "sha256": "4a53e4ac7121bacd5543ca8fb74f62ce616c289a496601cbda4d8a121554f4ac",
       "template": "github/workflows/shipshape-doctor.yml.tmpl"
     },
     ".pre-commit-config.yaml": {
@@ -54,39 +55,45 @@
       "template": "precommit/pre-commit-config.yaml.tmpl"
     },
     ".sdlc/hooks/install.sh": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "e55a6706e89f1f790b26bebb9b28e4b60882a9973510be76e56d0b1919f2a426",
+      "sha256": "af95459ea105bd50f699606fa8cec3766a883f38999b7e3f196ad2aa26c4c010",
       "template": "hooks/install.sh.tmpl"
     },
     ".sdlc/hooks/secret-guard.sh": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "44457e5bef13c5d484b47a1ecb9b344c3e2dcd7b878a7fb563b9c55be5976fdc",
+      "sha256": "0d789a58b649d85173299ba46b9ecb72e039c67f8f5bba50406658f0409b97d5",
       "template": "hooks/secret-guard.sh.tmpl"
     },
-    ".sdlc/scripts/doctor.py": {
-      "kit_version": "0.3.0",
+    ".sdlc/scripts/checks.py": {
+      "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "e69512a2b500c0caf1c120c1777fc5bdfa5494234d496a9cc1ca8a1e15942515",
+      "sha256": "9d773d22e119ea67f756d72bf6b282bfebb1c4422576c7d3616379ad7ddd5e1f",
+      "template": "scripts/checks.py.tmpl"
+    },
+    ".sdlc/scripts/doctor.py": {
+      "kit_version": "0.4.0",
+      "mode": "0755",
+      "sha256": "244d016e63caee635f53da19b5fdb42164931452a1bc39a4e82cbe067de21570",
       "template": "scripts/doctor.py.tmpl"
     },
     ".sdlc/scripts/release-preflight.py": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "e8939d9134b0cc17022ddd02983601ce2059cd1d97b0ca718c60cd5965b4b5de",
+      "sha256": "0898931508aeb64825f1ed1c5f1073b92e436f340c2320f00ede7aa559fc2cbe",
       "template": "scripts/release-preflight.py.tmpl"
     },
     ".sdlc/scripts/review-gates.py": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "15bf4be4703f05f80f3feae962f51fbe4afa408a8d5ca7e554cb2d5d5e1e3401",
+      "sha256": "9b273a46c559829bac3b4f96f8d0831b1d10a04e9f841301019bbfcc67a0fea1",
       "template": "scripts/review-gates.py.tmpl"
     },
     ".sdlc/templates/change-intent.md": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "5d6ea60266f97d3a763c2a4eb00a93d0d364950c5f8a7e4504783fae3eb951d9",
+      "sha256": "50fb2239379986d493021d3c15a25083cdd11741117b7743961757fe59656dd7",
       "template": "docs/change-intent.md.tmpl"
     },
     "AGENTS.md": {
@@ -95,9 +102,9 @@
       "template": "adapters/AGENTS.md.tmpl"
     },
     "SECURITY.md": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "1c495c813cb68b307ba4e40b3336d05aa15a3e31abc421b7fcedb9897dc3b565",
+      "sha256": "b0f7fe9b5fe24b7214222394a6b3d432fb76fa5d5efef478517f1fc4f82ca60e",
       "template": "security/SECURITY.md.tmpl"
     },
     "docs/sdlc/design.md": {
@@ -106,9 +113,9 @@
       "template": "docs/design-doc.md.tmpl"
     },
     "docs/sdlc/glossary.md": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "39ed28b80538fcc2cc5702e4ecaa00ecbf5a26b323c091bbb2954863be35d21e",
+      "sha256": "ad1a32e2efc358bf3626762f73070811cc54b576c70ebbe7ff8e281bcee04f64",
       "template": "docs/glossary.md.tmpl"
     },
     "docs/sdlc/harness.md": {
@@ -117,17 +124,16 @@
       "template": "harness/sdlc-harness.md.tmpl"
     },
     "docs/sdlc/security.md": {
-      "kit_version": "0.3.0",
+      "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "c785e5f20447c9b21dab8b5925d1530c1ec703eb2fb5faef4348c272842df46c",
+      "sha256": "3af85cb49ab696505959928a0e56015a36b5a57f4e312c6634f0df63faea3ce9",
       "template": "security/security-explainer.md.tmpl"
     }
   },
   "kit_version": "0.2.1",
   "last_run_errors": [],
-  "last_run_kit_version": "0.3.0",
+  "last_run_kit_version": "0.4.0",
   "pending_conflicts": [
-    ".github/copilot-instructions.md",
     ".github/workflows/ci.yml",
     ".pre-commit-config.yaml",
     "AGENTS.md",

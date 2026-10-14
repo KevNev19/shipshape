@@ -8,7 +8,7 @@ stored for a later head. Stdout is one JSON object so workflows and doctor can
 consume the same decision surface.
 """
 
-# managed-by: shipshape v0.3.0
+# managed-by: shipshape v0.4.0
 
 from __future__ import annotations
 
