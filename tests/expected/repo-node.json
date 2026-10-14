@@ -1,4 +1,14 @@
 {
+  "checks": [
+    {
+      "command": "npm test",
+      "confidence": "high",
+      "language": "node",
+      "name": "test",
+      "proven": false,
+      "source": "package.json"
+    }
+  ],
   "ci": {
     "github_actions": false,
     "has_codeql": false,

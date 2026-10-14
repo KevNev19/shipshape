@@ -25,7 +25,13 @@ maximum; fewer is better.
    of checking the project works today. If they have none, say the setup
    will include a placeholder and that adding a first real test is a good
    early goal.
-   → maps to `commands.test=...`.
+   Then confirm the other checks the scan proposed under `checks` (lint,
+   build, typecheck, format) in one sentence, each named by what it
+   catches ("It also looks like `ruff check .` catches common mistakes and
+   `mypy .` checks the types — keep both?").
+   → maps to `commands.test=...`; a changed check to `commands.<kind>=...`
+   and a dropped one to `commands.<kind>=` (kind: lint, build, typecheck,
+   format).
 
 4. **Anything that must never leak?**
    "Does this project handle anything sensitive — passwords, API keys,
@@ -41,5 +47,6 @@ maximum; fewer is better.
 
 ## Defaults if the user just says "use the defaults"
 
-solo, trunk, detected test command (or placeholder), guardrails all on.
-Say the four choices back in one sentence and move on.
+solo, trunk, detected test command (or placeholder) and the detected
+checks, guardrails all on. Say the four choices back in one sentence and
+move on.

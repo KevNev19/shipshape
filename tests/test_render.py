@@ -519,6 +519,7 @@ def test_init_config_captures_detection(tmp_path):
     config = json.loads((repo / ".sdlc/config.json").read_text())
     assert "python" in config["languages"]
     assert "pytest" in config["commands"]["test"]
+    assert set(config["commands"]) == {"test", "lint", "build", "typecheck", "format"}
     assert config["features"]["tiered_review"] is False
 
 
@@ -532,6 +533,79 @@ def test_init_config_set_overrides(tmp_path):
     assert config["workflow_style"] == "pr"
     assert config["features"]["codeql"] is False
     assert config["commands"]["test"] == "pytest -q"
+
+
+def test_init_config_fills_every_detected_check(tmp_path):
+    repo = tmp_path / "example"
+    (repo / "tests").mkdir(parents=True)
+    (repo / "pyproject.toml").write_text("[tool.ruff]\nline-length = 100\n\n[tool.mypy]\n")
+    code, detected = run_script("detect.py", repo, "--no-network")
+    assert code == 0, detected
+    detect_file = tmp_path / "detect.json"
+    detect_file.write_text(json.dumps(detected))
+
+    code, result = run_script("render.py", "init-config", repo, "--detect", detect_file)
+
+    assert code == 0, result
+    assert result["config"]["commands"] == {
+        "test": "pytest",
+        "lint": "ruff check .",
+        "build": "",
+        "typecheck": "mypy .",
+        "format": "ruff format --check .",
+    }
+
+
+@pytest.mark.parametrize(
+    ("guess", "expected"),
+    [("pytest", "pytest"), ("", 'echo "No tests configured yet - see docs/sdlc/harness.md"')],
+)
+def test_init_config_without_checks_falls_back_to_the_test_guess(tmp_path, guess, expected):
+    """A detect file written before the checks key existed still configures."""
+    repo = tmp_path / "example"
+    repo.mkdir()
+    detect_file = tmp_path / "detect.json"
+    detect_file.write_text(
+        json.dumps({"root": "example", "languages": [], "test_command_guess": guess})
+    )
+
+    code, result = run_script("render.py", "init-config", repo, "--detect", detect_file)
+
+    assert code == 0, result
+    assert result["config"]["commands"] == {
+        "test": expected,
+        "lint": "",
+        "build": "",
+        "typecheck": "",
+        "format": "",
+    }
+
+
+def test_init_config_refuses_checks_that_are_not_a_list_of_named_commands(tmp_path):
+    repo = tmp_path / "example"
+    repo.mkdir()
+    detect_file = tmp_path / "detect.json"
+    detect_file.write_text(
+        json.dumps({"root": "example", "languages": [], "checks": {"test": {"command": "x"}}})
+    )
+
+    code, result = run_script("render.py", "init-config", repo, "--detect", detect_file)
+
+    assert code == 1
+    assert "detection checks must be a list" in result["error"]
+
+
+def test_init_config_set_replaces_or_drops_a_detected_check(tmp_path):
+    repo = init_repo(
+        "repo-go",
+        tmp_path,
+        overrides=["commands.lint=golangci-lint run", "commands.format="],
+    )
+    config = json.loads((repo / ".sdlc/config.json").read_text())
+    assert config["commands"]["lint"] == "golangci-lint run"
+    assert config["commands"]["format"] == ""
+    assert config["commands"]["build"] == "go build ./..."
+    assert config["commands"]["test"] == "go test ./..."
 
 
 def test_set_config_edits_in_place_and_replans(tmp_path):
@@ -579,3 +653,27 @@ def test_kit_templates_only_use_known_tokens():
         used = set(token_re.findall(tmpl.read_text()))
         unknown = used - known
         assert not unknown, f"{tmpl.name} uses unknown tokens: {unknown}"
+
+
+def test_check_command_tokens_exist_but_no_template_uses_them():
+    """Check commands other than test may be empty, and an empty token is a
+    render error, so their tokens are offered but never referenced."""
+    kit_root = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(kit_root / "scripts"))
+    from render import build_tokens  # noqa: E402
+
+    commands = {
+        "test": "pytest",
+        "lint": "ruff check .",
+        "build": "make build",
+        "typecheck": "mypy .",
+        "format": "black --check .",
+    }
+    tokens = build_tokens({"languages": ["python"], "commands": commands})
+    assert tokens["BUILD_CMD"] == "make build"
+    assert tokens["TYPECHECK_CMD"] == "mypy ."
+    assert tokens["FORMAT_CMD"] == "black --check ."
+    for tmpl in (kit_root / "templates").rglob("*.tmpl"):
+        text = tmpl.read_text()
+        for name in ("LINT_CMD", "BUILD_CMD", "TYPECHECK_CMD", "FORMAT_CMD"):
+            assert "{{" + name + "}}" not in text, f"{tmpl.name} references {name}"

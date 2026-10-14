@@ -1,4 +1,46 @@
 {
+  "checks": [
+    {
+      "command": "cargo test",
+      "confidence": "medium",
+      "language": "rust",
+      "name": "test",
+      "proven": false,
+      "source": "Cargo.toml"
+    },
+    {
+      "command": "cargo clippy -- -D warnings",
+      "confidence": "medium",
+      "language": "rust",
+      "name": "lint",
+      "proven": false,
+      "source": "Cargo.toml"
+    },
+    {
+      "command": "cargo build",
+      "confidence": "medium",
+      "language": "rust",
+      "name": "build",
+      "proven": false,
+      "source": "Cargo.toml"
+    },
+    {
+      "command": "cargo check",
+      "confidence": "medium",
+      "language": "rust",
+      "name": "typecheck",
+      "proven": false,
+      "source": "Cargo.toml"
+    },
+    {
+      "command": "cargo fmt --check",
+      "confidence": "medium",
+      "language": "rust",
+      "name": "format",
+      "proven": false,
+      "source": "Cargo.toml"
+    }
+  ],
   "ci": {
     "github_actions": false,
     "has_codeql": false,

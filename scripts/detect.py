@@ -3,19 +3,35 @@
 
 Scans a directory and emits one JSON object on stdout describing what the
 project is made of: languages, package managers, frameworks, test runners,
-existing CI, hooks, and git state. Skills branch on this JSON and do the
-talking; this script never prints prose.
+the checks it proposes (test, lint, build, typecheck, format), existing CI,
+hooks, and git state. Skills branch on this JSON and do the talking; this
+script never prints prose.
 
 Usage:
-    python3 detect.py <repo-path> [--no-network]
+    python3 detect.py <repo-path> [--no-network] [--prove] [--timeout=SECONDS]
 
 --no-network skips the `gh auth status` probe (used by tests and offline runs).
+
+Without --prove the scan only reads files: it never runs a command it
+proposes, and every check carries "proven": false (ADR 0012). --prove runs
+each proposed command once in the repo, with no input and in a process group
+of its own, inside one budget for the whole step (--timeout, default 300
+seconds), and marks a check proven when its command finished inside the
+budget with an exit status other than 126 or 127, whether it passed or not.
+A command still running when the budget ends, or when the scan gets SIGTERM,
+is killed with everything it started and stays unproven, as do the commands
+not reached; the scan still prints its answer and exits 0.
 """
 
+import contextlib
 import json
+import math
+import os
 import re
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 WALK_CAP = 5000
@@ -135,6 +151,128 @@ RUNNER_LANGUAGE = {
     "go test": "go",
     "cargo test": "rust",
 }
+
+# The kinds of check detection proposes, one command each, in this order.
+CHECK_KINDS = ("test", "lint", "build", "typecheck", "format")
+
+# Where the evidence for an implicit test runner lives (detect_test_runners
+# adds these without a manifest marker).
+IMPLICIT_RUNNER_SOURCES = {
+    "pytest": "tests/",
+    "go test": "go.mod",
+    "cargo test": "Cargo.toml",
+}
+
+# Checks per language and kind, strongest evidence first. Each marker is the
+# evidence as the "source" field reports it, mapped to (needle or filename,
+# command). A needle is a TOML table header, found when the language's first
+# manifest opens that table or one of its subtables; a filename must exist at
+# the repo root. A marker on the language's own manifest stands for a command
+# the toolchain provides (medium confidence); any other marker is the tool's
+# own configuration (high confidence).
+CHECK_MARKERS = {
+    "python": {
+        "lint": {
+            "pyproject.toml:[tool.ruff]": ("[tool.ruff]", "ruff check ."),
+            "ruff.toml": ("ruff.toml", "ruff check ."),
+            ".ruff.toml": (".ruff.toml", "ruff check ."),
+            ".flake8": (".flake8", "flake8 ."),
+        },
+        "typecheck": {
+            "pyproject.toml:[tool.mypy]": ("[tool.mypy]", "mypy ."),
+            "mypy.ini": ("mypy.ini", "mypy ."),
+            ".mypy.ini": (".mypy.ini", "mypy ."),
+            "pyproject.toml:[tool.pyright]": ("[tool.pyright]", "pyright"),
+            "pyrightconfig.json": ("pyrightconfig.json", "pyright"),
+        },
+        # A configured black is the formatter even when ruff is configured too.
+        "format": {
+            "pyproject.toml:[tool.black]": ("[tool.black]", "black --check ."),
+            "pyproject.toml:[tool.ruff]": ("[tool.ruff]", "ruff format --check ."),
+            "ruff.toml": ("ruff.toml", "ruff format --check ."),
+            ".ruff.toml": (".ruff.toml", "ruff format --check ."),
+        },
+    },
+    # node_modules/.bin runs only what the project installed: npx could fetch
+    # a package from the network, or an unrelated one under the same name.
+    "node": {
+        "lint": {
+            "eslint.config.js": ("eslint.config.js", "node_modules/.bin/eslint ."),
+            "eslint.config.mjs": ("eslint.config.mjs", "node_modules/.bin/eslint ."),
+            ".eslintrc.json": (".eslintrc.json", "node_modules/.bin/eslint ."),
+            ".eslintrc.js": (".eslintrc.js", "node_modules/.bin/eslint ."),
+        },
+        "typecheck": {
+            "tsconfig.json": ("tsconfig.json", "node_modules/.bin/tsc --noEmit"),
+        },
+        "format": {
+            ".prettierrc": (".prettierrc", "node_modules/.bin/prettier --check ."),
+            ".prettierrc.json": (".prettierrc.json", "node_modules/.bin/prettier --check ."),
+            "prettier.config.js": ("prettier.config.js", "node_modules/.bin/prettier --check ."),
+        },
+    },
+    "go": {
+        "lint": {
+            ".golangci.yml": (".golangci.yml", "golangci-lint run"),
+            ".golangci.yaml": (".golangci.yaml", "golangci-lint run"),
+            "go.mod": ("go.mod", "go vet ./..."),
+        },
+        "build": {
+            "go.mod": ("go.mod", "go build ./..."),
+        },
+        # gofmt -l lists unformatted files and still exits 0, so the check
+        # fails when the list is not empty, and shows it. The command
+        # substitution keeps gofmt's own status: a pipeline would report
+        # grep's, and a missing gofmt would pass instead of exiting 127.
+        "format": {
+            "go.mod": ("go.mod", 'out=$(gofmt -l .) && ! echo "$out" | grep .'),
+        },
+    },
+    "rust": {
+        "lint": {
+            "clippy.toml": ("clippy.toml", "cargo clippy -- -D warnings"),
+            ".clippy.toml": (".clippy.toml", "cargo clippy -- -D warnings"),
+            "Cargo.toml": ("Cargo.toml", "cargo clippy -- -D warnings"),
+        },
+        "build": {
+            "Cargo.toml": ("Cargo.toml", "cargo build"),
+        },
+        "typecheck": {
+            "Cargo.toml": ("Cargo.toml", "cargo check"),
+        },
+        "format": {
+            "rustfmt.toml": ("rustfmt.toml", "cargo fmt --check"),
+            ".rustfmt.toml": (".rustfmt.toml", "cargo fmt --check"),
+            "Cargo.toml": ("Cargo.toml", "cargo fmt --check"),
+        },
+    },
+}
+
+# package.json scripts that run each kind of check, most specific name first:
+# a script named "format" often rewrites files, so check-only names win.
+NODE_SCRIPTS = {
+    "lint": ("lint",),
+    "build": ("build",),
+    "typecheck": ("typecheck", "type-check", "check-types"),
+    "format": ("format:check", "check-format", "fmt:check", "format"),
+}
+
+# A script that rewrites files or watches forever is not a check. The flag list
+# is closed, and -w is knowingly conservative: it is also npm's workspace flag,
+# so `npm run build -w pkg` is dropped too.
+NOT_A_CHECK = re.compile(r"(?:^|\s)(?:--write|--fix|--apply|--watch|-w)(?=$|[\s=])")
+
+# A lockfile other than npm's names the runner the project's scripts expect;
+# a bare package.json means npm.
+NODE_RUNNERS = ("pnpm", "yarn", "bun")
+
+# --prove: one budget for every proposed command together, in seconds.
+PROVE_TIMEOUT_SECONDS = 300.0
+# The shell's statuses for a command it could not run: not executable, not found.
+CANNOT_RUN_EXITS = (126, 127)
+# How long to wait for a killed command's process to be reaped.
+KILL_WAIT_SECONDS = 5.0
+USAGE = "usage: detect.py <repo-path> [--no-network] [--prove] [--timeout=SECONDS]"
 
 
 def _read_text(path: Path) -> str:
@@ -388,6 +526,183 @@ def detect_test_runners(root: Path, languages: list[dict]) -> tuple[list[str], s
     return runners, guess
 
 
+def _check(command: str, source: str, confidence: str, language: str) -> dict:
+    return {"command": command, "source": source, "confidence": confidence, "language": language}
+
+
+def _has_toml_table(text: str, header: str) -> bool:
+    """True when the TOML text opens the table `header` (like "[tool.ruff]")
+    or one of its subtables (like "[tool.ruff.lint]")."""
+    name = re.escape(header.strip("[]"))
+    return re.search(rf"^\s*\[{name}[\].]", text, re.MULTILINE) is not None
+
+
+def _marker_found(root: Path, language: str, probe: str) -> bool:
+    if probe.startswith("["):
+        manifest = LANGUAGE_MANIFESTS[language][0]
+        return _has_toml_table(_read_text(root / manifest), probe)
+    return (root / probe).is_file()
+
+
+def _node_runner(package_managers: list[str]) -> str:
+    for runner in NODE_RUNNERS:
+        if runner in package_managers:
+            return runner
+    return "npm"
+
+
+def _node_script_check(root: Path, kind: str, package_managers: list[str]) -> dict | None:
+    # A package.json that does not parse proposes no scripts; the scan still answers.
+    package, _ = _load_package_json(root)
+    scripts = (package or {}).get("scripts")
+    if not isinstance(scripts, dict):
+        return None
+    for name in NODE_SCRIPTS.get(kind, ()):
+        body = scripts.get(name)
+        if isinstance(body, str) and body.strip() and not NOT_A_CHECK.search(body):
+            command = f"{_node_runner(package_managers)} run {name}"
+            return _check(command, f"package.json:scripts.{name}", "high", "node")
+    return None
+
+
+def _language_check(
+    root: Path, language: str, kind: str, package_managers: list[str]
+) -> dict | None:
+    if language == "node":
+        script = _node_script_check(root, kind, package_managers)
+        if script:
+            return script
+    markers = CHECK_MARKERS.get(language, {}).get(kind, {})
+    for source, (probe, command) in markers.items():
+        if _marker_found(root, language, probe):
+            toolchain = probe == LANGUAGE_MANIFESTS[language][0]
+            return _check(command, source, "medium" if toolchain else "high", language)
+    return None
+
+
+def _first_language_check(
+    root: Path, languages: list[str], kind: str, package_managers: list[str]
+) -> dict | None:
+    # Languages arrive in confidence-then-name order, so the primary one wins.
+    for language in languages:
+        found = _language_check(root, language, kind, package_managers)
+        if found:
+            return found
+    return None
+
+
+def _test_check(root: Path, test_runners: list[str], test_guess: str) -> dict | None:
+    """The check for the runner behind test_command_guess, so the two never
+    disagree: high confidence when a manifest names the runner, medium when
+    the runner is implicit."""
+    if not test_guess:
+        return None
+    for runner in test_runners:
+        if TEST_COMMANDS.get(runner) != test_guess:
+            continue
+        language = RUNNER_LANGUAGE[runner]
+        for filename, markers in TEST_RUNNER_MARKERS.items():
+            needle = markers.get(runner)
+            if needle and needle in _read_text(root / filename):
+                return _check(test_guess, filename, "high", language)
+        return _check(test_guess, IMPLICIT_RUNNER_SOURCES[runner], "medium", language)
+    return None
+
+
+def detect_checks(
+    root: Path,
+    languages: list[dict],
+    package_managers: list[str],
+    test_runners: list[str],
+    test_guess: str,
+) -> list[dict]:
+    """Propose one command per kind of check, in CHECK_KINDS order, leaving
+    out a kind nothing reveals. This reads files only; it never runs a
+    command, so every check starts unproven (ADR 0012)."""
+    # Only high-confidence languages propose checks, like implicit test
+    # runners: stray files deep in the tree must not claim the project's checks.
+    high = [entry["name"] for entry in languages if entry["confidence"] == "high"]
+    checks = []
+    for kind in CHECK_KINDS:
+        if kind == "test":
+            found = _test_check(root, test_runners, test_guess)
+        else:
+            found = _first_language_check(root, high, kind, package_managers)
+        if found:
+            checks.append({"name": kind, **found, "proven": False})
+    return checks
+
+
+class _StopRequest:
+    """SIGTERM during the prove step: kill the running command's process
+    group, so nothing it started outlives the scan, and start no other."""
+
+    def __init__(self) -> None:
+        self.requested = False
+        self.process: subprocess.Popen | None = None
+
+    def __call__(self, signum, frame) -> None:
+        self.requested = True
+        if self.process is not None:
+            _kill_group(self.process)
+
+
+def _kill_group(process: subprocess.Popen) -> None:
+    """Kill a command and everything it started; it leads a session of its own."""
+    if hasattr(os, "killpg"):
+        with contextlib.suppress(OSError):
+            os.killpg(process.pid, signal.SIGKILL)
+    with contextlib.suppress(OSError):
+        process.kill()
+
+
+def _ran(root: Path, command: str, deadline: float, stop: _StopRequest) -> bool:
+    """Run one command once; True when it finished before the deadline with
+    an exit status other than 126 or 127, whatever else it returned."""
+    remaining = deadline - time.monotonic()
+    if remaining <= 0 or stop.requested:
+        return False
+    try:
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            cwd=root,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        return False
+    stop.process = process
+    try:
+        if stop.requested:
+            _kill_group(process)
+        code = process.wait(timeout=remaining)
+    except subprocess.TimeoutExpired:
+        _kill_group(process)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=KILL_WAIT_SECONDS)
+        return False
+    finally:
+        stop.process = None
+    return not stop.requested and code not in CANNOT_RUN_EXITS
+
+
+def prove_checks(root: Path, checks: list[dict], timeout: float) -> list[dict]:
+    """Run each proposed command once, inside one budget of `timeout` seconds
+    for the whole step, and mark the checks whose command ran."""
+    stop = _StopRequest()
+    previous = signal.signal(signal.SIGTERM, stop)
+    deadline = time.monotonic() + timeout
+    try:
+        return [
+            {**check, "proven": _ran(root, check["command"], deadline, stop)} for check in checks
+        ]
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
 def detect_ci(root: Path) -> dict:
     workflows_dir = root / ".github" / "workflows"
     workflows = []
@@ -477,13 +792,15 @@ def detect(root: Path, no_network: bool = False) -> dict:
     languages = detect_languages(root, ext_counts)
     test_runners, test_guess = detect_test_runners(root, languages)
     node_manager = detect_node_package_manager(root)
+    package_managers = detect_package_managers(root, node_manager)
     result = {
         "root": root.name,
         "languages": languages,
-        "package_managers": detect_package_managers(root, node_manager),
+        "package_managers": package_managers,
         "frameworks": _scan_markers(root, FRAMEWORK_MARKERS),
         "test_runners": test_runners,
         "test_command_guess": test_guess,
+        "checks": detect_checks(root, languages, package_managers, test_runners, test_guess),
         "ci": detect_ci(root),
         "hooks": detect_hooks(root),
         "git": detect_git(root, no_network),
@@ -494,17 +811,35 @@ def detect(root: Path, no_network: bool = False) -> dict:
     return result
 
 
+def _prove_timeout(flags: set[str]) -> float | None:
+    """The --timeout=SECONDS budget, the default without one, None when malformed."""
+    given = [flag for flag in flags if flag == "--timeout" or flag.startswith("--timeout=")]
+    if not given:
+        return PROVE_TIMEOUT_SECONDS
+    try:
+        seconds = float(given[0].partition("=")[2])
+    except ValueError:
+        return None
+    return seconds if len(given) == 1 and math.isfinite(seconds) and seconds > 0 else None
+
+
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     flags = {a for a in sys.argv[1:] if a.startswith("--")}
     if len(args) != 1:
-        print(json.dumps({"error": "usage: detect.py <repo-path> [--no-network]"}))
+        print(json.dumps({"error": USAGE}))
+        return 2
+    timeout = _prove_timeout(flags)
+    if timeout is None:
+        print(json.dumps({"error": "--timeout must be a positive number of seconds"}))
         return 2
     root = Path(args[0]).resolve()
     if not root.is_dir():
         print(json.dumps({"error": f"not a directory: {root}"}))
         return 2
     result = detect(root, no_network="--no-network" in flags)
+    if "--prove" in flags:
+        result["checks"] = prove_checks(root, result["checks"], timeout)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

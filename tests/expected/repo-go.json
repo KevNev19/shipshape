@@ -1,4 +1,38 @@
 {
+  "checks": [
+    {
+      "command": "go test ./...",
+      "confidence": "medium",
+      "language": "go",
+      "name": "test",
+      "proven": false,
+      "source": "go.mod"
+    },
+    {
+      "command": "go vet ./...",
+      "confidence": "medium",
+      "language": "go",
+      "name": "lint",
+      "proven": false,
+      "source": "go.mod"
+    },
+    {
+      "command": "go build ./...",
+      "confidence": "medium",
+      "language": "go",
+      "name": "build",
+      "proven": false,
+      "source": "go.mod"
+    },
+    {
+      "command": "out=$(gofmt -l .) && ! echo \"$out\" | grep .",
+      "confidence": "medium",
+      "language": "go",
+      "name": "format",
+      "proven": false,
+      "source": "go.mod"
+    }
+  ],
   "ci": {
     "github_actions": false,
     "has_codeql": false,
