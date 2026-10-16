@@ -17,7 +17,9 @@ A git diff holds only the files git tracks: a file the change creates and git ha
 not seen yet is not in it, so a caller that creates files compares two tree
 objects with --range. The diff is limited to <repo> and names paths from it. A
 folder that is not inside a git work tree is not an error: nothing could be
-checked, so the answer has no findings and a warning says so.
+checked, so the answer has no findings and a warning says so. A repository git
+refuses to open (a .git entry at or above the folder that git will not read) is
+an error.
 
 Output: {"ok", "mode": "test-integrity", "source", "files_scanned", "findings":
 [{"file", "line", "language", "kind", "detail", "consequence"}], "unsupported",
@@ -30,9 +32,12 @@ The check reads changed lines, not syntax trees, through per-language patterns
 (TEST_PATTERNS). A line whose text is added again elsewhere in the diff moved, so
 it is not a removal; a removed test or assertion that an added one of its kind
 replaces in the same file was rewritten, which the review rubric judges, so it is
-not a removal either. A line number is the old file's for something removed and
-the new file's for something added. Changed files in a language detect.py knows
-but TEST_PATTERNS does not are listed under "unsupported", never passed silently.
+not a removal either. A skip inside a test the same diff adds skips nothing that
+ran before, so it is not a finding; one that focuses on some tests (.only, fit)
+skips the others, so it still is. A line number is the old file's for something
+removed and the new file's for something added. Changed files in a language
+detect.py knows but TEST_PATTERNS does not are listed under "unsupported", never
+passed silently.
 """
 
 import argparse
@@ -163,6 +168,21 @@ TEST_PATTERNS: dict[str, dict[str, re.Pattern[str]]] = {
 # #[ignore] counts in any Rust file; assertions count only in test files, because
 # assert! also guards production code.
 INLINE_TEST_LANGUAGES = {"rust"}
+# Which test an added skip belongs to, to leave out a skip inside a test the diff adds.
+# A decorator or attribute marks the test it sits on: a Rust test attribute in the same
+# block, or the Python def or class below it.
+MARKER = re.compile(r"^\s*(?:@|#\[)")
+PYTHON_DEF = re.compile(r"^\s*(?:async\s+)?def\s")
+PYTHON_CLASS = re.compile(r"^\s*class\s")
+# A Python or Go call that skips belongs to the nearest test above it, unless another
+# definition starts between them. Node's skips that are not a test's own line skip a
+# group (describe.skip), so they belong to no single test.
+DEFINITIONS = {
+    "python": re.compile(r"^\s*(?:(?:async\s+)?def|class)\s|^\s*@"),
+    "go": re.compile(r"^\s*func\s"),
+}
+# A skip that focuses on some tests skips every other one, so it is always a finding.
+FOCUS = re.compile(r"\.only\b|(?<![\w.])(?:fit|fdescribe)\s*\(")
 CONSEQUENCES = {
     "deleted-test": "A deleted test no longer runs, so what it covered is unchecked.",
     "skipped-test": "Skipped tests no longer run, so a failure in what they cover goes unnoticed.",
@@ -257,8 +277,19 @@ def _git(repo: Path, args: list[str]) -> str:
 
 
 def _in_git_work_tree(repo: Path) -> bool:
-    """Whether git finds a repository at or above the folder."""
-    return _run_git(repo, ["rev-parse", "--git-dir"]).returncode == 0
+    """Whether git finds a repository at or above the folder.
+
+    False only when no folder at or above holds a .git entry. A repository git refuses
+    to open (unsafe ownership, a broken .git) is an error, not a clean answer.
+    """
+    proc = _run_git(repo, ["rev-parse", "--git-dir"])
+    if proc.returncode == 0:
+        return True
+    here = repo.resolve()
+    if any((folder / ".git").exists() for folder in (here, *here.parents)):
+        lines = proc.stderr.strip().splitlines()
+        raise DiffError(lines[0] if lines else f"git exited {proc.returncode}")
+    return False
 
 
 def _worktree_base(repo: Path) -> str:
@@ -494,6 +525,91 @@ def _loosened(
     return pairs
 
 
+def _indent(text: str) -> int:
+    return len(text) - len(text.lstrip())
+
+
+def _marked_test(run: list[Line], at: int, language: str) -> int | None:
+    """The test a decorator or attribute at run[at] marks: a test attribute in the same
+    Rust attribute block, or the Python def below when it is a test, or the first test
+    of the Python class below."""
+    test = TEST_PATTERNS[language]["test"]
+    for number, text in reversed(run[:at]):
+        if not MARKER.match(text):
+            break
+        if test.search(text):
+            return number
+    in_class = False
+    for number, text in run[at + 1 :]:
+        if test.search(text):
+            return number
+        if language != "python":
+            if not MARKER.match(text):
+                return None
+        elif PYTHON_CLASS.match(text):
+            in_class = True
+        elif PYTHON_DEF.match(text) and not in_class:
+            return None
+    return None
+
+
+def _skip_owner(run: list[Line], at: int, language: str) -> int | None:
+    """The line of the test that the skip at run[at] belongs to, within its run of
+    consecutive added lines, or None when it belongs to no test there."""
+    test = TEST_PATTERNS[language]["test"]
+    number, text = run[at]
+    if test.search(text):
+        return number
+    if MARKER.match(text):
+        return _marked_test(run, at, language)
+    definition = DEFINITIONS.get(language)
+    if definition is None:
+        return None
+    for above, line in reversed(run[:at]):
+        if not line.strip():
+            continue
+        if test.search(line):
+            # A Python call belongs to a test only when it is indented inside it.
+            inside = language != "python" or _indent(line) < _indent(text)
+            return above if inside else None
+        if definition.search(line):
+            return None
+    return None
+
+
+def _new_tests(
+    fd: FileDiff,
+    patterns: dict[str, re.Pattern[str]],
+    removed_tests: list[Line],
+    removed_elsewhere: Container[str],
+) -> set[int]:
+    """New line numbers of the tests the diff adds: not moved from this file or another,
+    and not the rewrite of a removed test (`removed_tests`, the removed tests that did
+    not move)."""
+    fresh, _ = _unmoved(
+        _matching(fd.added, patterns["test"]),
+        _matching(fd.removed, patterns["test"]),
+        removed_elsewhere,
+    )
+    return {number for number, _ in _unreplaced(fresh, removed_tests)}
+
+
+def _in_new_tests(fd: FileDiff, language: str, skips: list[Line], new_tests: set[int]) -> set[int]:
+    """The line numbers of the skips that sit inside a test the diff adds."""
+    if not new_tests:
+        return set()
+    entries = dict(_entries(fd.added))
+    wanted = {number for number, text in skips if not FOCUS.search(text)}
+    inside = set()
+    for hunk in fd.hunks:
+        for _, group in groupby(enumerate(hunk.added), key=lambda pair: pair[1][0] - pair[0]):
+            run = [(number, entries[number]) for _, (number, _) in group]
+            for at, (number, _) in enumerate(run):
+                if number in wanted and _skip_owner(run, at, language) in new_tests:
+                    inside.add(number)
+    return inside
+
+
 def _finding(path: str, line: int, language: str, kind: str, detail: str) -> dict:
     return {
         "file": path,
@@ -567,9 +683,13 @@ def scan_file(
         _matching(fd.removed, patterns["skip"]),
         removed_elsewhere,
     )
+    # A skip inside a test the diff adds skips nothing that ran before.
+    new_tests = _new_tests(fd, patterns, tests, removed_elsewhere)
+    in_new_tests = _in_new_tests(fd, language, skips, new_tests)
     findings += [
         _finding(new_path, number, language, "skipped-test", f"+{text.strip()}")
         for number, text in skips
+        if number not in in_new_tests
     ]
     if in_tests:
         findings += _assertion_findings(fd, language, added_elsewhere, gone_tests)
