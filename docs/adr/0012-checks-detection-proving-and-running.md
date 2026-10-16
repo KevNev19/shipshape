@@ -41,8 +41,9 @@ script that prints one JSON object and runs under `python3 -I`
    into `commands.<kind>`, and the init interview confirms them.
 2. **A prove step runs each proposal once.** `detect.py --prove` runs every
    proposed command one time, inside one time budget and in a process
-   group of its own, and sets `proven` when it ran, not when it passed, so
-   a caller keeps only commands that run on this machine.
+   group of its own, whose leftover processes end with it, and sets
+   `proven` when it ran, not when it passed, so a caller keeps only
+   commands that run on this machine.
 3. **A runner runs the configured checks.** `checks.py run` runs
    `commands.*`, or commands given on its command line, and reports per
    check whether it passed, the failure count when the tool prints one,
@@ -83,6 +84,13 @@ offered and no template references them.
   workspace flag.
 - A node `test` script with no known runner is not proposed; the owner
   sets `commands.test`.
+- `--no-network` skips only the `gh auth status` probe, the scan's one
+  network call. `--prove` runs the repository's own build tools, which may
+  fetch dependencies, so with `--no-network` as well each proved command
+  gets cargo's, go's and npm's offline settings (`CARGO_NET_OFFLINE=true`,
+  `GOPROXY=off`, `npm_config_offline=true`): a command that then needs a
+  download fails, which still proves it ran. Other tools keep their own
+  network behaviour.
 - Proving and running execute the repository's own commands, so only a
   caller that asks runs them; `shipshape-init` writes nothing into the
   repository before its plan gate and does not prove. Doctor stays

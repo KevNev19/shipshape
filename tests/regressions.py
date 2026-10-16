@@ -810,6 +810,23 @@ def test_weekly_report_rejects_untrusted_repository_metadata() -> None:
     )
 
 
+def test_prove_kills_what_a_finished_command_left_running() -> None:
+    """2026-10-16: a proved command that exited and left a background child
+    running let the child outlive the scan: the prove step killed a command's
+    process group only when the budget ran out or the scan was stopped."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_prove_kills_what_a_finished_command_left_running",
+    )
+
+
+def test_prove_under_no_network_runs_commands_offline() -> None:
+    """2026-10-16: --no-network skipped only the gh probe, so a scan run with
+    --prove and --no-network still let cargo, go and npm fetch dependencies."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_prove_without_network_runs_commands_offline",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -931,6 +948,14 @@ def main() -> int:
         (
             "weekly report rejects untrusted repository metadata",
             test_weekly_report_rejects_untrusted_repository_metadata,
+        ),
+        (
+            "prove kills what a finished command left running",
+            test_prove_kills_what_a_finished_command_left_running,
+        ),
+        (
+            "prove under --no-network runs commands offline",
+            test_prove_under_no_network_runs_commands_offline,
         ),
     ]
     failures = 0

@@ -10,7 +10,8 @@ script never prints prose.
 Usage:
     python3 detect.py <repo-path> [--no-network] [--prove] [--timeout=SECONDS]
 
---no-network skips the `gh auth status` probe (used by tests and offline runs).
+--no-network skips the `gh auth status` probe (used by tests and offline runs);
+that probe is the only network use of the scan itself.
 
 Without --prove the scan only reads files: it never runs a command it
 proposes, and every check carries "proven": false (ADR 0012). --prove runs
@@ -20,7 +21,14 @@ seconds), and marks a check proven when its command finished inside the
 budget with an exit status other than 126 or 127, whether it passed or not.
 A command still running when the budget ends, or when the scan gets SIGTERM,
 is killed with everything it started and stays unproven, as do the commands
-not reached; the scan still prints its answer and exits 0.
+not reached; the scan still prints its answer and exits 0. A command that
+finishes has whatever it left running in its process group killed too.
+
+The proposed commands are the project's own build tools, which may fetch
+dependencies. With --prove and --no-network together, each command runs with
+the offline settings of cargo, go and npm (OFFLINE_ENV) on top of the scan's
+environment; a command that then needs a download fails, which still proves
+it ran.
 """
 
 import contextlib
@@ -272,6 +280,13 @@ PROVE_TIMEOUT_SECONDS = 300.0
 CANNOT_RUN_EXITS = (126, 127)
 # How long to wait for a killed command's process to be reaped.
 KILL_WAIT_SECONDS = 5.0
+# --prove with --no-network: keep cargo, go, and npm (whose config pnpm also
+# reads) from fetching dependencies.
+OFFLINE_ENV = {
+    "CARGO_NET_OFFLINE": "true",
+    "GOPROXY": "off",
+    "npm_config_offline": "true",
+}
 USAGE = "usage: detect.py <repo-path> [--no-network] [--prove] [--timeout=SECONDS]"
 
 
@@ -656,9 +671,12 @@ def _kill_group(process: subprocess.Popen) -> None:
         process.kill()
 
 
-def _ran(root: Path, command: str, deadline: float, stop: _StopRequest) -> bool:
-    """Run one command once; True when it finished before the deadline with
-    an exit status other than 126 or 127, whatever else it returned."""
+def _ran(
+    root: Path, command: str, deadline: float, stop: _StopRequest, env: dict[str, str] | None
+) -> bool:
+    """Run one command once, in `env` (None: the scan's own environment); True
+    when it finished before the deadline with an exit status other than 126 or
+    127, whatever else it returned."""
     remaining = deadline - time.monotonic()
     if remaining <= 0 or stop.requested:
         return False
@@ -671,6 +689,7 @@ def _ran(root: Path, command: str, deadline: float, stop: _StopRequest) -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
+            env=env,
         )
     except OSError:
         return False
@@ -679,6 +698,8 @@ def _ran(root: Path, command: str, deadline: float, stop: _StopRequest) -> bool:
         if stop.requested:
             _kill_group(process)
         code = process.wait(timeout=remaining)
+        # Whatever the command left running in its group ends with it.
+        _kill_group(process)
     except subprocess.TimeoutExpired:
         _kill_group(process)
         with contextlib.suppress(subprocess.TimeoutExpired):
@@ -689,15 +710,20 @@ def _ran(root: Path, command: str, deadline: float, stop: _StopRequest) -> bool:
     return not stop.requested and code not in CANNOT_RUN_EXITS
 
 
-def prove_checks(root: Path, checks: list[dict], timeout: float) -> list[dict]:
+def prove_checks(
+    root: Path, checks: list[dict], timeout: float, offline: bool = False
+) -> list[dict]:
     """Run each proposed command once, inside one budget of `timeout` seconds
-    for the whole step, and mark the checks whose command ran."""
+    for the whole step, and mark the checks whose command ran. `offline` adds
+    OFFLINE_ENV to each command's environment."""
+    env = {**os.environ, **OFFLINE_ENV} if offline else None
     stop = _StopRequest()
     previous = signal.signal(signal.SIGTERM, stop)
     deadline = time.monotonic() + timeout
     try:
         return [
-            {**check, "proven": _ran(root, check["command"], deadline, stop)} for check in checks
+            {**check, "proven": _ran(root, check["command"], deadline, stop, env)}
+            for check in checks
         ]
     finally:
         signal.signal(signal.SIGTERM, previous)
@@ -837,9 +863,10 @@ def main() -> int:
     if not root.is_dir():
         print(json.dumps({"error": f"not a directory: {root}"}))
         return 2
-    result = detect(root, no_network="--no-network" in flags)
+    no_network = "--no-network" in flags
+    result = detect(root, no_network=no_network)
     if "--prove" in flags:
-        result["checks"] = prove_checks(root, result["checks"], timeout)
+        result["checks"] = prove_checks(root, result["checks"], timeout, offline=no_network)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

@@ -7,7 +7,8 @@ confidence and a language. Only a high-confidence language proposes checks;
 the primary language wins a kind two languages could fill; the test check
 always agrees with test_command_guess; a package.json script that rewrites
 files or never exits is never proposed. A plain scan never runs a command,
-so every check is unproven; --prove runs each command once inside one budget
+so every check is unproven; --prove runs each command once inside one budget,
+with no input and offline under --no-network, kills what it left running,
 and marks the ones that ran, whether they passed or not.
 """
 
@@ -35,6 +36,13 @@ PYTHON_TOOLS_REPO = {
 }
 # A stand-in for a tool that starts a child, records its pid and waits for it.
 SLOW_TOOL = "sleep 60 & echo $! > child.pid; wait"
+# A stand-in for a tool that exits at once and leaves a child running.
+LEAVES_A_CHILD = "sleep 60 & echo $! > child.pid"
+# A stand-in for a tool that records the offline settings it was given.
+RECORDS_OFFLINE_ENV = (
+    'printf \'%s|%s|%s\\n\' "$CARGO_NET_OFFLINE" "$GOPROXY" "$npm_config_offline" > env.log'
+)
+OFFLINE_VARIABLES = ("CARGO_NET_OFFLINE", "GOPROXY", "npm_config_offline")
 
 
 def write_repo(root: Path, files: dict[str, str]) -> Path:
@@ -246,6 +254,18 @@ def test_node_scripts_that_rewrite_files_or_watch_are_never_proposed(tmp_path, l
     }
 
 
+def test_a_check_only_format_name_wins_over_a_check_only_format_script(tmp_path):
+    package = {
+        "name": "example",
+        "scripts": {"format": "prettier --check .", "format:check": "prettier --check src"},
+    }
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
+
+    assert table(scan(repo))["format"] == check(
+        "npm run format:check", "package.json:scripts.format:check", "high", "node"
+    )
+
+
 def test_a_node_test_script_with_no_known_runner_proposes_no_test_check(tmp_path):
     package = {"name": "example", "scripts": {"test": "node --test", "lint": "eslint ."}}
     repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
@@ -293,6 +313,20 @@ def test_rust_proposes_cargo_checks_and_honours_a_rustfmt_config(tmp_path):
         "typecheck": check("cargo check", "Cargo.toml", "medium", "rust"),
         "format": check("cargo fmt --check", "rustfmt.toml", "high", "rust"),
     }
+
+
+@pytest.mark.parametrize(
+    ("config", "extension"),
+    [(".flake8", ".py"), ("tsconfig.json", ".ts")],
+)
+def test_a_tool_config_without_a_manifest_proposes_no_checks(tmp_path, config, extension):
+    files = {config: "{}\n", **{f"src/{name}{extension}": "\n" for name in ("a", "b", "c")}}
+    repo = write_repo(tmp_path, files)
+
+    payload = scan(repo)
+
+    assert [entry["confidence"] for entry in payload["languages"]] == ["medium"]
+    assert payload["checks"] == []
 
 
 def test_a_language_below_high_confidence_proposes_no_checks(tmp_path):
@@ -424,8 +458,67 @@ def test_prove_stops_at_its_budget_and_kills_what_the_command_started(tmp_path, 
     assert_gone(int((repo / "child.pid").read_text()))
 
 
+def test_prove_kills_what_a_finished_command_left_running(tmp_path, monkeypatch):
+    repo = write_repo(tmp_path / "repo", PYTHON_TOOLS_REPO)
+    fake_tools(
+        tmp_path, monkeypatch, {"pytest": LEAVES_A_CHILD, "ruff": "exit 0", "mypy": "exit 0"}
+    )
+
+    payload = scan(repo, "--prove", "--timeout=30")
+
+    assert [entry["proven"] for entry in payload["checks"]] == [True, True, True, True]
+    assert_gone(int((repo / "child.pid").read_text()))
+
+
+def test_prove_gives_a_command_no_input(tmp_path, monkeypatch):
+    repo = write_repo(tmp_path / "repo", PYTHON_TOOLS_REPO)
+    fake_tools(tmp_path, monkeypatch, {"pytest": "cat", "ruff": "exit 0", "mypy": "exit 0"})
+    # An open pipe nobody writes to: a command that inherited it would block on read.
+    reader, writer = os.pipe()
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "detect.py"),
+                str(repo),
+                "--no-network",
+                "--prove",
+                "--timeout=5",
+            ],
+            stdin=reader,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        os.close(reader)
+        os.close(writer)
+
+    assert proc.returncode == 0, proc.stdout
+    assert table(json.loads(proc.stdout))["test"]["proven"] is True
+
+
+@pytest.mark.parametrize(
+    ("flags", "recorded"),
+    [(["--no-network"], "true|off|true"), ([], "||")],
+)
+def test_prove_without_network_runs_commands_offline(tmp_path, monkeypatch, flags, recorded):
+    """The repo has no git remote, so a scan without --no-network probes nothing either."""
+    repo = write_repo(tmp_path / "repo", PYTHON_TOOLS_REPO)
+    fake_tools(
+        tmp_path, monkeypatch, {"pytest": RECORDS_OFFLINE_ENV, "ruff": "exit 0", "mypy": "exit 0"}
+    )
+    for variable in OFFLINE_VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+
+    code, payload = run_script("detect.py", repo, "--prove", *flags)
+
+    assert code == 0, payload
+    assert table(payload)["test"]["proven"] is True
+    assert (repo / "env.log").read_text() == f"{recorded}\n"
+
+
 def test_prove_answers_and_kills_the_running_command_when_it_gets_sigterm(tmp_path, monkeypatch):
-    """How Rook runs the scan: python3 -I -B, by absolute path, from another folder."""
+    """How a caller starts the scan: python3 -I -B, by absolute path, from another folder."""
     repo = write_repo(tmp_path / "repo", PYTHON_TOOLS_REPO)
     ran = "echo ran >> ran.log"
     fake_tools(tmp_path, monkeypatch, {"pytest": SLOW_TOOL, "ruff": ran, "mypy": ran})
@@ -478,7 +571,15 @@ def test_a_scan_runs_in_isolated_mode_from_another_folder(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "flags", [["--timeout=0"], ["--timeout=soon"], ["--timeout"], ["--timeout=1", "--timeout=2"]]
+    "flags",
+    [
+        ["--timeout=0"],
+        ["--timeout=soon"],
+        ["--timeout"],
+        ["--timeout=1", "--timeout=2"],
+        ["--timeout=inf"],
+        ["--timeout=nan"],
+    ],
 )
 def test_a_bad_budget_is_a_json_usage_error(tmp_path, flags):
     code, payload = run_script("detect.py", tmp_path, "--prove", *flags)
