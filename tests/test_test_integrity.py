@@ -62,7 +62,7 @@ def scan_diff(tmp_path, text: str) -> dict:
 
 
 def run_isolated(args: list[str], cwd) -> tuple[int, dict]:
-    """How Rook starts the script: python3 -I -B, by absolute path, from another folder."""
+    """How a caller starts the script: python3 -I -B, by absolute path, from another folder."""
     proc = subprocess.run(
         [sys.executable, "-I", "-B", str(SCRIPT), *args], cwd=cwd, capture_output=True, text=True
     )
@@ -261,9 +261,8 @@ def test_changed_expected_value_is_left_to_the_review(tmp_path):
         ("tests/test_math.py", "@pytest.mark.xfail"),
         ("tests/test_math.py", '    pytest.skip("later")'),
         ("tests/test_math.py", "        self.skipTest('later')"),
-        ("test/math.test.js", "  it.skip('adds two numbers', () => {"),
         ("test/math.test.js", "describe.only('math', () => {"),
-        ("test/math.test.js", "  xit('adds two numbers', () => {"),
+        ("test/math.test.js", "describe.skip('math', () => {"),
         ("test/math.test.js", "  fit('adds two numbers', () => {"),
         ("math_test.go", '\tt.Skip("flaky on CI")'),
         ("tests/math.rs", "#[ignore]"),
@@ -276,17 +275,299 @@ def test_added_skip_is_a_finding(tmp_path, path, line):
     assert kinds(result) == [(path, 5, "skipped-test")]
 
 
-def test_skipping_a_test_in_place_is_one_finding(tmp_path):
+@pytest.mark.parametrize(
+    "skipped", ["  it.skip('adds two numbers', () => {", "  xit('adds two numbers', () => {"]
+)
+def test_skipping_a_test_in_place_is_one_finding(tmp_path, skipped):
     text = diff(
         changed(
             "test/math.test.js",
             "@@ -3 +3 @@",
             "-  it('adds two numbers', () => {",
-            "+  it.skip('adds two numbers', () => {",
+            f"+{skipped}",
         )
     )
 
     assert kinds(scan_diff(tmp_path, text)) == [("test/math.test.js", 3, "skipped-test")]
+
+
+def added_after(path: str, line: int, *lines: str) -> list[str]:
+    """A file of a -U0 diff that adds lines after the old file's line `line`."""
+    return changed(path, f"@@ -{line},0 +{line + 1},{len(lines)} @@", *[f"+{x}" for x in lines])
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        diff(
+            added_after(
+                "tests/test_math.py",
+                7,
+                "",
+                "@pytest.mark.skipif(sys.platform == 'win32', reason='posix only')",
+                "def test_adds_on_posix():",
+                "    assert add(1, 1) == 2",
+            )
+        ),
+        diff(
+            added_after(
+                "tests/test_math.py",
+                7,
+                "",
+                "def test_adds_big_numbers():",
+                "    if not BIG:",
+                "        pytest.skip('needs big numbers')",
+                "    assert add(10**20, 1) == 10**20 + 1",
+            )
+        ),
+        diff(
+            added_after(
+                "math_test.go",
+                9,
+                "",
+                "func TestAddsLarge(t *testing.T) {",
+                "\tif testing.Short() {",
+                '\t\tt.Skip("slow")',
+                "\t}",
+                "\tassert.Equal(t, 4, Add(2, 2))",
+                "}",
+            )
+        ),
+        diff(
+            added_after(
+                "test/math.test.js",
+                9,
+                "  it.skip('adds large numbers', () => {",
+                "    expect(add(2, 2)).toBe(4)",
+                "  })",
+            )
+        ),
+        diff(
+            added_after(
+                "test/math.test.js",
+                9,
+                "  xit('adds large numbers', () => {",
+                "    expect(add(2, 2)).toBe(4)",
+                "  })",
+            )
+        ),
+        diff(
+            added_after(
+                "tests/math.rs",
+                9,
+                "#[test]",
+                "#[ignore]",
+                "fn adds_large_numbers() {",
+                "    assert_eq!(add(2, 2), 4);",
+                "}",
+            )
+        ),
+        diff(
+            added_after(
+                "src/lib.rs",
+                9,
+                "    #[ignore]",
+                "    #[test]",
+                "    fn adds_large_numbers() {",
+                "        assert_eq!(add(2, 2), 4);",
+                "    }",
+            )
+        ),
+        diff(
+            created(
+                "tests/test_slow.py",
+                "@@ -0,0 +1,3 @@",
+                "+@pytest.mark.skip(reason='slow')",
+                "+def test_slow():",
+                "+    assert slow() == 1",
+            )
+        ),
+        diff(
+            added_after(
+                "tests/test_math.py",
+                7,
+                "",
+                "@unittest.skip('later')",
+                "class TestLarge(unittest.TestCase):",
+                "    def setUp(self):",
+                "        self.big = 10**20",
+                "",
+                "    def test_adds(self):",
+                "        self.assertEqual(add(self.big, 1), self.big + 1)",
+            )
+        ),
+        diff(
+            changed(
+                "tests/test_math.py",
+                "@@ -6,2 +6,6 @@",
+                " def test_subtracts():",
+                "     assert sub(3, 1) == 2",
+                "+",
+                "+def test_subtracts_to_zero():",
+                "+    pytest.skip('later')",
+                "+    assert sub(1, 1) == 0",
+            )
+        ),
+    ],
+    ids=[
+        "python-decorator",
+        "python-call",
+        "go-short",
+        "node-it-skip",
+        "node-xit",
+        "rust-ignore-below-test",
+        "rust-ignore-above-test",
+        "new-file",
+        "python-class",
+        "context-diff",
+    ],
+)
+def test_a_skip_inside_a_test_the_diff_adds_is_not_a_finding(tmp_path, text):
+    result = scan_diff(tmp_path, text)
+
+    assert result["files_scanned"] == 1
+    assert result["findings"] == []
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            diff(
+                changed(
+                    "tests/test_math.py",
+                    "@@ -5,0 +6 @@",
+                    "+@pytest.mark.skip(reason='flaky')",
+                    "@@ -7,0 +9,3 @@",
+                    "+",
+                    "+def test_adds_negatives():",
+                    "+    assert add(-1, -1) == -2",
+                )
+            ),
+            [("tests/test_math.py", 6, "skipped-test")],
+        ),
+        (
+            diff(
+                changed(
+                    "math_test.go",
+                    "@@ -4,0 +5 @@",
+                    '+\tt.Skip("flaky")',
+                    "@@ -9,0 +11,4 @@",
+                    "+",
+                    "+func TestAddsLarge(t *testing.T) {",
+                    "+\tassert.Equal(t, 4, Add(2, 2))",
+                    "+}",
+                )
+            ),
+            [("math_test.go", 5, "skipped-test")],
+        ),
+        (
+            diff(
+                added_after(
+                    "test/math.test.js",
+                    9,
+                    "  it.only('adds large numbers', () => {",
+                    "    expect(add(2, 2)).toBe(4)",
+                    "  })",
+                )
+            ),
+            [("test/math.test.js", 10, "skipped-test")],
+        ),
+        (
+            diff(
+                added_after(
+                    "tests/test_math.py",
+                    7,
+                    "",
+                    "def test_adds_negatives():",
+                    "    assert add(-1, -1) == -2",
+                    "",
+                    "",
+                    "@pytest.fixture(autouse=True)",
+                    "def skip_everything():",
+                    "    pytest.skip('later')",
+                )
+            ),
+            [("tests/test_math.py", 15, "skipped-test")],
+        ),
+        (
+            diff(
+                added_after(
+                    "tests/test_math.py",
+                    7,
+                    "",
+                    "def test_adds_negatives():",
+                    "    assert add(-1, -1) == -2",
+                    "",
+                    "pytest.skip('later', allow_module_level=True)",
+                )
+            ),
+            [("tests/test_math.py", 12, "skipped-test")],
+        ),
+        (
+            diff(
+                added_after(
+                    "tests/test_math.py",
+                    7,
+                    "",
+                    "@unittest.skip('later')",
+                    "def make_numbers():",
+                    "    return [1, 2]",
+                    "",
+                    "",
+                    "def test_adds_numbers():",
+                    "    assert add(*make_numbers()) == 3",
+                )
+            ),
+            [("tests/test_math.py", 9, "skipped-test")],
+        ),
+        (
+            diff(
+                changed(
+                    "tests/test_math.py",
+                    "@@ -6 +6,2 @@",
+                    "-def test_subtracts():",
+                    "+@pytest.mark.skip",
+                    "+def test_subtracts_twice():",
+                )
+            ),
+            [("tests/test_math.py", 6, "skipped-test")],
+        ),
+        (
+            diff(
+                changed(
+                    "tests/test_math.py",
+                    "@@ -5,3 +4,0 @@",
+                    "-",
+                    "-def test_subtracts():",
+                    "-    assert sub(3, 1) == 2",
+                ),
+                created(
+                    "tests/test_sub.py",
+                    "@@ -0,0 +1,3 @@",
+                    "+@pytest.mark.skip",
+                    "+def test_subtracts():",
+                    "+    assert sub(3, 1) == 2",
+                ),
+            ),
+            [("tests/test_sub.py", 1, "skipped-test")],
+        ),
+    ],
+    ids=[
+        "python-decorator-on-existing",
+        "go-call-in-existing",
+        "node-only-on-new",
+        "python-autouse-fixture",
+        "python-module-level",
+        "python-helper",
+        "python-renamed",
+        "python-moved-to-another-file",
+    ],
+)
+def test_a_skip_on_an_existing_test_is_a_finding_beside_new_tests(tmp_path, text, expected):
+    """An existing test newly skipped, a skip outside the new test's body, or a focus
+    that skips the other tests all still count when the diff also adds a test."""
+    assert kinds(scan_diff(tmp_path, text)) == expected
 
 
 def test_skip_marker_moved_to_another_file_is_not_a_finding(tmp_path):
@@ -563,6 +844,31 @@ def test_range_scan_follows_a_renamed_test_file(repo):
     assert kinds(result) == [("tests/test_arith.py", 7, "loosened-assertion")]
 
 
+def test_a_git_source_scans_a_test_file_that_is_not_utf8(repo):
+    path = repo / "tests" / "test_names.py"
+    path.write_bytes("def test_name():\n    assert name() == 'café'\n".encode("latin-1"))
+    git(repo, "add", ".")
+    git(repo, "commit", "-qm", "names")
+    path.write_bytes(b"def test_name():\n    pass\n")
+
+    code, result = run_script("test_integrity.py", repo)
+
+    assert code == 0, result
+    assert kinds(result) == [("tests/test_names.py", 2, "removed-assertion")]
+
+
+def test_a_repository_git_refuses_to_open_is_an_error_not_a_clean_scan(tmp_path):
+    broken = tmp_path / "broken"
+    (broken / ".git").mkdir(parents=True)
+
+    code, result = run_script("test_integrity.py", broken)
+
+    assert code == 2
+    assert result["ok"] is False
+    assert result["error"]
+    assert "findings" not in result
+
+
 def test_scan_of_a_repository_without_commits_finds_nothing(tmp_path):
     fresh = tmp_path / "fresh"
     fresh.mkdir()
@@ -669,7 +975,7 @@ def test_isolated_mode_answers_no_findings_for_a_folder_that_is_not_a_repository
         ["{repo}", "--bogus"],
         ["scan", "{repo}"],
         ["{repo}", "--staged", "--stdin"],
-        ["{repo}", "--range=--output=leak.txt"],
+        ["{repo}", "--range=--output=leak..txt"],
         ["{repo}", "--range", ""],
         ["{repo}", "--range", "HEAD"],
         ["{missing}", "--stdin"],
@@ -687,4 +993,4 @@ def test_usage_and_git_errors_are_json_with_exit_two(repo, tmp_path, args):
     assert result["error"]
     assert result["next_action"]
     assert "findings" not in result
-    assert not (repo / "leak.txt").exists()
+    assert not (repo / "leak..txt").exists()

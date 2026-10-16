@@ -68,7 +68,8 @@ script that prints one JSON object and runs under `python3 -I`
    removed or loosened assertions, for python, node, go and rust. Each
    finding carries a file and a line, so the findings-first review
    ([ADR 0007](0007-findings-first-review.md)) reports it as a verified
-   finding.
+   finding. A repository git refuses to open is an error, never a clean
+   answer.
 
 Check commands other than `test` may be empty, and an empty token is a
 render error ([ADR 0003](0003-token-substitution-templates.md)), so the
@@ -128,6 +129,12 @@ offered and no template references them.
   `GOPROXY=off`, `npm_config_offline=true`): a command that then needs a
   download fails, which still proves it ran. Other tools keep their own
   network behaviour.
+- The integrity check reports a skip that weakens existing tests. A skip
+  inside a test the same diff adds (a Go `if testing.Short() { t.Skip() }`,
+  a `@pytest.mark.skipif` on a new test) skips nothing that ran before, so
+  it is not reported; a skip on an existing test, a renamed or moved one,
+  or outside the new test's body still is, and so is a focus (`.only`,
+  `fit`), which skips every other test.
 - Proving and running execute the repository's own commands, so only a
   caller that asks runs them; `shipshape-init` writes nothing into the
   repository before its plan gate and does not prove. Doctor stays

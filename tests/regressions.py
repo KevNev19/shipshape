@@ -1052,6 +1052,25 @@ def test_review_is_not_called_read_only_and_says_how_it_runs_checks() -> None:
     )
 
 
+def test_a_repository_git_refuses_is_an_error() -> None:
+    """2026-10-16: test_integrity.py read any failure of git rev-parse as a
+    folder outside a repository, so a repository git refused to open (unsafe
+    ownership, a broken .git) answered "findings": [] instead of an error."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_a_repository_git_refuses_to_open_is_an_error_not_a_clean_scan",
+    )
+
+
+def test_a_skip_inside_a_new_test_is_not_a_weakening() -> None:
+    """2026-10-16: test_integrity.py reported a skip inside a test the same
+    diff added, such as a Go testing.Short() guard, as a skipped test, though
+    it skips nothing that ran before."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_a_skip_inside_a_test_the_diff_adds_is_not_a_finding",
+        "tests/test_test_integrity.py::test_a_skip_on_an_existing_test_is_a_finding_beside_new_tests",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1269,6 +1288,14 @@ def main() -> int:
         (
             "review is not called read-only and says how it runs checks",
             test_review_is_not_called_read_only_and_says_how_it_runs_checks,
+        ),
+        (
+            "a repository git refuses is an error",
+            test_a_repository_git_refuses_is_an_error,
+        ),
+        (
+            "a skip inside a new test is not a weakening",
+            test_a_skip_inside_a_new_test_is_not_a_weakening,
         ),
     ]
     failures = 0
