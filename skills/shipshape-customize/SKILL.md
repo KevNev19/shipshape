@@ -31,7 +31,8 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    protected by the automated tests").
 
 2. **Map the request to config keys.** Common ones: `workflow_style`
-   (trunk/pr), `profile` (solo/team), `commands.test`, `owners.default`,
+   (trunk/pr), `profile` (solo/team), `commands.<kind>` (the check commands:
+   `test`, `lint`, `build`, `typecheck`, `format`), `owners.default`,
    `toolchain.*`, `features.*`. If the user asks to disable a
    consequence-gated feature (`features.codeql`, `features.secret_guard`,
    `features.dependabot`, `features.branch_protection`,
