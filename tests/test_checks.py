@@ -4,13 +4,16 @@ Contract under test: one JSON object on stdout, never prose. run reads
 commands.<kind> from .sdlc/config.json, each check named after its kind, or
 runs --command=<command> flags instead, each check named after its command;
 it reports per check whether it passed, the failure count the tool printed
-and the last TAIL_LINES lines of output. It exits 0 whenever it printed an
-answer, failing checks and "ran": false included; usage errors exit 2. One
-budget covers the whole run, and a stop (SIGTERM) kills the running check's
-process group and still prints. Commands here are shell one-liners standing
-in for real tools, so no test needs pytest, npm or ruff installed.
+and the last TAIL_LINES lines of output; "ok" is true only when checks ran
+and all passed. It exits 0 whenever it printed an answer, failing checks and
+"ran": false included; usage errors exit 2. One budget covers the whole run,
+a check's leftover processes cannot hold the runner, and a stop (SIGTERM)
+kills the running check's process group and still prints. Commands here are
+shell one-liners standing in for real tools, so no test needs pytest, npm or
+ruff installed.
 """
 
+import contextlib
 import json
 import os
 import shlex
@@ -33,6 +36,18 @@ BUDGET_LINE = "stopped: the time budget for the checks ran out"
 STOPPED_LINE = "stopped: the runner was asked to stop"
 # A stand-in for a slow tool that starts a child, records its pid and waits for it.
 SLOW = f"{PYTHON} -c 'import time; time.sleep(60)' & echo $! > child.pid; wait"
+# A tool that passes at once but leaves a child holding its output open.
+LEAVES_A_CHILD = f"{PYTHON} -c 'import time; time.sleep(60)' & echo $! > child.pid; echo done"
+# A tool whose child leaves the check's process group (setsid), records its pid
+# once it has, and holds the check's output open while the tool waits for it.
+ESCAPES_THE_GROUP = (
+    f"{PYTHON} -c 'import os, time; os.setsid(); "
+    'open("child.pid", "w").write(str(os.getpid())); time.sleep(60)\' & wait'
+)
+BLANK_LINES = 40_000
+# The runner reads a run of blank lines in linear time: the quadratic patterns
+# this guards against took seconds per pattern on 40,000 lines.
+BLANK_LINES_BUDGET_MS = 1000
 
 
 def say(text: str, code: int = 0) -> str:
@@ -108,7 +123,7 @@ def test_run_without_config_or_commands_runs_nothing_and_exits_zero(tmp_path):
 
     assert code == 0
     assert payload == {
-        "ok": True,
+        "ok": False,
         "mode": "checks-run",
         "ran": False,
         "reason": NO_CONFIG,
@@ -124,6 +139,7 @@ def test_run_with_no_command_set_runs_nothing(tmp_path):
     code, payload = run_script("checks.py", "run", tmp_path)
 
     assert code == 0
+    assert payload["ok"] is False
     assert payload["ran"] is False
     assert payload["reason"] == NOTHING_SET
     assert payload["results"] == []
@@ -142,6 +158,7 @@ def test_run_skips_the_placeholder_render_writes_for_a_repo_without_tests(tmp_pa
     code, payload = run_script("checks.py", "run", repo)
 
     assert code == 0, payload
+    assert payload["ok"] is False
     assert payload["ran"] is False
     assert payload["reason"] == NOTHING_SET
     assert {
@@ -196,6 +213,12 @@ def test_run_keeps_a_command_with_an_equals_sign_whole_and_runs_a_repeat_once(tm
         ),
         ("test result: FAILED. 40 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out", 3),
         (
+            "test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out\n"
+            "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n"
+            "test result: FAILED. 1 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out",
+            6,
+        ),
+        (
             "a.py:3: error: Incompatible types\nFound 4 errors in 2 files (checked 9 source files)",
             4,
         ),
@@ -212,6 +235,29 @@ def test_run_counts_the_failures_a_tool_reports(tmp_path, output, expected):
     result = payload["results"][0]
     assert result["passed"] is False and result["exit_code"] == 1
     assert result["failures"] == expected
+
+
+@pytest.mark.parametrize("cannot_run", [126, 127])
+def test_a_command_the_shell_could_not_run_reports_no_failure_count(tmp_path, cannot_run):
+    command = say("Found 3 errors.", cannot_run)
+
+    code, payload = run_script("checks.py", "run", tmp_path, f"--command={command}")
+
+    assert code == 0
+    result = payload["results"][0]
+    assert result["passed"] is False and result["exit_code"] == cannot_run
+    assert result["failures"] is None
+
+
+def test_run_counts_failures_after_a_long_run_of_blank_lines_in_linear_time(tmp_path):
+    lines = f"{PYTHON} -c 'print(\"\\n\" * {BLANK_LINES})'; exit 1"
+
+    code, payload = run_script("checks.py", "run", tmp_path, f"--command={lines}")
+
+    assert code == 0, payload
+    result = payload["results"][0]
+    assert result["exit_code"] == 1 and result["failures"] is None
+    assert result["duration_ms"] < BLANK_LINES_BUDGET_MS
 
 
 def test_run_keeps_only_the_last_lines_of_output(tmp_path):
@@ -282,8 +328,58 @@ def test_run_stops_at_its_budget_and_kills_what_the_check_started(tmp_path):
     assert_gone(int((tmp_path / "child.pid").read_text()))
 
 
+def test_a_check_that_leaves_a_child_holding_its_output_passes_at_once(tmp_path):
+    started = time.monotonic()
+
+    code, payload = run_script(
+        "checks.py", "run", tmp_path, f"--command={LEAVES_A_CHILD}", "--timeout=30"
+    )
+
+    assert code == 0, payload
+    assert time.monotonic() - started < 10
+    [result] = payload["results"]
+    assert result["passed"] is True and result["exit_code"] == 0
+    assert result["tail"] == ["done"]
+    assert payload["ok"] is True
+    assert_gone(int((tmp_path / "child.pid").read_text()))
+
+
+def test_a_stop_answers_while_a_child_outside_the_group_holds_the_output(tmp_path):
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            str(SCRIPTS / "checks.py"),
+            "run",
+            str(tmp_path),
+            f"--command={ESCAPES_THE_GROUP}",
+            "--timeout=60",
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    child_pid = tmp_path / "child.pid"
+    try:
+        deadline = time.monotonic() + 10
+        while not (child_pid.exists() and child_pid.read_text().strip()):
+            assert time.monotonic() < deadline, "the check never started"
+            time.sleep(0.05)
+
+        proc.send_signal(signal.SIGTERM)
+        out, _ = proc.communicate(timeout=10)
+    finally:
+        proc.kill()
+        if child_pid.exists() and child_pid.read_text().strip():
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(int(child_pid.read_text()), signal.SIGKILL)
+
+    assert proc.returncode == 0
+    [result] = json.loads(out)["results"]
+    assert result["passed"] is False and result["failures"] is None
+    assert result["tail"][-1] == STOPPED_LINE
+
+
 def test_a_stop_kills_the_running_check_and_still_answers(tmp_path):
-    """How Rook runs the script: python3 -I -B, by absolute path, from another folder."""
+    """How a caller starts the script: python3 -I -B, by absolute path, from another folder."""
     repo = tmp_path / "repo"
     repo.mkdir()
     proc = subprocess.Popen(
