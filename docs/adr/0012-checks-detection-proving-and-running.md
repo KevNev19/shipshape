@@ -49,8 +49,10 @@ script that prints one JSON object and runs under `python3 -I`
    `commands.*`, or commands given on its command line, and reports per
    check whether it passed, the failure count when the tool prints one,
    and the last lines of its output, within one time budget that a stop
-   ends without leaving a check's processes behind. It exits 0 whenever it
-   printed its answer; the answer's `ok` says whether every check passed.
+   ends without leaving a check's processes behind. A check's output goes
+   to a temporary file, so a process the check leaves behind cannot keep
+   the runner waiting. It exits 0 whenever it printed its answer; the
+   answer's `ok` is true only when checks ran and every one passed.
    Consumers get the same script as `.sdlc/scripts/checks.py` through the
    manifest, under the drift contract of
    [ADR 0003](0003-token-substitution-templates.md).

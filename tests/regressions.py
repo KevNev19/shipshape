@@ -939,6 +939,43 @@ def test_a_script_named_by_any_glob_is_screened() -> None:
     )
 
 
+def test_check_output_cannot_hold_the_runner() -> None:
+    """2026-10-16: checks.py read a check's output through a pipe, so a check
+    that passed but left a child holding its output ran out the budget and was
+    reported failed, a child that left the check's process group kept the
+    runner from answering a stop, and the whole output was held in memory."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_a_check_that_leaves_a_child_holding_its_output_passes_at_once",
+        "tests/test_checks.py::test_a_stop_answers_while_a_child_outside_the_group_holds_the_output",
+    )
+
+
+def test_failure_counts_take_linear_time_on_blank_lines() -> None:
+    """2026-10-16: the pytest and jest or vitest summary patterns matched blanks
+    with \\s*, which ran across line ends, so a run of blank lines in a check's
+    output took quadratic time to count failures in."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_run_counts_failures_after_a_long_run_of_blank_lines_in_linear_time",
+    )
+
+
+def test_a_run_where_nothing_ran_is_not_ok() -> None:
+    """2026-10-16: checks.py answered "ok": true when no check ran, so a caller
+    gating on "ok" read a repo without checks as green."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_run_without_config_or_commands_runs_nothing_and_exits_zero",
+        "tests/test_checks.py::test_run_with_no_command_set_runs_nothing",
+    )
+
+
+def test_cargo_failures_add_up_across_test_binaries() -> None:
+    """2026-10-16: cargo test --no-fail-fast prints a summary per test binary,
+    and checks.py counted only the last one's failures."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_run_counts_the_failures_a_tool_reports",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1112,6 +1149,22 @@ def main() -> int:
         (
             "a script named by any glob is screened",
             test_a_script_named_by_any_glob_is_screened,
+        ),
+        (
+            "check output cannot hold the runner",
+            test_check_output_cannot_hold_the_runner,
+        ),
+        (
+            "failure counts take linear time on blank lines",
+            test_failure_counts_take_linear_time_on_blank_lines,
+        ),
+        (
+            "a run where nothing ran is not ok",
+            test_a_run_where_nothing_ran_is_not_ok,
+        ),
+        (
+            "cargo failures add up across test binaries",
+            test_cargo_failures_add_up_across_test_binaries,
         ),
     ]
     failures = 0

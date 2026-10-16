@@ -40,8 +40,15 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    - A PR: `gh pr checks <n>`. For a failing check, fetch the failed step's
      log tail (`gh run view --log-failed`) and find the first real error
      line.
-   - Uncommitted work, or the branch checked out here: tell the user you
-     are running the project's checks, then run them once:
+   - Uncommitted work, or the branch checked out here: the checks run the
+     repository's own commands. On a branch someone else wrote, first read
+     its diff for changes to `.sdlc/config.json`, package scripts (such as
+     the `scripts` in `package.json`) and CI files (`.github/workflows/`).
+     When any of them changed, name the commands the checks will run (the
+     `commands` in `.sdlc/config.json`) and run them only after the user
+     says yes; without a yes, report that the checks were not run, as a
+     material uncertainty. Then tell the user you are running the
+     project's checks, and run them once:
 
      ```bash
      python3 "${SHIPSHAPE_ROOT}/scripts/checks.py" run .

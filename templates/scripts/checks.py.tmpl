@@ -23,17 +23,20 @@ its command. With nothing to run, "ran" is false, "reason" says why and
 
 Per check: whether it passed; "failures", 0 for a passing check, the count
 the tool's summary states for a failing one, and null when it states none;
-and "tail", the last TAIL_LINES lines of its merged output. A command the
-shell could not run (exit 126 or 127) or that could not start is a failed
-check. "ok" is true when every check that ran passed.
+and "tail", the last TAIL_LINES lines of its merged output. Both are read
+from the last MAX_OUTPUT_BYTES of that output. A command the shell could not
+run (exit 126 or 127) or that could not start is a failed check. "ok" is true
+only when checks ran and every one passed.
 
 --timeout is one budget for the whole run (default 1800 seconds). Each
 command runs through the shell in the repo, with no input, in a process group
-of its own. When the budget ends, or when the runner gets SIGTERM, it kills
-the running command's group, so nothing the check started outlives it,
-reports that check failed with "failures": null and a last tail line saying
-why it stopped, lists the checks it did not reach under "skipped" instead of
-"results", and prints its answer.
+of its own, writing to a temporary file rather than a pipe, so a process that
+outlives the command cannot keep the runner waiting. When the command exits,
+the runner kills whatever it left running in its group. When the budget ends,
+or when the runner gets SIGTERM, it kills the running command's group, so
+nothing the check started outlives it, reports that check failed with
+"failures": null and a last tail line saying why it stopped, lists the checks
+it did not reach under "skipped" instead of "results", and prints its answer.
 
 Exit 0 whenever an answer is printed, whatever the checks reported; read "ok"
 to gate on them. A usage error, or a config that cannot be read, prints
@@ -55,6 +58,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -66,6 +70,7 @@ NO_TESTS_CMD = 'echo "No tests configured yet - see docs/sdlc/harness.md"'
 TAIL_LINES = 20
 DEFAULT_RUN_TIMEOUT_SECONDS = 1800.0
 KILL_WAIT_SECONDS = 5.0
+MAX_OUTPUT_BYTES = 1 << 20
 NOT_EXECUTABLE_EXIT = 126
 NOT_FOUND_EXIT = 127
 USAGE_EXIT = 2
@@ -74,21 +79,26 @@ ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 # Summary lines that say how many failures a tool found, per tool family. The
 # first family that matches decides: a pattern with a group gives the number in
-# its last match; one without counts its matches (go test prints a line per
-# failing test and no total). mypy and tsc come before ruff, whose summary
-# line is the shorter form of theirs. A pytest summary that names both failed
-# tests and errors counts the failed tests; "pytest errors" covers the summary
-# of a run that only errored (collection or fixture errors).
+# its last match, or the sum of its matches for a family in SUMMED_FAMILIES;
+# one without counts its matches (go test prints a line per failing test and
+# no total). mypy and tsc come before ruff, whose summary line is the shorter
+# form of theirs. A pytest summary that names both failed tests and errors
+# counts the failed tests; "pytest errors" covers the summary of a run that
+# only errored (collection or fixture errors). Blanks are [ \t], never \s,
+# which runs across line ends and takes quadratic time on a run of blank lines.
 FAILURE_COUNT_PATTERNS: dict[str, re.Pattern[str]] = {
-    "pytest": re.compile(r"^=*\s*(\d+) failed\b.* in [\d.]+s\b", re.MULTILINE),
-    "pytest errors": re.compile(r"^=*\s*(?:\d+ \w+, )*(\d+) errors? in [\d.]+s\b", re.MULTILINE),
-    "jest or vitest": re.compile(r"^\s*Tests:?\s+(\d+) failed\b", re.MULTILINE),
+    "pytest": re.compile(r"^=*[ \t]*(\d+) failed\b.* in [\d.]+s\b", re.MULTILINE),
+    "pytest errors": re.compile(r"^=*[ \t]*(?:\d+ \w+, )*(\d+) errors? in [\d.]+s\b", re.MULTILINE),
+    "jest or vitest": re.compile(r"^[ \t]*Tests:?[ \t]+(\d+) failed\b", re.MULTILINE),
     "go test": re.compile(r"^--- FAIL: ", re.MULTILINE),
     "cargo test": re.compile(r"^test result: FAILED\. \d+ passed; (\d+) failed;", re.MULTILINE),
     "mypy or tsc": re.compile(r"^Found (\d+) errors? in ", re.MULTILINE),
     "ruff": re.compile(r"^Found (\d+) errors?\b", re.MULTILINE),
     "eslint": re.compile(r"\b\d+ problems? \((\d+) errors?\b"),
 }
+# cargo test prints a summary per test binary, and with --no-fail-fast it goes
+# on past a failing one, so its counts add up.
+SUMMED_FAMILIES = {"cargo test"}
 
 USAGE = "Use: checks.py run <repo> [--command=<command>]... [--timeout=SECONDS]."
 NO_CONFIG_REASON = "no .sdlc/config.json and no --command given"
@@ -140,10 +150,15 @@ def _kill_group(process: subprocess.Popen) -> None:
 
 def count_failures(output: str) -> int | None:
     """The failure count a tool's summary states, or None when no known summary appears."""
-    for pattern in FAILURE_COUNT_PATTERNS.values():
+    for family, pattern in FAILURE_COUNT_PATTERNS.items():
         matches = pattern.findall(output)
-        if matches:
-            return int(matches[-1]) if pattern.groups else len(matches)
+        if not matches:
+            continue
+        if not pattern.groups:
+            return len(matches)
+        if family in SUMMED_FAMILIES:
+            return sum(int(match) for match in matches)
+        return int(matches[-1])
     return None
 
 
@@ -175,36 +190,51 @@ def _result(
     }
 
 
+def _read_tail(sink) -> bytes:
+    """The last MAX_OUTPUT_BYTES of what a check wrote."""
+    size = sink.seek(0, os.SEEK_END)
+    sink.seek(max(0, size - MAX_OUTPUT_BYTES))
+    return sink.read()
+
+
 def run_command(repo: Path, command: str, timeout: float) -> dict:
     """Run one check command once through the shell in the repo, within `timeout`
     seconds, and say what happened."""
     started = time.monotonic()
+    # A file, not a pipe: a process the check leaves behind cannot hold the runner
+    # waiting for end of output, and a chatty check cannot fill the runner's memory.
     try:
-        process = subprocess.Popen(
-            command,
-            shell=True,
-            cwd=repo,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+        sink = tempfile.TemporaryFile()
     except OSError as error:
         return _result(command, started, None, "", f"could not start: {error}")
-    STOP.process = process
-    try:
-        if STOP.requested:
-            _kill_group(process)
-        raw, _ = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        _kill_group(process)
+    with sink:
         try:
-            raw, _ = process.communicate(timeout=KILL_WAIT_SECONDS)
+            process = subprocess.Popen(
+                command,
+                shell=True,
+                cwd=repo,
+                stdin=subprocess.DEVNULL,
+                stdout=sink,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        except OSError as error:
+            return _result(command, started, None, "", f"could not start: {error}")
+        STOP.process = process
+        try:
+            if STOP.requested:
+                _kill_group(process)
+            process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            raw = b""
-        return _result(command, started, None, _clean_output(raw), BUDGET_LINE)
-    finally:
-        STOP.process = None
+            _kill_group(process)
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                process.wait(timeout=KILL_WAIT_SECONDS)
+            return _result(command, started, None, _clean_output(_read_tail(sink)), BUDGET_LINE)
+        finally:
+            STOP.process = None
+        # Whatever the check left running in its group ends with it.
+        _kill_group(process)
+        raw = _read_tail(sink)
     if STOP.requested:
         return _result(command, started, None, _clean_output(raw), STOPPED_LINE)
     return _result(command, started, process.returncode, _clean_output(raw))
@@ -257,7 +287,7 @@ def _next_action(results: list[dict]) -> str:
 def _report(results: list[dict], skipped: list[dict], reason: str, next_action: str) -> dict:
     ran = bool(results)
     return {
-        "ok": all(result["passed"] for result in results),
+        "ok": ran and all(result["passed"] for result in results),
         "mode": MODE,
         "ran": ran,
         "reason": "" if ran else reason,
