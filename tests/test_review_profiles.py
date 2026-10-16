@@ -56,7 +56,7 @@ CONTRACT_SECTIONS = [
 PROFILE_SECTION = re.compile(r"^## 0\. Artefact profile$(.*?)^## 1\. Intent$", re.M | re.S)
 PROFILE_ROW = re.compile(r"^\| `([a-z]+)` \|", re.M)
 LENS_KEY = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
-# Python's fnmatch and Node's path.matchesGlob (Rook's task 17) disagree on these.
+# Python's fnmatch and Node's path.matchesGlob, which callers use, disagree on these.
 UNSUPPORTED_GLOB_CHARS = re.compile(r"[?\[\]{}()!]")
 MAX_LENS_PROMPT_CHARS = 500
 # A tool that runs only a profile's leading lenses must still check security.
