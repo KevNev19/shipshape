@@ -33,8 +33,9 @@ The check reads changed lines, not syntax trees, through per-language patterns
 it is not a removal; a removed test or assertion that an added one of its kind
 replaces in the same file was rewritten, which the review rubric judges, so it is
 not a removal either. A skip inside a test the same diff adds skips nothing that
-ran before, so it is not a finding; one that focuses on some tests (.only, fit)
-skips the others, so it still is. A line number is the old file's for something
+ran before, so it is not a finding, unless the file also removes a test or a Python
+class (which added test a removed one became is a guess); one that focuses on some
+tests (.only, fit) skips the others, so it still is. A line number is the old file's for something
 removed and the new file's for something added. Changed files in a language
 detect.py knows but TEST_PATTERNS does not are listed under "unsupported", never
 passed silently.
@@ -532,8 +533,14 @@ def _indent(text: str) -> int:
 def _marked_test(run: list[Line], at: int, language: str) -> int | None:
     """The test a decorator or attribute at run[at] marks: a test attribute in the same
     Rust attribute block, or the Python def below when it is a test, or the first test
-    of the Python class below."""
+    of the Python class below. None for a Rust or Node attribute with nothing below it
+    in the run: the item it marks is an existing one outside the diff."""
     test = TEST_PATTERNS[language]["test"]
+    end = at
+    while end + 1 < len(run) and MARKER.match(run[end + 1][1]):
+        end += 1
+    if language != "python" and end + 1 >= len(run):
+        return None  # the item the attributes mark is not in the diff
     for number, text in reversed(run[:at]):
         if not MARKER.match(text):
             break
@@ -565,15 +572,17 @@ def _skip_owner(run: list[Line], at: int, language: str) -> int | None:
     definition = DEFINITIONS.get(language)
     if definition is None:
         return None
+    shallowest = _indent(text)
     for above, line in reversed(run[:at]):
         if not line.strip():
             continue
         if test.search(line):
-            # A Python call belongs to a test only when it is indented inside it.
-            inside = language != "python" or _indent(line) < _indent(text)
-            return above if inside else None
+            # A call belongs to a test only when everything from the header to it is
+            # indented inside the header: a dedent between them closed the test.
+            return above if _indent(line) < shallowest else None
         if definition.search(line):
             return None
+        shallowest = min(shallowest, _indent(line))
     return None
 
 
@@ -583,15 +592,19 @@ def _new_tests(
     removed_tests: list[Line],
     removed_elsewhere: Container[str],
 ) -> set[int]:
-    """New line numbers of the tests the diff adds: not moved from this file or another,
-    and not the rewrite of a removed test (`removed_tests`, the removed tests that did
-    not move)."""
+    """New line numbers of the tests the diff adds: not moved from this file or another.
+    A file that also removes a test (`removed_tests`, the removed tests that did not
+    move) or a Python class adds none: which added test a removed one became is a
+    guess, so a skip beside them is reported rather than excused."""
+    if removed_tests or any(PYTHON_CLASS.match(text) for _, text in fd.removed):
+        # Which added test a removed one became (a rename) is a guess, so none is new.
+        return set()
     fresh, _ = _unmoved(
         _matching(fd.added, patterns["test"]),
         _matching(fd.removed, patterns["test"]),
         removed_elsewhere,
     )
-    return {number for number, _ in _unreplaced(fresh, removed_tests)}
+    return {number for number, _ in fresh}
 
 
 def _in_new_tests(fd: FileDiff, language: str, skips: list[Line], new_tests: set[int]) -> set[int]:

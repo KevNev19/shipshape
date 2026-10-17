@@ -570,6 +570,135 @@ def test_a_skip_on_an_existing_test_is_a_finding_beside_new_tests(tmp_path, text
     assert kinds(scan_diff(tmp_path, text)) == expected
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            diff(
+                changed(
+                    "tests/test_parse.py",
+                    "@@ -4 +4,6 @@",
+                    "-def test_parse_empty():",
+                    "+def test_parse_null():",
+                    "+    assert parse(None) == []",
+                    "+",
+                    "+",
+                    '+@pytest.mark.skip(reason="flaky")',
+                    "+def test_parse_blank():",
+                )
+            ),
+            [("tests/test_parse.py", 8, "skipped-test")],
+        ),
+        (
+            diff(
+                changed(
+                    "test/math.test.js",
+                    "@@ -2 +2,4 @@",
+                    "-  it('works', () => {",
+                    "+  it('works too', () => {",
+                    "+    expect(add(2, 2)).toBe(4)",
+                    "+  })",
+                    "+  it.skip('works now', () => {",
+                )
+            ),
+            [("test/math.test.js", 5, "skipped-test")],
+        ),
+        (
+            diff(
+                changed(
+                    "math_test.go",
+                    "@@ -5,0 +6,6 @@",
+                    '+\tt.Run("big", func(t *testing.T) {',
+                    "+\t\tif Add(10, 10) != 20 {",
+                    '+\t\t\tt.Fatal("bad")',
+                    "+\t\t}",
+                    "+\t})",
+                    '+\tt.Skip("flaky")',
+                )
+            ),
+            [("math_test.go", 11, "skipped-test")],
+        ),
+        (
+            diff(
+                changed(
+                    "math_test.go",
+                    "@@ -5,0 +6,8 @@",
+                    '+\tt.Run("big", func(t *testing.T) {',
+                    "+\t\tif Add(10, 10) != 20 {",
+                    '+\t\t\tt.Fatal("bad")',
+                    "+\t\t}",
+                    "+\t})",
+                    "+\tif testing.Short() {",
+                    '+\t\tt.Skip("slow")',
+                    "+\t}",
+                )
+            ),
+            [("math_test.go", 12, "skipped-test")],
+        ),
+        (
+            diff(
+                changed(
+                    "tests/math.rs",
+                    "@@ -1,0 +2,6 @@",
+                    "+fn adds_big() {",
+                    "+    assert_eq!(add(10, 10), 20);",
+                    "+}",
+                    "+",
+                    "+#[test]",
+                    "+#[ignore]",
+                )
+            ),
+            [("tests/math.rs", 7, "skipped-test")],
+        ),
+        (
+            diff(
+                changed(
+                    "tests/test_mod.py",
+                    "@@ -5,0 +6,8 @@",
+                    "+def test_zero():",
+                    "+    assert zero() == 0",
+                    "+",
+                    "+",
+                    '+if sys.platform == "win32":',
+                    '+    pytest.skip("module", allow_module_level=True)',
+                    "+",
+                    "+",
+                )
+            ),
+            [("tests/test_mod.py", 11, "skipped-test")],
+        ),
+        (
+            diff(
+                changed(
+                    "tests/test_cls.py",
+                    "@@ -4 +4,5 @@",
+                    "-class TestAll:",
+                    '+@pytest.mark.skip(reason="later")',
+                    "+class TestAll(Base):",
+                    "+    def test_zero(self):",
+                    "+        assert zero() == 0",
+                    "+",
+                )
+            ),
+            [("tests/test_cls.py", 4, "skipped-test")],
+        ),
+    ],
+    ids=[
+        "python-renamed-beside-a-new-test",
+        "node-renamed-beside-a-new-test",
+        "go-after-a-new-subtest",
+        "go-short-after-a-new-subtest",
+        "rust-ignore-on-the-existing-test-below",
+        "python-module-level-under-if",
+        "python-class-with-a-changed-header",
+    ],
+)
+def test_a_skip_is_a_finding_when_it_only_sits_beside_a_new_test(tmp_path, text, expected):
+    """Git's alignment puts an existing test's attribute, a renamed test or the lines after
+    a new test's block in the same run as the new test; the skip still belongs to the old one."""
+    assert kinds(scan_diff(tmp_path, text)) == expected
+
+
 def test_skip_marker_moved_to_another_file_is_not_a_finding(tmp_path):
     text = diff(
         changed("tests/test_math.py", "@@ -5 +4,0 @@", "-@pytest.mark.skip"),

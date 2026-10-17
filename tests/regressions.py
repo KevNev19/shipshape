@@ -1071,6 +1071,16 @@ def test_a_skip_inside_a_new_test_is_not_a_weakening() -> None:
     )
 
 
+def test_a_skip_added_to_an_existing_test_is_still_reported() -> None:
+    """2026-10-17: the exemption for a skip inside a new test also hid a skip
+    added to an existing one when git put the two in one run: a renamed test,
+    a Go skip after a new subtest, a Rust attribute on the test below, a
+    module-level skip, or a class whose header changed."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_a_skip_is_a_finding_when_it_only_sits_beside_a_new_test",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1296,6 +1306,10 @@ def main() -> int:
         (
             "a skip inside a new test is not a weakening",
             test_a_skip_inside_a_new_test_is_not_a_weakening,
+        ),
+        (
+            "a skip added to an existing test is still reported",
+            test_a_skip_added_to_an_existing_test_is_still_reported,
         ),
     ]
     failures = 0
