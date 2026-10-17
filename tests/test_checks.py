@@ -7,8 +7,9 @@ it reports per check whether it passed, the failure count the tool printed
 and the last TAIL_LINES lines of output; "ok" is true only when checks ran
 and all passed. It exits 0 whenever it printed an answer, failing checks and
 "ran": false included; usage errors exit 2. One budget covers the whole run,
-a check's leftover processes cannot hold the runner, and a stop (SIGTERM)
-kills the running check's process group and still prints. Commands here are
+a check's leftover processes cannot hold the runner, the runner reaps what it
+kills, and a stop (SIGTERM) kills the running check's process group and still
+prints. Commands here are
 shell one-liners standing in for real tools, so no test needs pytest, npm or
 ruff installed.
 """
@@ -24,7 +25,9 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import SCRIPTS, init_repo, run_script
+from conftest import SCRIPTS, init_repo, left_unreaped, linux_only, run_script
+
+from scripts import checks
 
 TAIL_LINES = 20
 PYTHON = shlex.quote(sys.executable)
@@ -357,6 +360,39 @@ def test_a_check_that_leaves_a_child_holding_its_output_passes_at_once(tmp_path)
     assert result["tail"] == ["done"]
     assert payload["ok"] is True
     assert_gone(int((tmp_path / "child.pid").read_text()))
+
+
+@linux_only
+@pytest.mark.parametrize(
+    ("tool", "budget"),
+    [(LEAVES_A_CHILD, "--timeout=30"), (SLOW, "--timeout=1")],
+    ids=["finished", "out of budget"],
+)
+def test_run_reaps_what_it_kills_where_pid_1_reaps_nothing(tmp_path, tool, budget):
+    run_command = [sys.executable, str(SCRIPTS / "checks.py"), "run", str(tmp_path)]
+
+    assert not left_unreaped(tmp_path / "child.pid", *run_command, f"--command={tool}", budget)
+
+
+def test_run_ends_the_process_tree_where_there_are_no_process_groups(monkeypatch):
+    """Windows has no os.killpg; taskkill /T ends a running check's tree."""
+    calls = []
+
+    class RunningCheck:
+        pid = 4321
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            calls.append("kill")
+
+    monkeypatch.delattr(checks.os, "killpg")
+    monkeypatch.setattr(checks.subprocess, "run", lambda args, **kwargs: calls.append(args))
+
+    checks._kill_group(RunningCheck())
+
+    assert calls == [["taskkill", "/F", "/T", "/PID", "4321"], "kill"]
 
 
 def test_a_stop_answers_while_a_child_outside_the_group_holds_the_output(tmp_path):
