@@ -1154,6 +1154,16 @@ def test_review_counts_a_partly_staged_file_once() -> None:
     )
 
 
+def test_the_test_integrity_floor_holds_under_every_profile() -> None:
+    """2026-10-17: the rubric let a specification, plan or documentation
+    profile's lenses replace step 1, whose last bullet holds an unexplained
+    deleted, skipped or loosened test to at least "Needs attention first", so a
+    mostly-Markdown change that deleted a test dropped that floor."""
+    run_focused_pytest(
+        "tests/test_review_profiles.py::test_skill_and_rubric_work_through_the_profile_lenses",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1411,6 +1421,10 @@ def main() -> int:
         (
             "review counts a partly staged file once",
             test_review_counts_a_partly_staged_file_once,
+        ),
+        (
+            "the test-integrity floor holds under every profile",
+            test_the_test_integrity_floor_holds_under_every_profile,
         ),
     ]
     failures = 0

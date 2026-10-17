@@ -12,7 +12,8 @@ or narrate the diff file by file. Send the output through the
   answer backed by the evidence that profile accepts.
 - Under `code`, steps 1 to 3 below are its lenses spelled out.
 - Under `specification`, `plan` or `documentation`, its lenses take the place
-  of steps 1 and 2. Steps 3 and 4 apply under every profile.
+  of steps 1 and 2. Steps 3 and 4, and the last bullet of step 1
+  (test-integrity findings), apply under every profile.
 - A changed file that fits another profile is still reviewed for what that
   profile looks for, using that profile's lenses; its findings join the same
   report.

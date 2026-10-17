@@ -233,3 +233,7 @@ def test_skill_and_rubric_work_through_the_profile_lenses():
     rubric = RUBRIC.read_text(encoding="utf-8")
     assert "## 0. Profile" in rubric
     assert "(profiles.json)" in rubric
+    assert (
+        "Steps 3 and 4, and the last bullet of step 1 (test-integrity findings),"
+        " apply under every profile." in flat(rubric)
+    )
