@@ -793,6 +793,33 @@ def test_test_file_split_into_others_is_not_a_finding(tmp_path):
     assert scan_diff(tmp_path, text)["findings"] == []
 
 
+def renamed(old: str, new: str, *lines: str) -> list[str]:
+    header = [f"diff --git a/{old} b/{new}", "similarity index 100%"]
+    return [*header, f"rename from {old}", f"rename to {new}", *lines]
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("tests/test_auth.py", "src/auth_checks.py"),
+        ("tests/test_auth.py", "docs/test_auth.txt"),
+        ("test/auth.test.js", "src/auth.js"),
+        ("auth_test.go", "auth_checks.go"),
+    ],
+)
+def test_a_test_file_renamed_out_of_the_test_paths_is_a_deleted_test(tmp_path, old, new):
+    result = scan_diff(tmp_path, diff(renamed(old, new)))
+
+    assert kinds(result) == [(old, 1, "deleted-test")]
+    assert result["findings"][0]["detail"] == f"test file moved out of the test paths to {new}"
+
+
+def test_a_test_file_renamed_within_the_test_paths_is_not_a_finding(tmp_path):
+    text = diff(renamed("tests/test_auth.py", "tests/test_login.py"))
+
+    assert scan_diff(tmp_path, text)["findings"] == []
+
+
 def test_lines_that_are_not_test_checks_are_ignored(tmp_path):
     text = diff(
         changed("src/math.py", "@@ -2 +1,0 @@", "-    assert a >= 0"),
@@ -971,6 +998,17 @@ def test_range_scan_follows_a_renamed_test_file(repo):
     assert code == 0
     assert result["source"] == "range"
     assert kinds(result) == [("tests/test_arith.py", 7, "loosened-assertion")]
+
+
+def test_range_scan_reports_a_test_file_moved_out_of_the_test_paths(repo):
+    (repo / "src").mkdir()
+    git(repo, "mv", "tests/test_math.py", "src/math_checks.py")
+    git(repo, "commit", "-qm", "move")
+
+    code, result = run_script("test_integrity.py", repo, "--range=HEAD~1..HEAD")
+
+    assert code == 0
+    assert kinds(result) == [("tests/test_math.py", 1, "deleted-test")]
 
 
 def test_a_git_source_scans_a_test_file_that_is_not_utf8(repo):
