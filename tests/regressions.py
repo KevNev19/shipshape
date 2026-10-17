@@ -1039,6 +1039,19 @@ def test_a_command_that_cannot_start_is_not_a_config_error() -> None:
     )
 
 
+def test_review_is_not_called_read_only_and_says_how_it_runs_checks() -> None:
+    """2026-10-17: the README and site called shipshape-review read-only after
+    it began running the project's checks, and the skill left "a branch
+    someone else wrote" undefined, ran past the shell tool's time limit and
+    put branch names in commands unquoted."""
+    run_focused_pytest(
+        "tests/test_site.py::test_readme_and_site_say_review_runs_the_projects_checks",
+        "tests/test_review_contract.py::test_review_skill_says_whose_branch_it_is_from_the_commit_authors",
+        "tests/test_review_contract.py::test_review_skill_runs_the_checks_inside_the_shell_tools_time_limit",
+        "tests/test_review_contract.py::test_review_skill_quotes_every_name_it_puts_in_a_command",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1252,6 +1265,10 @@ def main() -> int:
         (
             "a command that cannot start is not a config error",
             test_a_command_that_cannot_start_is_not_a_config_error,
+        ),
+        (
+            "review is not called read-only and says how it runs checks",
+            test_review_is_not_called_read_only_and_says_how_it_runs_checks,
         ),
     ]
     failures = 0
