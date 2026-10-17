@@ -7,11 +7,12 @@ it reports per check whether it passed, the failure count the tool printed
 and the last TAIL_LINES lines of output; "ok" is true only when checks ran
 and all passed. It exits 0 whenever it printed an answer, failing checks and
 "ran": false included; usage errors exit 2. One budget covers the whole run,
-a check's leftover processes cannot hold the runner, the runner reaps what it
-kills, and a stop (SIGTERM) kills the running check's process group and still
-prints. Commands here are
-shell one-liners standing in for real tools, so no test needs pytest, npm or
-ruff installed.
+a check's leftover processes cannot hold the runner, a check's output and its
+tail are capped, the runner reaps what it kills, and a stop (SIGTERM, SIGINT,
+SIGHUP or SIGQUIT) kills the running check's process group and still prints;
+a check a stop or the budget kept from running makes "ok" false. Commands here
+are shell one-liners standing in for real tools, so no test needs pytest, npm
+or ruff installed.
 """
 
 import contextlib
@@ -52,6 +53,26 @@ BLANK_LINES = 100_000
 # this guards against took seconds per pattern on 40,000 lines, so 100,000 lines
 # leave a wide margin under the budget.
 BLANK_LINES_BUDGET_MS = 1000
+# A tool that writes a little more than the runner's output cap, then waits:
+# without the cap it would run out the budget, and it never fills a disk.
+OVER_THE_OUTPUT_CAP = (
+    f"{PYTHON} -c 'import sys, time; "
+    f'sys.stdout.write(("y" * 1023 + "\\n") * {(checks.MAX_WRITTEN_BYTES >> 10) + 1024}); '
+    "sys.stdout.flush(); time.sleep(60)'"
+)
+STOP_SIGNAL_NAMES = ("SIGTERM", "SIGINT", "SIGHUP", "SIGQUIT")
+
+
+def passed(name: str) -> dict:
+    """What run_command answers for a check that passed."""
+    return {
+        "command": name,
+        "passed": True,
+        "exit_code": 0,
+        "failures": 0,
+        "tail": [],
+        "duration_ms": 0,
+    }
 
 
 def say(text: str, code: int = 0) -> str:
@@ -278,6 +299,45 @@ def test_run_reads_only_the_last_mebibyte_of_output(tmp_path):
     assert result["failures"] is None
 
 
+def test_run_ends_a_check_whose_output_passes_the_cap(tmp_path):
+    started = time.monotonic()
+
+    code, payload = run_script(
+        "checks.py", "run", tmp_path, f"--command={OVER_THE_OUTPUT_CAP}", "--timeout=30"
+    )
+
+    assert code == 0, payload
+    assert time.monotonic() - started < 10
+    [result] = payload["results"]
+    assert result["passed"] is False and result["exit_code"] is None
+    assert result["failures"] is None
+    assert result["tail"][-1] == "stopped: output over 64 MiB"
+    assert payload["next_action"].startswith(f"Make `{OVER_THE_OUTPUT_CAP}` print less")
+
+
+def test_one_long_line_cannot_fill_the_answer(tmp_path):
+    one_long_line = f"{PYTHON} -c 'print(\"x\" * (1 << 20))'"
+
+    code, payload = run_script("checks.py", "run", tmp_path, f"--command={one_long_line}")
+
+    assert code == 0, payload
+    assert len(json.dumps(payload)) < 100_000
+    [line] = payload["results"][0]["tail"]
+    assert line == "x" * checks.TAIL_LINE_WIDTH + "..."
+
+
+def test_the_tail_keeps_its_last_lines_within_its_size_cap(tmp_path):
+    wide_lines = f"{PYTHON} -c 'for i in range(30): print(str(i).rjust(1900, \"x\"))'"
+
+    code, payload = run_script("checks.py", "run", tmp_path, f"--command={wide_lines}")
+
+    assert code == 0, payload
+    tail = payload["results"][0]["tail"]
+    assert sum(len(line) for line in tail) <= checks.TAIL_MAX_CHARS
+    assert len(tail) == checks.TAIL_MAX_CHARS // 1900
+    assert tail[-1].endswith("x29")
+
+
 def test_run_keeps_only_the_last_lines_of_output(tmp_path):
     lines = f"{PYTHON} -c 'for i in range(30): print(i)'"
 
@@ -429,8 +489,14 @@ def test_a_stop_answers_while_a_child_outside_the_group_holds_the_output(tmp_pat
     assert result["tail"][-1] == STOPPED_LINE
 
 
-def test_a_stop_kills_the_running_check_and_still_answers(tmp_path):
-    """How a caller starts the script: python3 -I -B, by absolute path, from another folder."""
+@pytest.mark.parametrize("name", STOP_SIGNAL_NAMES)
+def test_a_stop_kills_the_running_check_and_still_answers(tmp_path, name):
+    """How a caller starts the script: python3 -I -B, by absolute path, from
+    another folder. Ctrl-C and a closed terminal reach the runner but not the
+    check, which leads a session of its own."""
+    if not hasattr(signal, name):
+        pytest.skip(f"no {name} here")
+    signum = getattr(signal, name)
     repo = tmp_path / "repo"
     repo.mkdir()
     proc = subprocess.Popen(
@@ -447,6 +513,7 @@ def test_a_stop_kills_the_running_check_and_still_answers(tmp_path):
         cwd=tmp_path,
         stdout=subprocess.PIPE,
         text=True,
+        preexec_fn=lambda: signal.signal(signum, signal.SIG_DFL),
     )
     child_pid = repo / "child.pid"
     deadline = time.monotonic() + 10
@@ -454,7 +521,7 @@ def test_a_stop_kills_the_running_check_and_still_answers(tmp_path):
         assert time.monotonic() < deadline, "the check never started"
         time.sleep(0.05)
 
-    proc.send_signal(signal.SIGTERM)
+    proc.send_signal(signum)
     out, _ = proc.communicate(timeout=10)
 
     assert proc.returncode == 0
@@ -465,8 +532,131 @@ def test_a_stop_kills_the_running_check_and_still_answers(tmp_path):
     assert payload["skipped"] == [
         {"name": "echo second >> ran.log", "reason": "not reached: the runner was asked to stop"}
     ]
+    assert payload["ok"] is False
+    assert "Not reached (the runner was asked to stop)" in payload["next_action"]
     assert not (repo / "ran.log").exists()
     assert_gone(int(child_pid.read_text()))
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGHUP"), reason="no SIGHUP here")
+def test_a_signal_the_caller_ignored_stays_ignored(tmp_path):
+    """nohup starts the runner with SIGHUP ignored, so a hangup must not stop it."""
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            str(SCRIPTS / "checks.py"),
+            "run",
+            str(tmp_path),
+            "--command=echo $$ > child.pid; sleep 1",
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+        preexec_fn=lambda: signal.signal(signal.SIGHUP, signal.SIG_IGN),
+    )
+    child_pid = tmp_path / "child.pid"
+    deadline = time.monotonic() + 10
+    while not (child_pid.exists() and child_pid.read_text().strip()):
+        assert time.monotonic() < deadline, "the check never started"
+        time.sleep(0.05)
+
+    proc.send_signal(signal.SIGHUP)
+    out, _ = proc.communicate(timeout=30)
+
+    assert proc.returncode == 0
+    assert json.loads(out)["ok"] is True
+
+
+def test_a_check_is_killed_however_its_wait_ends(tmp_path, monkeypatch):
+    """An exception in the wait, such as KeyboardInterrupt, still ends the
+    check's group before it reaches the caller."""
+    child_pid = tmp_path / "child.pid"
+
+    def interrupted(process, sink, timeout):
+        deadline = time.monotonic() + 10
+        while not (child_pid.exists() and child_pid.read_text().strip()):
+            assert time.monotonic() < deadline, "the check never started"
+            time.sleep(0.05)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(checks, "_wait", interrupted)
+
+    with pytest.raises(KeyboardInterrupt):
+        checks.run_command(tmp_path, SLOW, 30)
+
+    assert_gone(int(child_pid.read_text()))
+
+
+def test_a_stop_before_the_first_check_is_not_all_passed(tmp_path, monkeypatch):
+    monkeypatch.setattr(checks.STOP, "requested", True)
+
+    payload = checks.run(tmp_path, ["echo first", "echo second"], 30)
+
+    assert payload["ok"] is False and payload["ran"] is False
+    assert payload["results"] == []
+    assert payload["next_action"] == (
+        "Not reached (the runner was asked to stop): `echo first`, `echo second`;"
+        " run the checks again."
+    )
+
+
+def test_a_stop_between_checks_is_not_ok(tmp_path, monkeypatch):
+    monkeypatch.setattr(checks.STOP, "requested", False)
+
+    def passes_then_stops(repo, command, timeout):
+        checks.STOP.requested = True
+        return passed(command)
+
+    monkeypatch.setattr(checks, "run_command", passes_then_stops)
+
+    payload = checks.run(tmp_path, ["echo first", "echo second"], 30)
+
+    assert [result["passed"] for result in payload["results"]] == [True]
+    assert payload["ok"] is False
+    assert payload["next_action"] == (
+        "Not reached (the runner was asked to stop): `echo second`; run the checks again."
+    )
+
+
+def test_a_budget_that_ends_between_checks_is_not_ok(tmp_path, monkeypatch):
+    def passes_past_the_budget(repo, command, timeout):
+        time.sleep(timeout + 0.05)
+        return passed(command)
+
+    monkeypatch.setattr(checks, "run_command", passes_past_the_budget)
+
+    payload = checks.run(tmp_path, ["echo first", "echo second"], 0.2)
+
+    assert [result["passed"] for result in payload["results"]] == [True]
+    assert payload["ok"] is False
+    assert payload["skipped"] == [
+        {"name": "echo second", "reason": "not reached: the time budget for the checks ran out"}
+    ]
+    assert "All checks passed" not in payload["next_action"]
+    assert "the time budget for the checks ran out" in payload["next_action"]
+
+
+def test_a_command_holding_a_nul_byte_is_one_failed_check(tmp_path):
+    write_config(tmp_path, {"test": "echo a\u0000b", "lint": say("All checks passed!")})
+
+    code, payload = run_script("checks.py", "run", tmp_path)
+
+    assert code == 0, payload
+    test, lint = by_name(payload)["test"], by_name(payload)["lint"]
+    assert test["passed"] is False and test["exit_code"] is None
+    assert test["tail"] == ["could not start: embedded null byte"]
+    assert lint["passed"] is True
+
+
+def test_output_that_cannot_be_read_back_is_that_checks_failure(tmp_path, monkeypatch):
+    def unreadable(sink):
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(checks, "_read_tail", unreadable)
+
+    result = checks.run_command(tmp_path, "echo hi", 30)
+
+    assert result["passed"] is False and result["exit_code"] is None
+    assert result["tail"] == ["could not read its output: disk gone"]
 
 
 def test_run_gives_a_check_no_input(tmp_path):

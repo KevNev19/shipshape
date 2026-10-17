@@ -23,23 +23,29 @@ its command. With nothing to run, "ran" is false, "reason" says why and
 
 Per check: whether it passed; "failures", 0 for a passing check, the count
 the tool's summary states for a failing one, and null when it states none;
-and "tail", the last TAIL_LINES lines of its merged output. Both are read
-from the last MAX_OUTPUT_BYTES of that output. A command the shell could not
-run (exit 126 or 127) or that could not start is a failed check. "ok" is true
-only when checks ran and every one passed.
+and "tail", the last TAIL_LINES lines of its merged output, each cut to
+TAIL_LINE_WIDTH characters and no more of them than fit in TAIL_MAX_CHARS.
+Both are read from the last MAX_OUTPUT_BYTES of that output. A command the
+shell could not run (exit 126 or 127) or that could not start is a failed
+check. "ok" is true only when checks ran, none was left unreached and every
+one passed; "next_action" names any check not reached and why.
 
 --timeout is one budget for the whole run (default 1800 seconds). Each
 command runs through the shell in the repo, with no input, in a process group
 of its own, writing to a temporary file rather than a pipe, so a process that
 outlives the command cannot keep the runner waiting. When the command exits,
 the runner kills whatever it left running in its group. When the budget ends,
-or when the runner gets SIGTERM, it kills the running command's group, so
+when a check's output passes MAX_WRITTEN_BYTES, or when the runner gets
+SIGTERM, SIGINT, SIGHUP or SIGQUIT, it kills the running command's group, so
 nothing the check started outlives it, reports that check failed with
 "failures": null and a last tail line saying why it stopped, lists the checks
 it did not reach under "skipped" instead of "results", and prints its answer.
-On Linux the runner adopts and reaps what it kills, so nothing stays a zombie
-where PID 1 reaps nothing, as in a container without an init; on Windows,
-which has no process groups, taskkill ends a running command's process tree.
+A signal the runner was started ignoring, as under nohup, stays ignored. On
+Linux the runner adopts and reaps what it kills, so nothing stays a zombie
+where PID 1 reaps nothing, as in a container without an init. Windows has no
+process groups: taskkill ends the process tree of a check still running when
+the budget ends or a stop arrives, and what a finished check leaves behind is
+not found.
 
 Exit 0 whenever an answer is printed, whatever the checks reported; read "ok"
 to gate on them. A usage error, or a config that cannot be read, prints
@@ -80,9 +86,27 @@ REAP_POLL_SECONDS = 0.01
 PR_SET_CHILD_SUBREAPER = 36
 PR_GET_CHILD_SUBREAPER = 37
 MAX_OUTPUT_BYTES = 1 << 20
+# A check that writes more output than this is ended: its file is on disk,
+# and on Linux a tmpfs /tmp is memory.
+MAX_WRITTEN_BYTES = 64 << 20
+# How often to look at the size of a running check's output.
+OUTPUT_POLL_SECONDS = 0.05
+# The widest tail line, and the most characters all tail lines take together:
+# one long line, such as a minified bundle, must not fill the answer.
+TAIL_LINE_WIDTH = 2000
+TAIL_MAX_CHARS = 10_000
+CUT_MARK = "..."
 NOT_EXECUTABLE_EXIT = 126
 NOT_FOUND_EXIT = 127
 USAGE_EXIT = 2
+# The signals that stop the runner: SIGTERM, Ctrl-C's SIGINT, the SIGHUP of a
+# closed terminal or a dropped ssh session, and SIGQUIT, none of which reaches a
+# check leading a session of its own. Windows has only SIGTERM and SIGINT.
+STOP_SIGNALS = tuple(
+    getattr(signal, name)
+    for name in ("SIGTERM", "SIGINT", "SIGHUP", "SIGQUIT")
+    if hasattr(signal, name)
+)
 MS_PER_SECOND = 1000
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
@@ -118,8 +142,11 @@ NOTHING_SET_NEXT_ACTION = (
 )
 BUDGET_LINE = "stopped: the time budget for the checks ran out"
 STOPPED_LINE = "stopped: the runner was asked to stop"
-NOT_REACHED_BUDGET = "not reached: the time budget for the checks ran out"
-NOT_REACHED_STOPPED = "not reached: the runner was asked to stop"
+OUTPUT_LINE = f"stopped: output over {MAX_WRITTEN_BYTES >> 20} MiB"
+NOT_REACHED = "not reached: "
+NOT_REACHED_BUDGET = f"{NOT_REACHED}the time budget for the checks ran out"
+NOT_REACHED_STOPPED = f"{NOT_REACHED}the runner was asked to stop"
+NOTHING_RAN_NEXT_ACTION = "No check ran; run them again."
 
 
 class ArgumentError(Exception):
@@ -131,9 +158,14 @@ class JsonArgumentParser(argparse.ArgumentParser):
         raise ArgumentError(message)
 
 
+class ConfigError(Exception):
+    """Raised when .sdlc/config.json exists but cannot be read as JSON."""
+
+
 class StopRequest:
-    """SIGTERM while checks run: kill the running command's process group, so
-    nothing the check started outlives the runner, and start no other check."""
+    """A stop signal (STOP_SIGNALS) while checks run: kill the running
+    command's process group, so nothing the check started outlives the runner,
+    and start no other check."""
 
     def __init__(self) -> None:
         self.requested = False
@@ -254,9 +286,24 @@ def _result(
         "passed": passed,
         "exit_code": exit_code,
         "failures": failures,
-        "tail": lines[-TAIL_LINES:],
+        "tail": _tail(lines),
         "duration_ms": round((time.monotonic() - started) * MS_PER_SECOND),
     }
+
+
+def _tail(lines: list[str]) -> list[str]:
+    """The last TAIL_LINES lines, each cut to TAIL_LINE_WIDTH characters, and
+    only as many of them as fit in TAIL_MAX_CHARS; the last line always stays."""
+    tail: list[str] = []
+    size = 0
+    for line in reversed(lines[-TAIL_LINES:]):
+        if len(line) > TAIL_LINE_WIDTH:
+            line = line[:TAIL_LINE_WIDTH] + CUT_MARK
+        size += len(line)
+        if tail and size > TAIL_MAX_CHARS:
+            break
+        tail.append(line)
+    return tail[::-1]
 
 
 def _read_tail(sink) -> bytes:
@@ -287,39 +334,61 @@ def run_command(repo: Path, command: str, timeout: float) -> dict:
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
             )
-        except OSError as error:
+        # A NUL byte in the command is a ValueError, not an OSError.
+        except (OSError, ValueError) as error:
             return _result(command, started, None, "", f"could not start: {error}")
         STOP.process = process
         try:
             if STOP.requested:
                 _kill_group(process)
-            process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
+            why = _wait(process, sink, timeout)
+        finally:
+            STOP.process = None
+            # Whatever the check left running in its group ends with it, however
+            # the wait ended, an exception included.
             _kill_group(process)
             with contextlib.suppress(subprocess.TimeoutExpired):
                 process.wait(timeout=KILL_WAIT_SECONDS)
             _reap_group(process)
-            return _result(command, started, None, _clean_output(_read_tail(sink)), BUDGET_LINE)
-        finally:
-            STOP.process = None
-        # Whatever the check left running in its group ends with it.
-        _kill_group(process)
-        _reap_group(process)
-        raw = _read_tail(sink)
-    if STOP.requested:
-        return _result(command, started, None, _clean_output(raw), STOPPED_LINE)
-    return _result(command, started, process.returncode, _clean_output(raw))
+        try:
+            raw = _read_tail(sink)
+        except OSError as error:
+            return _result(command, started, None, "", f"could not read its output: {error}")
+    if not why and STOP.requested:
+        why = STOPPED_LINE
+    return _result(command, started, None if why else process.returncode, _clean_output(raw), why)
+
+
+def _wait(process: subprocess.Popen, sink, timeout: float) -> str:
+    """Wait at most `timeout` seconds for the check to exit, looking at the size
+    of its output as it runs: "" when it exited, else the line saying why it was
+    ended (BUDGET_LINE or OUTPUT_LINE)."""
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        try:
+            process.wait(timeout=max(0.0, min(OUTPUT_POLL_SECONDS, remaining)))
+            return ""
+        except subprocess.TimeoutExpired:
+            pass
+        if os.fstat(sink.fileno()).st_size > MAX_WRITTEN_BYTES:
+            return OUTPUT_LINE
+        if remaining <= OUTPUT_POLL_SECONDS:
+            return BUDGET_LINE
 
 
 def load_checks(repo: Path) -> dict[str, str] | None:
     """The command per check kind in .sdlc/config.json, or None when the repo has no config.
 
-    Raises OSError or ValueError when the config exists but cannot be read as JSON.
+    Raises ConfigError when the config exists but cannot be read as JSON.
     """
     path = repo / CONFIG_PATH
     if not path.is_file():
         return None
-    config = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ConfigError(str(error)) from error
     commands = config.get("commands") if isinstance(config, dict) else None
     if not isinstance(commands, dict):
         commands = {}
@@ -338,11 +407,35 @@ def _skip_reason(kind: str, command: str) -> str:
     return ""
 
 
-def _next_action(results: list[dict]) -> str:
+def _unreached(skipped: list[dict]) -> list[dict]:
+    """The checks a stop or the budget kept from running."""
+    return [item for item in skipped if item["reason"].startswith(NOT_REACHED)]
+
+
+def _next_action(results: list[dict], skipped: list[dict]) -> str:
+    """What to do first: fix the first failing check, then run any check not
+    reached; "All checks passed." only when every check ran and passed."""
+    actions = [_fix_first_failure(results)]
+    unreached = _unreached(skipped)
+    if unreached:
+        names = ", ".join(f"`{item['name']}`" for item in unreached)
+        why = unreached[0]["reason"].removeprefix(NOT_REACHED)
+        actions.append(f"Not reached ({why}): {names}; run the checks again.")
+    action = " ".join(filter(None, actions))
+    if action:
+        return action
+    return "All checks passed." if results else NOTHING_RAN_NEXT_ACTION
+
+
+def _fix_first_failure(results: list[dict]) -> str:
     for result in results:
         if result["passed"]:
             continue
         command, code = result["command"], result["exit_code"]
+        if code is None and result["tail"][-1] == OUTPUT_LINE:
+            return (
+                f"Make `{command}` print less: its output went over {MAX_WRITTEN_BYTES >> 20} MiB."
+            )
         if code is None:
             return f"`{command}` did not finish ({result['tail'][-1]}); run it again."
         if code == NOT_FOUND_EXIT:
@@ -352,19 +445,19 @@ def _next_action(results: list[dict]) -> str:
         if result["failures"] is not None:
             return f"Fix the {result['failures']} failure(s) `{command}` reports."
         return f"Fix what `{command}` reports (exit {code})."
-    return "All checks passed."
+    return ""
 
 
 def _report(results: list[dict], skipped: list[dict], reason: str, next_action: str) -> dict:
     ran = bool(results)
     return {
-        "ok": ran and all(result["passed"] for result in results),
+        "ok": ran and not _unreached(skipped) and all(result["passed"] for result in results),
         "mode": MODE,
         "ran": ran,
         "reason": "" if ran else reason,
         "results": results,
         "skipped": skipped,
-        "next_action": next_action or _next_action(results),
+        "next_action": next_action or _next_action(results, skipped),
     }
 
 
@@ -440,10 +533,14 @@ def main(argv: list[str] | None = None) -> int:
     repo = Path(args.repo).resolve()
     if not repo.is_dir():
         return _usage_error(f"not a directory: {repo}")
-    signal.signal(signal.SIGTERM, STOP)
+    for number in STOP_SIGNALS:
+        # A signal the caller ignored on purpose (nohup, a shell's background job)
+        # stays ignored.
+        if signal.getsignal(number) is not signal.SIG_IGN:
+            signal.signal(number, STOP)
     try:
         result = run(repo, commands, args.timeout)
-    except (OSError, ValueError) as error:
+    except ConfigError as error:
         return _usage_error(
             f"cannot read {CONFIG_PATH}: {error}",
             f"Fix {CONFIG_PATH}, or pass --command=<command>, and try again.",
