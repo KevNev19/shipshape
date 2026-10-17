@@ -51,8 +51,14 @@ script that prints one JSON object and runs under `python3 -I`
    and the last lines of its output, within one time budget that a stop
    ends without leaving a check's processes behind. A check's output goes
    to a temporary file, so a process the check leaves behind cannot keep
-   the runner waiting. It exits 0 whenever it printed its answer; the
-   answer's `ok` is true only when checks ran and every one passed.
+   the runner waiting; a check whose output passes 64 MiB is ended, and
+   each tail line and the tail as a whole are capped. A stop is SIGTERM,
+   SIGINT, SIGHUP or SIGQUIT. It exits 0 whenever it printed its answer;
+   the answer's `ok` is true only when checks ran, none was left
+   unreached by a stop or the budget, and every one passed. On Windows,
+   which has no process groups, only a check still running when the
+   budget ends or a stop arrives has its process tree killed; what a
+   finished check leaves behind is not found.
    Consumers get the same script as `.sdlc/scripts/checks.py` through the
    manifest, under the drift contract of
    [ADR 0003](0003-token-substitution-templates.md).
