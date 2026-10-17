@@ -272,8 +272,33 @@ NODE_SCRIPTS = {
 
 # A script that rewrites files or watches forever is not a check. The flag list
 # is closed, and -w is knowingly conservative: it is also npm's workspace flag,
-# so `npm run build -w pkg` is dropped too.
-NOT_A_CHECK = ("--write", "--fix", "--apply", "--watch", "-w")
+# so `npm run build -w pkg` is dropped too. jest reads --watch-all as --watchAll.
+NOT_A_CHECK = ("--write", "--fix", "--apply", "--watch", "--watchAll", "--watch-all", "-w")
+# vitest's subcommands that watch: `vitest watch` and `vitest dev`.
+VITEST_WATCH_COMMANDS = frozenset({"watch", "dev"})
+# Package-manager forms that run the scripts of other packages, whose
+# package.json the screen never reads: workspaces, a recursive run, a filter, or
+# another folder. Like -w, each long form is dropped wherever it appears; -r and
+# -C only beside a package manager, since mocha's -r loads a module.
+OTHER_PACKAGE_WORDS = frozenset(
+    {
+        "--workspace",
+        "--workspaces",
+        "-ws",
+        "--recursive",
+        "--filter",
+        "--prefix",
+        "--dir",
+        "--cwd",
+        "workspace",
+        "workspaces",
+        "foreach",
+    }
+)
+OTHER_PACKAGE_SHORT_FLAGS = frozenset({"-r", "-C"})
+PACKAGE_MANAGERS = frozenset({"npm", "pnpm", "yarn", "bun"})
+# npm, and pnpm after it, read an npm_config_<name> variable as --<name>.
+NPM_CONFIG_VARIABLE = "npm_config_"
 # The shell's punctuation: each run of it is a word of its own however it is
 # spaced, so `--fix>lint.log`, `(eslint --fix)` and `` `eslint --fix` `` still
 # show the flag as a word.
@@ -295,8 +320,17 @@ SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "fish", "eval"})
 # may be a rewrite flag.
 EXPANSIONS = ("$", "`")
 # Filename pattern characters: a flag whose name holds one (`--fi?`) becomes the
-# name of any file it matches, which may be a rewrite flag.
+# name of any file it matches, which may be a rewrite flag, and a word holding
+# one names every script it matches, as npm-run-all's minimatch reads it.
 GLOB_CHARACTERS = "*?["
+# Pattern forms minimatch reads and fnmatch does not: an extglob group such as
+# @(fix) and a POSIX class such as [[:alpha:]]. A word holding one is unsafe.
+UNREADABLE_PATTERN = re.compile(r"[?*+@!]\(|\[:")
+# Runner prefixes concurrently reads before a script name, as in npm:lint:fix.
+SCRIPT_RUNNER_PREFIXES = frozenset({"npm", "pnpm", "yarn", "bun", "node", "deno"})
+# How many scripts deep the screen follows one script running the next; a chain
+# deeper than this is not proposed, and the scan never runs out of stack.
+MAX_SCRIPT_DEPTH = 32
 
 # A lockfile other than npm's names the runner the project's scripts expect;
 # a bare package.json means npm.
@@ -625,23 +659,30 @@ def _shell_words(command: str) -> list[str] | None:
         return None
 
 
-def _unsafe_node_script(scripts: dict, name: str, seen: set[str] | None = None) -> bool:
+def _unsafe_node_script(
+    scripts: dict, name: str, seen: set[str] | None = None, depth: int = 0
+) -> bool:
     """True when running package.json script `name` could rewrite files, watch,
-    or run shell code the screen cannot read: through its own words, the pre
-    and post scripts a runner adds around it, or any script it names."""
+    run another package's scripts or run shell code the screen cannot read:
+    through its own words, the pre and post scripts a runner adds around it, or
+    any script it names, down to MAX_SCRIPT_DEPTH scripts deep."""
     seen = set() if seen is None else seen
     if name in seen:
         return False
     seen.add(name)
     return any(
-        isinstance(scripts.get(script), str) and _unsafe_command(scripts, scripts[script], seen)
+        isinstance(scripts.get(script), str)
+        and _unsafe_command(scripts, scripts[script], seen, depth)
         for script in (f"pre{name}", name, f"post{name}")
     )
 
 
-def _unsafe_command(scripts: dict, command: str, seen: set[str]) -> bool:
+def _unsafe_command(scripts: dict, command: str, seen: set[str], depth: int) -> bool:
+    # A chain too deep to follow to its end is not one the screen can call safe.
+    if depth > MAX_SCRIPT_DEPTH:
+        return True
     words = _shell_words(command)
-    if words is None:
+    if words is None or _runs_other_packages(words) or _starts_a_watcher(words):
         return True
     for word in words:
         if any(mark in word for mark in EXPANSIONS):
@@ -649,9 +690,25 @@ def _unsafe_command(scripts: dict, command: str, seen: set[str]) -> bool:
         if set(word) <= set(SHELL_PUNCTUATION):
             continue
         expanded = _brace_words(word)
-        if expanded is None or any(_unsafe_shell_word(scripts, each, seen) for each in expanded):
+        if expanded is None or any(
+            _unsafe_shell_word(scripts, each, seen, depth) for each in expanded
+        ):
             return True
     return False
+
+
+def _runs_other_packages(words: list[str]) -> bool:
+    """-r or -C beside a package manager: pnpm's recursive run and the folder
+    npm, pnpm and yarn change to first."""
+    programs = {word.rsplit("/", 1)[-1] for word in words}
+    return bool(PACKAGE_MANAGERS & programs) and bool(OTHER_PACKAGE_SHORT_FLAGS & set(words))
+
+
+def _starts_a_watcher(words: list[str]) -> bool:
+    return any(
+        program.rsplit("/", 1)[-1] == "vitest" and command in VITEST_WATCH_COMMANDS
+        for program, command in zip(words, words[1:], strict=False)
+    )
 
 
 def _brace_words(word: str) -> list[str] | None:
@@ -673,34 +730,64 @@ def _brace_words(word: str) -> list[str] | None:
     return done
 
 
-def _unsafe_shell_word(scripts: dict, word: str, seen: set[str]) -> bool:
+def _unsafe_shell_word(scripts: dict, word: str, seen: set[str], depth: int) -> bool:
     if _unsafe_word(word):
         return True
     # A quoted string with blanks or punctuation may be a command another
     # program runs (concurrently, npx -c, node -e): it is screened the same way.
     if any(char.isspace() or char in SHELL_PUNCTUATION for char in word) and (
-        _unsafe_command(scripts, word, seen)
+        _unsafe_command(scripts, word, seen, depth + 1)
     ):
         return True
     # A word naming a script, or a glob naming several (run-s "lint:*"), may run them.
-    named = (
-        script
-        for script in scripts
-        if script == word or ("*" in word and fnmatch.fnmatchcase(script, word))
+    named = _named_scripts(scripts, word)
+    return named is None or any(
+        _unsafe_node_script(scripts, script, seen, depth + 1) for script in named
     )
-    return any(_unsafe_node_script(scripts, script, seen) for script in named)
+
+
+def _named_scripts(scripts: dict, word: str) -> list[str] | None:
+    """The scripts `word` may run: the one it names or, when it holds a pattern
+    character, every one it matches as npm-run-all's minimatch would, with a
+    backslash escaping the next character and [^ read as [!. A runner prefix
+    such as concurrently's npm: is read off too. None for a pattern fnmatch
+    cannot read as minimatch does."""
+    name = word.replace("\\", "")
+    prefix, colon, rest = name.partition(":")
+    candidates = [name, rest] if colon and prefix in SCRIPT_RUNNER_PREFIXES else [name]
+    named = []
+    for candidate in candidates:
+        if UNREADABLE_PATTERN.search(candidate):
+            return None
+        if any(char in candidate for char in GLOB_CHARACTERS):
+            pattern = candidate.replace("[^", "[!")
+            named += [script for script in scripts if fnmatch.fnmatchcase(script, pattern)]
+        elif candidate in scripts:
+            named.append(candidate)
+    return named
 
 
 def _unsafe_word(word: str) -> bool:
-    """A rewrite or watch flag, a shell, or a flag whose name is a filename
-    pattern, which the screen cannot read."""
+    """A rewrite or watch flag, a shell, a flag whose name is a filename pattern,
+    which the screen cannot read, or a word that runs other packages' scripts."""
     flag_name = word.partition("=")[0] if word.startswith("-") else ""
     return (
         word in NOT_A_CHECK
         or word.startswith(tuple(f"{flag}=" for flag in NOT_A_CHECK))
         or word.rsplit("/", 1)[-1] in SHELLS
         or any(char in flag_name for char in GLOB_CHARACTERS)
+        or word.partition("=")[0] in OTHER_PACKAGE_WORDS
+        or _npm_config_flag(word) in OTHER_PACKAGE_WORDS
     )
+
+
+def _npm_config_flag(word: str) -> str:
+    """The flag an npm_config_<name>=<value> assignment sets (--<name>), or ""."""
+    variable, equals, _ = word.partition("=")
+    variable = variable.lower()
+    if not equals or not variable.startswith(NPM_CONFIG_VARIABLE):
+        return ""
+    return "--" + variable.removeprefix(NPM_CONFIG_VARIABLE).replace("_", "-")
 
 
 def _node_script_check(root: Path, kind: str, package_managers: list[str]) -> dict | None:

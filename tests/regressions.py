@@ -891,6 +891,44 @@ def test_prove_reaps_what_it_kills() -> None:
     )
 
 
+def test_a_script_running_other_packages_scripts_is_never_proposed() -> None:
+    """2026-10-17: the Node check screen reads only the root package.json, yet
+    it proposed `npm run lint --workspaces`, `pnpm -r run lint` and the other
+    forms that run each package's own lint, which may be `eslint . --fix`."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_a_script_running_other_packages_scripts_is_never_proposed",
+        "tests/test_detect_checks.py::test_mochas_require_flag_is_not_read_as_a_recursive_run",
+    )
+
+
+def test_a_deep_script_chain_is_not_proposed_and_the_scan_answers() -> None:
+    """2026-10-17: a chain of a few hundred scripts each running the next ran
+    the Node check screen out of stack, so the scan printed a traceback and no
+    JSON, even without --prove."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_a_script_chain_deeper_than_the_screen_follows_is_not_proposed",
+    )
+
+
+def test_jest_watch_all_is_not_a_check() -> None:
+    """2026-10-17: `jest --watchAll` (and `--watch-all`, `vitest watch`) was
+    proposed as the test check, so --prove ran it until the shared budget
+    ended and every later check stayed unproven."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_an_unsafe_node_test_script_is_not_guessed_or_proposed",
+    )
+
+
+def test_a_script_named_by_any_glob_is_screened() -> None:
+    """2026-10-17: a word naming scripts was read as a glob only when it held
+    `*`, so `run-s 'lint:fi?'`, `run-s 'lint:fi[x]'` and concurrently's
+    `npm:lint:fix` ran a rewriting script the screen never read."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_a_script_named_through_any_runner_is_screened",
+        "tests/test_detect_checks.py::test_a_safe_script_using_shell_syntax_is_still_proposed",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1044,6 +1082,22 @@ def main() -> int:
         (
             "prove reaps what it kills",
             test_prove_reaps_what_it_kills,
+        ),
+        (
+            "a script running other packages' scripts is not proposed",
+            test_a_script_running_other_packages_scripts_is_never_proposed,
+        ),
+        (
+            "a deep script chain is not proposed and the scan answers",
+            test_a_deep_script_chain_is_not_proposed_and_the_scan_answers,
+        ),
+        (
+            "jest --watchAll is not a check",
+            test_jest_watch_all_is_not_a_check,
+        ),
+        (
+            "a script named by any glob is screened",
+            test_a_script_named_by_any_glob_is_screened,
         ),
     ]
     failures = 0

@@ -80,20 +80,34 @@ offered and no template references them.
   `node_modules/.bin/<tool>`, so a check runs only what the project
   installed and never fetches a package. A `package.json` script that
   rewrites files (`--write`, `--fix`, `--apply`) or watches (`--watch`,
-  `-w`) is never proposed; `-w` is conservative, since it is also npm's
-  workspace flag. The screen reads a script as the shell does, with
+  `-w`, jest's `--watchAll`, `vitest watch`, `vitest dev`) is never
+  proposed. Nor is one that runs the scripts of other packages, whose
+  `package.json` the screen never reads: `--workspace`, `--workspaces`,
+  `-ws`, `--recursive`, `--filter`, `--prefix`, `--dir`, `--cwd`,
+  `workspace`, `workspaces` and `foreach`, the same flags set through an
+  `npm_config_` variable, and `-r` or `-C` beside a package manager
+  (mocha's `-r` loads a module, so it alone is not dropped). These
+  words, and `-w`, which is also npm's workspace flag, are dropped
+  wherever they appear, so `vitest --dir src` is dropped too: a
+  conservative choice. The screen reads a script as the shell does, with
   quotes removed and punctuation such as `;`, `>`, `(` and `` ` `` as
   words of their own, and follows each command string the script passes
-  on, the pre and post scripts a runner adds and every script it names.
+  on, the pre and post scripts a runner adds and every script it names,
+  by name, as concurrently's `npm:<script>`, or through a glob read as
+  npm-run-all's minimatch reads it (`*`, `?`, `[...]`, a backslash
+  escape), down to 32 scripts deep; a deeper chain is not proposed.
   Brace lists are expanded first, so `--{fix,}` is `--fix`. A script
   that runs a shell (`sh`, `bash`, `eval` and the like), expands a
   variable, a command's output or a brace sequence, names a flag with a
-  filename pattern (`--fi?`), or continues a line with a backslash is
-  not proposed either, since the screen cannot read what that runs. The
-  screen reads what a script says, not what a tool takes from its own
-  configuration or what files a repository lays out for a pattern to
-  match; proving runs the repository's own code in any case, so it is
-  for a repository the caller trusts. A `test` script the screen drops
+  filename pattern (`--fi?`), holds a minimatch form fnmatch does not
+  read (an extglob group such as `@(fix)` or a class such as
+  `[[:alpha:]]`), or continues a line with a backslash is not proposed
+  either, since the screen cannot read what that runs. The screen reads
+  what a script says, not what a tool takes from its own configuration,
+  what files a repository lays out for a pattern to match, or what a
+  task runner such as turbo runs in other packages; proving runs the
+  repository's own code in any case, so it is for a repository the
+  caller trusts. A `test` script the screen drops
   is no test command, so another language's runner can still be the
   test guess.
 - A node `test` script with no known runner is not proposed; the owner

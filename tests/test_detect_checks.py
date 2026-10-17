@@ -8,11 +8,12 @@ the primary language wins a kind two languages could fill; the test check
 uses the package-manager command init-config stores; a package.json script
 that rewrites files or never exits is never proposed, whether the flag is in
 its own shell words, a command string it passes on, a pre or post script or a
-script it names, and neither is one that runs a shell or expands a variable.
-A plain scan never runs a command, so every check is unproven; --prove runs
-each command once inside one budget, with no input and offline under
---no-network, kills and reaps what it left running, and marks the ones that
-ran, whether they passed or not.
+script it names or matches by glob, and neither is one that runs a shell,
+expands a variable, runs other packages' scripts or names a chain of scripts
+deeper than the screen follows. A plain scan never runs a command, so every
+check is unproven; --prove runs each command once inside one budget, with no
+input and offline under --no-network, kills and reaps what it left running,
+and marks the ones that ran, whether they passed or not.
 """
 
 import json
@@ -379,10 +380,75 @@ def test_a_script_running_shell_code_the_screen_cannot_read_is_never_proposed(tm
 
 
 @pytest.mark.parametrize(
-    "script", ["run-s lint:fix", "npm-run-all 'lint:*'", "concurrently 'npm run lint:fix'"]
+    "script",
+    [
+        "run-s lint:fix",
+        "npm-run-all 'lint:*'",
+        "concurrently 'npm run lint:fix'",
+        "run-s 'lint:fi?'",
+        "run-s 'lint:fi[x]'",
+        "run-s 'lint:fi[^y]'",
+        "run-s 'lint:fi\\x'",
+        "run-s 'lint:@(fix)'",
+        "run-s 'lint:fi[[:alpha:]]'",
+        "concurrently npm:lint:fix",
+        "concurrently 'npm:lint:*'",
+    ],
 )
 def test_a_script_named_through_any_runner_is_screened(tmp_path, script):
+    """npm-run-all reads a name as a minimatch glob, with ?, [...], a backslash
+    escape and extglob groups, and concurrently reads npm:<script>."""
     assert "lint" not in node_checks(tmp_path, {"lint": script, "lint:fix": "eslint . --fix"})
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        "npm run lint --workspaces",
+        "npm run lint --workspace=pkg",
+        "npm run lint -ws",
+        "pnpm -r run lint",
+        "pnpm -C sub lint",
+        "pnpm --filter app lint",
+        "npm --prefix sub run lint",
+        "yarn workspaces foreach run lint",
+        "npm_config_workspaces=true npm run lint",
+    ],
+)
+def test_a_script_running_other_packages_scripts_is_never_proposed(tmp_path, script):
+    """The screen reads only the root package.json, so a script that runs the
+    scripts of other packages cannot be called safe."""
+    assert "lint" not in node_checks(tmp_path, {"lint": script})
+
+
+def test_mochas_require_flag_is_not_read_as_a_recursive_run(tmp_path):
+    package = {
+        "name": "example",
+        "scripts": {"test": "mocha -r ts-node/register"},
+        "devDependencies": {"mocha": "^10.0.0"},
+    }
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
+
+    payload = scan(repo)
+
+    assert payload["test_command_guess"] == "npm test"
+    assert table(payload)["test"] == check("npm test", "package.json", "high", "node")
+
+
+@pytest.mark.parametrize(
+    ("depth", "proposed"),
+    [(detect.MAX_SCRIPT_DEPTH, True), (detect.MAX_SCRIPT_DEPTH + 1, False), (1000, False)],
+)
+def test_a_script_chain_deeper_than_the_screen_follows_is_not_proposed(tmp_path, depth, proposed):
+    """A chain of scripts each running the next once ran the scan out of stack,
+    so it printed a traceback and no JSON."""
+    scripts = {f"lint:{level}": f"npm run lint:{level + 1}" for level in range(1, depth)}
+    scripts.update({"lint": "npm run lint:1", f"lint:{depth}": "eslint .", "build": "tsc -p ."})
+
+    checks = node_checks(tmp_path, scripts)
+
+    assert ("lint" in checks) is proposed
+    assert checks["build"]["command"] == "npm run build"
 
 
 @pytest.mark.parametrize(
@@ -392,6 +458,8 @@ def test_a_script_named_through_any_runner_is_screened(tmp_path, script):
         "eslint -c .eslintrc.json . 2>&1",
         "concurrently 'eslint .' 'tsc --noEmit'",
         "run-s lint:js",
+        "run-s 'lint:j?'",
+        "concurrently npm:lint:js",
     ],
 )
 def test_a_safe_script_using_shell_syntax_is_still_proposed(tmp_path, script):
@@ -415,11 +483,21 @@ def test_safe_node_script_cycle_does_not_recurse_forever(tmp_path):
     )
 
 
-def test_an_unsafe_node_test_script_is_not_guessed_or_proposed(tmp_path):
+@pytest.mark.parametrize(
+    ("runner", "watcher"),
+    [
+        ("vitest", "vitest --watch"),
+        ("vitest", "vitest watch"),
+        ("vitest", "vitest dev"),
+        ("jest", "jest --watchAll"),
+        ("jest", "jest --watch-all"),
+    ],
+)
+def test_an_unsafe_node_test_script_is_not_guessed_or_proposed(tmp_path, runner, watcher):
     package = {
         "name": "example",
-        "scripts": {"test": "npm run test:watch", "test:watch": "vitest --watch"},
-        "devDependencies": {"vitest": "^2.0.0"},
+        "scripts": {"test": "npm run test:watch", "test:watch": watcher},
+        "devDependencies": {runner: "^2.0.0"},
     }
     repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
 
@@ -474,7 +552,9 @@ def test_an_unsafe_node_test_script_lets_another_languages_runner_be_guessed(tmp
     assert table(payload)["test"] == check("pytest", "tests/", "medium", "python")
 
 
-@pytest.mark.parametrize("lint_script", ["eslint . --fix", "biome check --apply ."])
+@pytest.mark.parametrize(
+    "lint_script", ["eslint . --fix", "biome check --apply .", "jest --watchAll"]
+)
 def test_node_scripts_that_rewrite_files_or_watch_are_never_proposed(tmp_path, lint_script):
     package = {
         "name": "example",
