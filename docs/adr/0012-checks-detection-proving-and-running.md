@@ -132,5 +132,9 @@ offered and no template references them.
   caller that asks runs them; `shipshape-init` writes nothing into the
   repository before its plan gate and does not prove. Doctor stays
   read-only: it never runs a check.
+- `shipshape-review` runs the configured checks on local work and asks
+  before running a branch someone else wrote, because the checks run that
+  branch's code. Review is therefore not read-only: the README and the site
+  say it runs your checks, and that it never merges or approves.
 - Built in steps: detection and the prove step land with this record; the
   runner, then the integrity check, follow as separate changes.

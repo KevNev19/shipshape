@@ -136,7 +136,7 @@ yes anyway.
 |---|---|
 | `$shipshape-init` | The front door. Scan, interview, preview, set up. |
 | `$shipshape-doctor` | Read-only health check: problems first, then one next step. |
-| `$shipshape-review` | Read-only review of any change, in plain words, with a clear verdict. |
+| `$shipshape-review` | Review of any change, in plain words, with a clear verdict. Runs your project's own checks on local work, asking first on a branch someone else wrote; never merges or approves. |
 | `$shipshape-release` | Checks your tests passed, suggests a version, publishes on your yes. |
 | `$shipshape-access` | "Give Sam access" becomes the exact GitHub command, shown first. |
 | `$shipshape-customize` | Change anything off the defaults; only affected files regenerate. |
