@@ -23,8 +23,9 @@ an error.
 
 Output: {"ok", "mode": "test-integrity", "source", "files_scanned", "findings":
 [{"file", "line", "language", "kind", "detail", "consequence"}], "unsupported",
-"warnings", "next_action"}, with kind one of deleted-test (a deleted test file is
-one finding at line 1), skipped-test, removed-assertion or loosened-assertion. A
+"warnings", "next_action"}, with kind one of deleted-test (a deleted test file, or
+one renamed to a path that is not a test file, is one finding at line 1),
+skipped-test, removed-assertion or loosened-assertion. A
 usage error, or a diff git cannot produce, prints {"ok": false, "mode", "error",
 "next_action"} and exits 2, the code detect.py uses.
 
@@ -709,6 +710,21 @@ def scan_file(
     return findings
 
 
+def _moved_out_of_tests(fd: FileDiff) -> dict | None:
+    """The finding for a test file renamed to a path that is no test file: its tests no
+    longer run, whatever its hunks show (a pure rename has none), so it is one finding
+    at line 1, as a deleted test file is."""
+    if not (fd.old_path and fd.new_path) or fd.old_path == fd.new_path:
+        return None
+    language = language_of(fd.old_path)
+    if language not in TEST_PATTERNS or not is_test_file(fd.old_path, language):
+        return None
+    if language_of(fd.new_path) == language and is_test_file(fd.new_path, language):
+        return None
+    detail = f"test file moved out of the test paths to {fd.new_path}"
+    return _finding(fd.old_path, 1, language, "deleted-test", detail)
+
+
 def _next_action(findings: list[dict], files_scanned: int, unsupported: list[str]) -> str:
     unchecked = f"changes in {', '.join(unsupported)} were not checked"
     if findings:
@@ -736,6 +752,11 @@ def scan(diff_text: str, source: str) -> dict:
     unsupported: set[str] = set()
     files_scanned = 0
     for fd, own_added, own_removed in zip(files, added_keys, removed_keys, strict=True):
+        moved_out = _moved_out_of_tests(fd)
+        if moved_out:
+            files_scanned += 1
+            findings.append(moved_out)
+            continue
         language = language_of(fd.new_path or fd.old_path or "")
         if language is None:
             continue

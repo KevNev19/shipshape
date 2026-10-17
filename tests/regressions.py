@@ -1081,6 +1081,16 @@ def test_a_skip_added_to_an_existing_test_is_still_reported() -> None:
     )
 
 
+def test_a_test_file_moved_out_of_the_test_paths_is_a_deleted_test() -> None:
+    """2026-10-17: `git mv tests/test_auth.py src/auth_checks.py` gave a rename with
+    no hunks, which still counted as a test file by its old path, so the scan found
+    nothing to report although the tests no longer ran."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_a_test_file_renamed_out_of_the_test_paths_is_a_deleted_test",
+        "tests/test_test_integrity.py::test_range_scan_reports_a_test_file_moved_out_of_the_test_paths",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1310,6 +1320,10 @@ def main() -> int:
         (
             "a skip added to an existing test is still reported",
             test_a_skip_added_to_an_existing_test_is_still_reported,
+        ),
+        (
+            "a test file moved out of the test paths is a deleted test",
+            test_a_test_file_moved_out_of_the_test_paths_is_a_deleted_test,
         ),
     ]
     failures = 0

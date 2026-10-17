@@ -64,7 +64,8 @@ script that prints one JSON object and runs under `python3 -I`
    [ADR 0003](0003-token-substitution-templates.md).
 4. **A diff check guards test integrity.** `test_integrity.py` reads a diff
    (the uncommitted change, a range of commits or trees, the staged change,
-   or stdin) and reports deleted test files, deleted or skipped tests, and
+   or stdin) and reports deleted test files (a test file renamed to a path
+   that is no test file among them), deleted or skipped tests, and
    removed or loosened assertions, for python, node, go and rust. Each
    finding carries a file and a line, so the findings-first review
    ([ADR 0007](0007-findings-first-review.md)) reports it as a verified
