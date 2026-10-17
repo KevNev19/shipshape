@@ -19,7 +19,10 @@
   },
   "commands": {
     "test": "",
-    "lint": ""
+    "lint": "",
+    "build": "",
+    "typecheck": "",
+    "format": ""
   },
   "toolchain": {
     "python": "3.12",

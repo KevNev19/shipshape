@@ -810,6 +810,135 @@ def test_weekly_report_rejects_untrusted_repository_metadata() -> None:
     )
 
 
+def test_prove_kills_what_a_finished_command_left_running() -> None:
+    """2026-10-16: a proved command that exited and left a background child
+    running let the child outlive the scan: the prove step killed a command's
+    process group only when the budget ran out or the scan was stopped."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_prove_kills_what_a_finished_command_left_running",
+    )
+
+
+def test_prove_under_no_network_runs_commands_offline() -> None:
+    """2026-10-16: --no-network skipped only the gh probe, so a scan run with
+    --prove and --no-network still let cargo, go and npm fetch dependencies."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_prove_without_network_runs_commands_offline",
+    )
+
+
+def test_node_check_scripts_match_safe_configured_commands() -> None:
+    """2026-10-17: Node check scripts could hide unsafe shell flags or lifecycle hooks,
+    and pnpm, Yarn or Bun test checks could prove a different command than config."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_node_scripts_that_delegate_to_unsafe_scripts_are_never_proposed",
+        "tests/test_detect_checks.py::test_node_check_screens_lifecycle_hooks_for_selected_and_delegated_scripts",
+        "tests/test_detect_checks.py::test_node_script_flag_screening_respects_shell_tokens",
+        "tests/test_detect_checks.py::test_safe_node_script_cycle_does_not_recurse_forever",
+        "tests/test_detect_checks.py::test_an_unsafe_node_test_script_is_not_guessed_or_proposed",
+        "tests/test_detect_checks.py::test_node_scripts_propose_checks_through_the_projects_runner",
+    )
+
+
+def test_unsafe_node_test_script_does_not_hide_go_test_check() -> None:
+    """2026-10-17: an unsafe Node test script could suppress a selected Go test."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_an_unsafe_node_test_script_does_not_hide_a_go_test_check",
+    )
+
+
+def test_node_check_screen_reads_scripts_as_the_shell_does() -> None:
+    """2026-10-17: shell punctuation (`--fix>lint.log`, `(eslint . --fix)`),
+    a shell wrapper (`sh -c 'eslint . --fix'`), a command string passed to
+    another program, or a script named by run-s or npm-run-all kept a rewrite
+    flag from the Node check screen, so --prove could rewrite sources."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_shell_punctuation_cannot_hide_a_rejected_flag",
+        "tests/test_detect_checks.py::test_a_script_running_shell_code_the_screen_cannot_read_is_never_proposed",
+        "tests/test_detect_checks.py::test_a_script_named_through_any_runner_is_screened",
+        "tests/test_detect_checks.py::test_a_safe_script_using_shell_syntax_is_still_proposed",
+    )
+
+
+def test_unsafe_node_test_script_lets_another_runner_be_guessed() -> None:
+    """2026-10-17: dropping an unsafe Node test script cleared the test guess
+    instead of passing to the next runner, so a Node and Python repo whose
+    test script watched got the no-tests placeholder instead of pytest."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_an_unsafe_node_test_script_lets_another_languages_runner_be_guessed",
+    )
+
+
+def test_a_shell_expansion_cannot_hide_a_rejected_flag() -> None:
+    """2026-10-17: the shell joins `--fi`, a backslash-newline and `x` into --fix,
+    expands `--{fix,}` into --fix, puts `$(cat .lint-flags)` output in the command
+    and turns `--fi?` into a file named --fix, but shlex does none of that, so the
+    Node check screen passed scripts that rewrite files."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_a_shell_expansion_cannot_hide_a_rejected_flag",
+        "tests/test_detect_checks.py::test_a_pattern_that_cannot_make_a_rejected_flag_is_still_proposed",
+    )
+
+
+def test_prove_reaps_what_it_kills() -> None:
+    """2026-10-17: in a container whose PID 1 reaps nothing, the prove step
+    killed a command's whole group at once, so the shell died before it could
+    reap its child and every interrupted proof left a zombie; on Windows only
+    the shell was killed."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_prove_reaps_what_it_kills_where_pid_1_reaps_nothing",
+        "tests/test_detect_checks.py::test_prove_ends_the_process_tree_where_there_are_no_process_groups",
+    )
+
+
+def test_a_script_running_other_packages_scripts_is_never_proposed() -> None:
+    """2026-10-17: the Node check screen reads only the root package.json, yet
+    it proposed `npm run lint --workspaces`, `pnpm -r run lint` and the other
+    forms that run each package's own lint, which may be `eslint . --fix`."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_a_script_running_other_packages_scripts_is_never_proposed",
+        "tests/test_detect_checks.py::test_mochas_require_flag_is_not_read_as_a_recursive_run",
+    )
+
+
+def test_prove_answers_when_stopped_by_any_stop_signal() -> None:
+    """2026-10-17: the prove step handled only SIGTERM, so a SIGHUP from a
+    closed terminal killed the scan with no JSON and left the proved command's
+    group running in its own session; a nohup'd scan must still ignore it."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_prove_answers_and_kills_the_running_command_when_it_is_stopped",
+        "tests/test_detect_checks.py::test_prove_keeps_ignoring_a_signal_the_caller_ignored",
+    )
+
+
+def test_a_deep_script_chain_is_not_proposed_and_the_scan_answers() -> None:
+    """2026-10-17: a chain of a few hundred scripts each running the next ran
+    the Node check screen out of stack, so the scan printed a traceback and no
+    JSON, even without --prove."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_a_script_chain_deeper_than_the_screen_follows_is_not_proposed",
+    )
+
+
+def test_jest_watch_all_is_not_a_check() -> None:
+    """2026-10-17: `jest --watchAll` (and `--watch-all`, `vitest watch`) was
+    proposed as the test check, so --prove ran it until the shared budget
+    ended and every later check stayed unproven."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_an_unsafe_node_test_script_is_not_guessed_or_proposed",
+    )
+
+
+def test_a_script_named_by_any_glob_is_screened() -> None:
+    """2026-10-17: a word naming scripts was read as a glob only when it held
+    `*`, so `run-s 'lint:fi?'`, `run-s 'lint:fi[x]'` and concurrently's
+    `npm:lint:fix` ran a rewriting script the screen never read."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_a_script_named_through_any_runner_is_screened",
+        "tests/test_detect_checks.py::test_a_safe_script_using_shell_syntax_is_still_proposed",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -931,6 +1060,58 @@ def main() -> int:
         (
             "weekly report rejects untrusted repository metadata",
             test_weekly_report_rejects_untrusted_repository_metadata,
+        ),
+        (
+            "prove kills what a finished command left running",
+            test_prove_kills_what_a_finished_command_left_running,
+        ),
+        (
+            "prove under --no-network runs commands offline",
+            test_prove_under_no_network_runs_commands_offline,
+        ),
+        (
+            "Node check scripts match safe configured commands",
+            test_node_check_scripts_match_safe_configured_commands,
+        ),
+        (
+            "unsafe Node test script does not hide Go test check",
+            test_unsafe_node_test_script_does_not_hide_go_test_check,
+        ),
+        (
+            "Node check screen reads scripts as the shell does",
+            test_node_check_screen_reads_scripts_as_the_shell_does,
+        ),
+        (
+            "unsafe Node test script lets another runner be guessed",
+            test_unsafe_node_test_script_lets_another_runner_be_guessed,
+        ),
+        (
+            "a shell expansion cannot hide a rejected flag",
+            test_a_shell_expansion_cannot_hide_a_rejected_flag,
+        ),
+        (
+            "prove reaps what it kills",
+            test_prove_reaps_what_it_kills,
+        ),
+        (
+            "a script running other packages' scripts is not proposed",
+            test_a_script_running_other_packages_scripts_is_never_proposed,
+        ),
+        (
+            "prove answers when stopped by any stop signal",
+            test_prove_answers_when_stopped_by_any_stop_signal,
+        ),
+        (
+            "a deep script chain is not proposed and the scan answers",
+            test_a_deep_script_chain_is_not_proposed_and_the_scan_answers,
+        ),
+        (
+            "jest --watchAll is not a check",
+            test_jest_watch_all_is_not_a_check,
+        ),
+        (
+            "a script named by any glob is screened",
+            test_a_script_named_by_any_glob_is_screened,
         ),
     ]
     failures = 0

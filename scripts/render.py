@@ -46,6 +46,8 @@ TOKEN_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
 # Fallback when a repo has no detectable test command: CI still runs and
 # tells the user what to do instead of failing mysteriously.
 NO_TESTS_CMD = 'echo "No tests configured yet - see docs/sdlc/harness.md"'
+# One config command per kind of check detect.py proposes (ADR 0012).
+CHECK_COMMANDS = ("test", "lint", "build", "typecheck", "format")
 COREPACK_VERSION = "0.34.7"
 EXACT_MANAGER_VERSION_RE = re.compile(
     r"^(?:0|[1-9][0-9]*)\."
@@ -338,7 +340,7 @@ def validate_config(config) -> list[str]:
     features = config.get("features", {})
     owners = config.get("owners", {})
     repository = config.get("repo", {})
-    for key in ("test", "lint"):
+    for key in CHECK_COMMANDS:
         if key in commands and not isinstance(commands[key], str):
             problems.append(f"commands.{key} must be a string")
     for key, value in features.items():
@@ -371,6 +373,14 @@ def validate_detection(detected) -> list[str]:
     test_command = detected.get("test_command_guess")
     if test_command is not None and not isinstance(test_command, str):
         return ["detection test_command_guess must be a string"]
+    checks = detected.get("checks", [])
+    if not isinstance(checks, list) or not all(
+        isinstance(item, dict)
+        and isinstance(item.get("name"), str)
+        and isinstance(item.get("command"), str)
+        for item in checks
+    ):
+        return ["detection checks must be a list of objects with a name and a command"]
     managers = detected.get("package_managers", [])
     if not isinstance(managers, list) or not all(isinstance(item, str) for item in managers):
         return ["detection package_managers must be a list of strings"]
@@ -430,6 +440,12 @@ def build_initial_config(repo: Path, detect_file: Path, overrides: list[str]) ->
         }
         test_command = manager_test_command(test_command, config["node_package_manager"]["name"])
     config["commands"]["test"] = test_command
+    # Every other detected check fills its commands.<kind>. The test command
+    # stays the guess above, which already speaks the project's package
+    # manager; a detect file written before checks existed fills nothing more.
+    for check in detected.get("checks", []):
+        if check["name"] in CHECK_COMMANDS and check["name"] != "test":
+            config["commands"][check["name"]] = check["command"]
 
     for override in overrides:
         if "=" not in override:
@@ -549,7 +565,12 @@ def build_tokens(config: dict) -> dict[str, str]:
         "WORKFLOW_STYLE": config.get("workflow_style", "trunk"),
         "PROFILE": config.get("profile", "solo"),
         "TEST_CMD": config.get("commands", {}).get("test", ""),
+        # Check commands other than test may be empty and an empty token is a
+        # render error, so no template references these four.
         "LINT_CMD": config.get("commands", {}).get("lint", ""),
+        "BUILD_CMD": config.get("commands", {}).get("build", ""),
+        "TYPECHECK_CMD": config.get("commands", {}).get("typecheck", ""),
+        "FORMAT_CMD": config.get("commands", {}).get("format", ""),
         "PRIMARY_LANGUAGE": languages[0] if languages else "none",
         "LANGUAGES_SUMMARY": ", ".join(languages) if languages else "none detected yet",
         "PYTHON_VERSION": str(toolchain.get("python", "3.12")),

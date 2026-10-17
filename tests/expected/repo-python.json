@@ -1,4 +1,14 @@
 {
+  "checks": [
+    {
+      "command": "pytest",
+      "confidence": "high",
+      "language": "python",
+      "name": "test",
+      "proven": false,
+      "source": "pyproject.toml"
+    }
+  ],
   "ci": {
     "github_actions": false,
     "has_codeql": false,

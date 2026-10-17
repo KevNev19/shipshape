@@ -1,4 +1,5 @@
 {
+  "checks": [],
   "ci": {
     "github_actions": false,
     "has_codeql": false,
