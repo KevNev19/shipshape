@@ -61,3 +61,36 @@ def init_repo(fixture: str, tmp_path: Path, overrides: list[str] | None = None) 
     code, payload = run_script("render.py", *args)
     assert code == 0, payload
     return repo
+
+
+# A parent that adopts orphans and never reaps them, like the PID 1 of a
+# container without an init: a Linux child subreaper that runs the command in
+# argv[2:], then prints its exit status and whether the process whose pid is in
+# the file argv[1] is still in the process table.
+PARENT_THAT_NEVER_REAPS = """
+import ctypes, json, subprocess, sys
+from pathlib import Path
+
+ctypes.CDLL(None).prctl(36, ctypes.c_ulong(1), *[ctypes.c_ulong(0)] * 3)
+code = subprocess.run(sys.argv[2:], stdout=subprocess.DEVNULL).returncode
+pid = int(Path(sys.argv[1]).read_text())
+print(json.dumps({"code": code, "left": Path(f"/proc/{pid}").exists()}))
+"""
+
+linux_only = pytest.mark.skipif(
+    not sys.platform.startswith("linux"), reason="child subreapers exist on Linux only"
+)
+
+
+def left_unreaped(pid_file: Path, *command: str) -> bool:
+    """Run `command` under PARENT_THAT_NEVER_REAPS and say whether the process
+    whose pid `pid_file` holds outlived it, alive or as a zombie nobody reaped."""
+    proc = subprocess.run(
+        [sys.executable, "-c", PARENT_THAT_NEVER_REAPS, str(pid_file), *command],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    answer = json.loads(proc.stdout)
+    assert answer["code"] == 0, answer
+    return answer["left"]

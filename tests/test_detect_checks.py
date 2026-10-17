@@ -10,9 +10,9 @@ that rewrites files or never exits is never proposed, whether the flag is in
 its own shell words, a command string it passes on, a pre or post script or a
 script it names, and neither is one that runs a shell or expands a variable.
 A plain scan never runs a command, so every check is unproven; --prove runs
-each command once inside one budget, with no input and offline
-under --no-network, kills what it left running, and marks the ones that ran,
-whether they passed or not.
+each command once inside one budget, with no input and offline under
+--no-network, kills and reaps what it left running, and marks the ones that
+ran, whether they passed or not.
 """
 
 import json
@@ -24,7 +24,9 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import FIXTURES, SCRIPTS, run_script
+from conftest import FIXTURES, SCRIPTS, left_unreaped, linux_only, run_script
+
+from scripts import detect
 
 CHECK_KINDS = ("test", "lint", "build", "typecheck", "format")
 CHECK_KEYS = {"name", "command", "proven", "source", "confidence", "language"}
@@ -678,6 +680,41 @@ def test_prove_kills_what_a_finished_command_left_running(tmp_path, monkeypatch)
 
     assert [entry["proven"] for entry in payload["checks"]] == [True, True, True, True]
     assert_gone(int((repo / "child.pid").read_text()))
+
+
+@linux_only
+@pytest.mark.parametrize(
+    ("tool", "budget"),
+    [(LEAVES_A_CHILD, "--timeout=30"), (SLOW_TOOL, "--timeout=1")],
+    ids=["finished", "out of budget"],
+)
+def test_prove_reaps_what_it_kills_where_pid_1_reaps_nothing(tmp_path, monkeypatch, tool, budget):
+    repo = write_repo(tmp_path / "repo", PYTHON_TOOLS_REPO)
+    fake_tools(tmp_path, monkeypatch, {"pytest": tool, "ruff": "exit 0", "mypy": "exit 0"})
+    scan_command = [sys.executable, str(SCRIPTS / "detect.py"), str(repo), "--no-network"]
+
+    assert not left_unreaped(repo / "child.pid", *scan_command, "--prove", budget)
+
+
+def test_prove_ends_the_process_tree_where_there_are_no_process_groups(monkeypatch):
+    """Windows has no os.killpg; taskkill /T ends a running command's tree."""
+    calls = []
+
+    class RunningCommand:
+        pid = 4321
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            calls.append("kill")
+
+    monkeypatch.delattr(detect.os, "killpg")
+    monkeypatch.setattr(detect.subprocess, "run", lambda args, **kwargs: calls.append(args))
+
+    detect._kill_group(RunningCommand())
+
+    assert calls == [["taskkill", "/F", "/T", "/PID", "4321"], "kill"]
 
 
 def test_prove_gives_a_command_no_input(tmp_path, monkeypatch):

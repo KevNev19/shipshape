@@ -22,7 +22,10 @@ budget with an exit status other than 126 or 127, whether it passed or not.
 A command still running when the budget ends, or when the scan gets SIGTERM,
 is killed with everything it started and stays unproven, as do the commands
 not reached; the scan still prints its answer and exits 0. A command that
-finishes has whatever it left running in its process group killed too.
+finishes has whatever it left running in its process group killed too. On
+Linux the scan adopts and reaps what it kills, so nothing stays a zombie where
+PID 1 reaps nothing, as in a container without an init; on Windows, which has
+no process groups, taskkill ends a running command's process tree.
 
 The proposed commands are the project's own build tools, which may fetch
 dependencies. With --prove and --no-network together, each command runs with
@@ -289,6 +292,12 @@ PROVE_TIMEOUT_SECONDS = 300.0
 CANNOT_RUN_EXITS = (126, 127)
 # How long to wait for a killed command's process to be reaped.
 KILL_WAIT_SECONDS = 5.0
+# How often to look again for a killed group member to reap.
+REAP_POLL_SECONDS = 0.01
+# Linux prctl options that set and read whether this process adopts what its
+# descendants orphan (a child subreaper), as an init does.
+PR_SET_CHILD_SUBREAPER = 36
+PR_GET_CHILD_SUBREAPER = 37
 # --prove with --no-network: keep cargo, go, and npm (whose config pnpm also
 # reads) from fetching dependencies.
 OFFLINE_ENV = {
@@ -754,12 +763,72 @@ class _StopRequest:
 
 
 def _kill_group(process: subprocess.Popen) -> None:
-    """Kill a command and everything it started; it leads a session of its own."""
+    """Kill a command and everything it started: it leads a session of its own,
+    and on Windows, which has no process groups, taskkill ends its process tree
+    while it runs."""
     if hasattr(os, "killpg"):
         with contextlib.suppress(OSError):
             os.killpg(process.pid, signal.SIGKILL)
+    elif process.poll() is None:
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=KILL_WAIT_SECONDS,
+                check=False,
+            )
     with contextlib.suppress(OSError):
         process.kill()
+
+
+def _reap_group(process: subprocess.Popen) -> None:
+    """Reap what is left of a killed command's process group: the members this
+    process adopted while _adopting_orphans held, for at most KILL_WAIT_SECONDS.
+    A member it did not adopt is its own parent's to reap."""
+    if not hasattr(os, "killpg"):
+        return
+    deadline = time.monotonic() + KILL_WAIT_SECONDS
+    while True:
+        try:
+            pid, _ = os.waitpid(-process.pid, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if pid:
+            continue
+        if time.monotonic() >= deadline:
+            return
+        # A member forked while the group was being killed is killed too.
+        with contextlib.suppress(OSError):
+            os.killpg(process.pid, signal.SIGKILL)
+        time.sleep(REAP_POLL_SECONDS)
+
+
+@contextlib.contextmanager
+def _adopting_orphans():
+    """On Linux, make this process the reaper of what its commands orphan for
+    the length of the block, so _reap_group can reap a killed group where PID 1
+    reaps nothing, as in a container without an init. Elsewhere, or without
+    ctypes, the block runs as it is."""
+    if not sys.platform.startswith("linux"):
+        yield
+        return
+    try:
+        # Imported here: a Python built without ctypes still scans and proves.
+        import ctypes
+
+        prctl = ctypes.CDLL(None, use_errno=True).prctl
+        previous = ctypes.c_int(0)
+        prctl(PR_GET_CHILD_SUBREAPER, ctypes.byref(previous), *[ctypes.c_ulong(0)] * 3)
+        prctl(PR_SET_CHILD_SUBREAPER, ctypes.c_ulong(1), *[ctypes.c_ulong(0)] * 3)
+    except (ImportError, OSError, AttributeError):
+        yield
+        return
+    try:
+        yield
+    finally:
+        prctl(PR_SET_CHILD_SUBREAPER, ctypes.c_ulong(previous.value), *[ctypes.c_ulong(0)] * 3)
 
 
 def _ran(
@@ -798,6 +867,7 @@ def _ran(
         return False
     finally:
         stop.process = None
+        _reap_group(process)
     return not stop.requested and code not in CANNOT_RUN_EXITS
 
 
@@ -812,10 +882,11 @@ def prove_checks(
     previous = signal.signal(signal.SIGTERM, stop)
     deadline = time.monotonic() + timeout
     try:
-        return [
-            {**check, "proven": _ran(root, check["command"], deadline, stop, env)}
-            for check in checks
-        ]
+        with _adopting_orphans():
+            return [
+                {**check, "proven": _ran(root, check["command"], deadline, stop, env)}
+                for check in checks
+            ]
     finally:
         signal.signal(signal.SIGTERM, previous)
 
