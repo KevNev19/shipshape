@@ -1112,6 +1112,15 @@ def test_a_failed_pr_diff_is_not_a_clean_scan() -> None:
     )
 
 
+def test_review_removes_the_pr_diff_file() -> None:
+    """2026-10-17: shipshape-review saved each PR diff, possibly a private
+    repository's, to a temporary file it never removed."""
+    run_focused_pytest(
+        "tests/test_review_contract.py::test_review_skill_removes_the_pr_diff_file_on_every_path",
+        "tests/test_review_contract.py::test_review_skill_quotes_every_name_it_puts_in_a_command",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1353,6 +1362,10 @@ def main() -> int:
         (
             "a failed PR diff is not a clean scan",
             test_a_failed_pr_diff_is_not_a_clean_scan,
+        ),
+        (
+            "review removes the PR diff file",
+            test_review_removes_the_pr_diff_file,
         ),
     ]
     failures = 0
