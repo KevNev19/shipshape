@@ -17,6 +17,10 @@ QUOTED_COMMANDS = [
     "gh pr checks '<n>'",
     "git log --format=%ae '<default-branch>..HEAD'",
 ]
+QUOTED_IN_THE_INTEGRITY_SCAN = [
+    "gh pr diff '<n>' > \"$diff_file\"",
+    "test_integrity.py\" . --range='<default-branch>...<branch>'",
+]
 REQUIRED_RULES = (
     '"Looks safe to merge"',
     '"Needs attention first: <the one thing>"',
@@ -46,9 +50,22 @@ def test_review_skill_scans_a_pr_diff_only_once_gh_printed_it():
     """Piped straight in, a failed gh pr diff gave the scan empty input and a clean answer."""
     skill = ROOT / "skills" / "shipshape-review" / "SKILL.md"
     text = " ".join(skill.read_text(encoding="utf-8").split())
-    assert "gh pr diff <n> |" not in text
-    assert 'gh pr diff <n> > "$diff_file" &&' in text
+    assert "gh pr diff '<n>' |" not in text
+    assert """gh pr diff '<n>' > "$diff_file" &&""" in text
     assert "when `gh pr diff` failed" in text
+
+
+def test_review_skill_removes_the_pr_diff_file_on_every_path():
+    """The file holds the whole PR diff, which may be a private repository's."""
+    text = skill_text()
+    assert 'diff_file="$(mktemp "${TMPDIR:-/tmp}/shipshape-review-diff.XXXXXX")" &&' in text
+    assert 'status=$?; rm -f -- "$diff_file"; (exit "$status")' in text
+
+
+def test_review_skill_ends_git_revisions_before_any_path():
+    text = skill_text()
+    assert "git diff '<default-branch>...<branch>' --" in text
+    assert "git log --format=%ae '<default-branch>..HEAD' --" in text
 
 
 def test_review_skill_asks_before_running_another_authors_checks_whatever_changed():
@@ -93,4 +110,6 @@ def test_review_skill_quotes_every_name_it_puts_in_a_command():
     text = skill_text()
     for command in QUOTED_COMMANDS:
         assert f"`{command}" in text, f"not single-quoted: {command}"
+    for command in QUOTED_IN_THE_INTEGRITY_SCAN:
+        assert command in text, f"not single-quoted: {command}"
     assert "git check-ref-format --branch '<branch>'" in skill_text()
