@@ -901,6 +901,16 @@ def test_a_script_running_other_packages_scripts_is_never_proposed() -> None:
     )
 
 
+def test_prove_answers_when_stopped_by_any_stop_signal() -> None:
+    """2026-10-17: the prove step handled only SIGTERM, so a SIGHUP from a
+    closed terminal killed the scan with no JSON and left the proved command's
+    group running in its own session; a nohup'd scan must still ignore it."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_prove_answers_and_kills_the_running_command_when_it_is_stopped",
+        "tests/test_detect_checks.py::test_prove_keeps_ignoring_a_signal_the_caller_ignored",
+    )
+
+
 def test_a_deep_script_chain_is_not_proposed_and_the_scan_answers() -> None:
     """2026-10-17: a chain of a few hundred scripts each running the next ran
     the Node check screen out of stack, so the scan printed a traceback and no
@@ -1086,6 +1096,10 @@ def main() -> int:
         (
             "a script running other packages' scripts is not proposed",
             test_a_script_running_other_packages_scripts_is_never_proposed,
+        ),
+        (
+            "prove answers when stopped by any stop signal",
+            test_prove_answers_when_stopped_by_any_stop_signal,
         ),
         (
             "a deep script chain is not proposed and the scan answers",

@@ -43,7 +43,8 @@ script that prints one JSON object and runs under `python3 -I`
    proposed command one time, inside one time budget and in a process
    group of its own, whose leftover processes end with it, and sets
    `proven` when it ran, not when it passed, so a caller keeps only
-   commands that run on this machine.
+   commands that run on this machine. A stop (SIGTERM, SIGINT or SIGHUP)
+   ends the running command the same way, and the scan still answers.
 3. **A runner runs the configured checks.** `checks.py run` runs
    `commands.*`, or commands given on its command line, and reports per
    check whether it passed, the failure count when the tool prints one,

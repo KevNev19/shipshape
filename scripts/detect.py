@@ -20,12 +20,13 @@ of its own, inside one budget for the whole step (--timeout, default 300
 seconds), and marks a check proven when its command finished inside the
 budget with an exit status other than 126 or 127, whether it passed or not.
 A command still running when the budget ends, or when the scan gets SIGTERM,
-is killed with everything it started and stays unproven, as do the commands
-not reached; the scan still prints its answer and exits 0. A command that
-finishes has whatever it left running in its process group killed too. On
-Linux the scan adopts and reaps what it kills, so nothing stays a zombie where
-PID 1 reaps nothing, as in a container without an init; on Windows, which has
-no process groups, taskkill ends a running command's process tree.
+SIGINT or SIGHUP, is killed with everything it started and stays unproven, as
+do the commands not reached; the scan still prints its answer and exits 0. A
+signal the scan was started ignoring, as under nohup, stays ignored. A command
+that finishes has whatever it left running in its process group killed too.
+On Linux the scan adopts and reaps what it kills, so nothing stays a zombie
+where PID 1 reaps nothing, as in a container without an init; on Windows,
+which has no process groups, taskkill ends a running command's process tree.
 
 The proposed commands are the project's own build tools, which may fetch
 dependencies. With --prove and --no-network together, each command runs with
@@ -355,6 +356,12 @@ OFFLINE_ENV = {
     "GOPROXY": "off",
     "npm_config_offline": "true",
 }
+# The signals that stop the prove step: SIGTERM, Ctrl-C's SIGINT, and the SIGHUP
+# of a closed terminal or a dropped ssh session, none of which reaches a command
+# leading a session of its own. Windows has no SIGHUP.
+STOP_SIGNALS = tuple(
+    getattr(signal, name) for name in ("SIGTERM", "SIGINT", "SIGHUP") if hasattr(signal, name)
+)
 USAGE = "usage: detect.py <repo-path> [--no-network] [--prove] [--timeout=SECONDS]"
 
 
@@ -882,8 +889,9 @@ def detect_checks(
 
 
 class _StopRequest:
-    """SIGTERM during the prove step: kill the running command's process
-    group, so nothing it started outlives the scan, and start no other."""
+    """A stop signal (STOP_SIGNALS) during the prove step: kill the running
+    command's process group, so nothing it started outlives the scan, and
+    start no other."""
 
     def __init__(self) -> None:
         self.requested = False
@@ -1012,7 +1020,7 @@ def prove_checks(
     OFFLINE_ENV to each command's environment."""
     env = {**os.environ, **OFFLINE_ENV} if offline else None
     stop = _StopRequest()
-    previous = signal.signal(signal.SIGTERM, stop)
+    previous = _handle_stop_signals(stop)
     deadline = time.monotonic() + timeout
     try:
         with _adopting_orphans():
@@ -1021,7 +1029,20 @@ def prove_checks(
                 for check in checks
             ]
     finally:
-        signal.signal(signal.SIGTERM, previous)
+        for number, handler in previous.items():
+            if handler is not None:
+                signal.signal(number, handler)
+
+
+def _handle_stop_signals(stop: _StopRequest) -> dict:
+    """Send each of STOP_SIGNALS to `stop`, except one the scan was started
+    ignoring on purpose (nohup, a shell's background job), and return the
+    handlers it replaced."""
+    return {
+        number: signal.signal(number, stop)
+        for number in STOP_SIGNALS
+        if signal.getsignal(number) is not signal.SIG_IGN
+    }
 
 
 def detect_ci(root: Path) -> dict:

@@ -13,7 +13,8 @@ expands a variable, runs other packages' scripts or names a chain of scripts
 deeper than the screen follows. A plain scan never runs a command, so every
 check is unproven; --prove runs each command once inside one budget, with no
 input and offline under --no-network, kills and reaps what it left running,
-and marks the ones that ran, whether they passed or not.
+answers when stopped by SIGTERM, SIGINT or SIGHUP, and marks the ones that
+ran, whether they passed or not.
 """
 
 import json
@@ -880,11 +881,10 @@ def test_prove_without_network_runs_commands_offline(tmp_path, monkeypatch, flag
     assert (repo / "env.log").read_text() == f"{recorded}\n"
 
 
-def test_prove_answers_and_kills_the_running_command_when_it_gets_sigterm(tmp_path, monkeypatch):
-    """How a caller starts the scan: python3 -I -B, by absolute path, from another folder."""
-    repo = write_repo(tmp_path / "repo", PYTHON_TOOLS_REPO)
-    ran = "echo ran >> ran.log"
-    fake_tools(tmp_path, monkeypatch, {"pytest": SLOW_TOOL, "ruff": ran, "mypy": ran})
+def start_proving(repo: Path, cwd: Path, signum: int, disposition) -> subprocess.Popen:
+    """Start the scan as a caller does, with python3 -I -B, by absolute path,
+    from another folder, `signum` set to `disposition` as it starts, and wait
+    until the proposed test command has written child.pid."""
     proc = subprocess.Popen(
         [
             sys.executable,
@@ -895,23 +895,62 @@ def test_prove_answers_and_kills_the_running_command_when_it_gets_sigterm(tmp_pa
             "--no-network",
             "--prove",
         ],
-        cwd=tmp_path,
+        cwd=cwd,
         stdout=subprocess.PIPE,
         text=True,
+        preexec_fn=lambda: signal.signal(signum, disposition),
     )
     child_pid = repo / "child.pid"
     deadline = time.monotonic() + 10
     while not (child_pid.exists() and child_pid.read_text().strip()):
         assert time.monotonic() < deadline, "the proposed command never started"
         time.sleep(0.05)
+    return proc
 
-    proc.send_signal(signal.SIGTERM)
+
+STOP_SIGNAL_NAMES = ("SIGTERM", "SIGINT", "SIGHUP")
+
+
+@pytest.mark.parametrize("name", STOP_SIGNAL_NAMES)
+def test_prove_answers_and_kills_the_running_command_when_it_is_stopped(
+    tmp_path, monkeypatch, name
+):
+    """Ctrl-C and a closed terminal reach the scan but not the command, which
+    leads a session of its own."""
+    if not hasattr(signal, name):
+        pytest.skip(f"no {name} here")
+    signum = getattr(signal, name)
+    repo = write_repo(tmp_path / "repo", PYTHON_TOOLS_REPO)
+    ran = "echo ran >> ran.log"
+    fake_tools(tmp_path, monkeypatch, {"pytest": SLOW_TOOL, "ruff": ran, "mypy": ran})
+    proc = start_proving(repo, tmp_path, signum, signal.SIG_DFL)
+
+    proc.send_signal(signum)
     out, _ = proc.communicate(timeout=10)
 
     assert proc.returncode == 0
     assert [entry["proven"] for entry in json.loads(out)["checks"]] == [False, False, False, False]
     assert not (repo / "ran.log").exists()
-    assert_gone(int(child_pid.read_text()))
+    assert_gone(int((repo / "child.pid").read_text()))
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGHUP"), reason="no SIGHUP here")
+def test_prove_keeps_ignoring_a_signal_the_caller_ignored(tmp_path, monkeypatch):
+    """nohup starts the scan with SIGHUP ignored, so a hangup must not stop it."""
+    repo = write_repo(tmp_path / "repo", PYTHON_TOOLS_REPO)
+    ran = "echo ran >> ran.log"
+    fake_tools(
+        tmp_path,
+        monkeypatch,
+        {"pytest": "echo $$ > child.pid; sleep 1", "ruff": ran, "mypy": ran},
+    )
+    proc = start_proving(repo, tmp_path, signal.SIGHUP, signal.SIG_IGN)
+
+    proc.send_signal(signal.SIGHUP)
+    out, _ = proc.communicate(timeout=30)
+
+    assert proc.returncode == 0
+    assert [entry["proven"] for entry in json.loads(out)["checks"]] == [True, True, True, True]
 
 
 def test_a_scan_runs_in_isolated_mode_from_another_folder(tmp_path):
