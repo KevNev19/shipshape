@@ -51,11 +51,12 @@ BRIEFING_LENS_PHRASES = {
     ("plan", "coverage"): "requirements no step covers and steps nothing asks for",
     ("plan", "specificity"): "steps that cannot be carried out without guessing",
     ("documentation", "accuracy"): "statements, links and commands that are not true of the code",
-    ("documentation", "links"): "links",
+    # One sentence names accuracy and links, so accuracy's phrase carries links too.
+    ("documentation", "links"): "statements, links and commands",
     ("documentation", "clarity"): "text its reader cannot follow without the code",
     ("documentation", "consistency"): "other documents that now say something different",
-    ("code", "behaviour"): "behaviour",
-    ("code", "tests"): "tests",
+    ("code", "behaviour"): "look at behaviour",
+    ("code", "tests"): "behaviour, tests,",
     ("code", "blast-radius"): "what else could be affected",
 }
 INTENT_COUNT = "how many of the changed files fit it"
