@@ -2,10 +2,10 @@
 """Check a diff for tests it weakens (ADR 0002: Python 3 stdlib only, JSON-only stdout).
 
 Reads a unified diff and reports each place where it makes the test suite prove
-less: a test (or a test file) deleted, a test skipped, an assertion removed, or
-an assertion loosened. Each finding carries a file, a line, the diff line as
-detail and its consequence. Findings are review input, so a scan exits 0
-whatever it finds.
+less: a test (or a test file) deleted, a test skipped, an assertion removed, or an
+assertion loosened. Each finding carries a file, a line, the diff line as detail
+and its consequence. Findings are review input, so a scan exits 0 whatever it
+finds.
 
 Usage:
     python3 test_integrity.py <repo> [--range=A..B | --staged | --stdin]
@@ -14,36 +14,35 @@ With no source flag the scan reads the uncommitted change (staged and unstaged)
 against HEAD; --range diffs two revisions (commits or tree objects), --staged the
 index against HEAD, and --stdin reads a unified diff such as `gh pr diff` prints;
 empty input on stdin is a warning, not a clean diff, since a command that failed
-before it piped a diff in printed nothing.
-A git diff holds only the files git tracks: a file the change creates and git has
-not seen yet is not in it, so a caller that creates files compares two tree
-objects with --range. The diff is limited to <repo> and names paths from it. A
-folder that is not inside a git work tree is not an error: nothing could be
-checked, so the answer has no findings and a warning says so. A repository git
-refuses to open (a .git entry at or above the folder that git will not read) is
-an error.
+before it piped a diff in printed nothing. A git diff holds only the files git
+tracks: a file the change creates and git has not seen yet is not in it, so a
+caller that creates files compares two tree objects with --range. The diff is
+limited to <repo> and names paths from it. A folder that is not inside a git work
+tree is not an error: nothing could be checked, so the answer has no findings and
+a warning says so. A repository git refuses to open (a .git entry at or above the
+folder that git will not read) is an error.
 
 Output: {"ok", "mode": "test-integrity", "source", "files_scanned", "findings":
 [{"file", "line", "language", "kind", "detail", "consequence"}], "unsupported",
 "warnings", "next_action"}, with kind one of deleted-test (a deleted test file, or
 one renamed to a path that is not a test file, is one finding at line 1),
-skipped-test, removed-assertion or loosened-assertion. A
-usage error, or a diff git cannot produce, prints {"ok": false, "mode", "error",
-"next_action"} and exits 2, the code detect.py uses.
+skipped-test, removed-assertion or loosened-assertion. A usage error, or a diff
+git cannot produce, prints {"ok": false, "mode", "error", "next_action"} and exits
+2, the code detect.py uses.
 
 The check reads changed lines, not syntax trees, through per-language patterns
 (TEST_PATTERNS). A line whose text is added again elsewhere in the diff moved, so
 it is not a removal; a removed test or assertion that an added one of its kind
 rewrites in the same file, in the same run of changed lines or keeping most of the
-words that name it, was rewritten, which the review rubric judges, so it is not a
-removal either; an unrelated addition elsewhere in the file rewrites nothing. A
-skip inside a test the same diff adds skips nothing that
-ran before, so it is not a finding, unless the file also removes a test or a Python
-class (which added test a removed one became is a guess); one that focuses on some
-tests (.only, fit) skips the others, so it still is. A line number is the old file's for something
-removed and the new file's for something added. Changed files in a language
-detect.py knows but TEST_PATTERNS does not are listed under "unsupported", never
-passed silently.
+words that name it (BOILERPLATE_WORDS such as assert, test or response aside), was
+rewritten, which the review rubric judges, so it is not a removal either; an
+unrelated addition elsewhere in the file rewrites nothing. A skip inside a test
+the same diff adds skips nothing that ran before, so it is not a finding, unless
+the file also removes a test or a Python class (which added test a removed one
+became is a guess); one that focuses on some tests (.only, fit) skips the others,
+so it still is. A line number is the old file's for something removed and the new
+file's for something added. Changed files in a language detect.py knows but
+TEST_PATTERNS does not are listed under "unsupported", never passed silently.
 """
 
 import argparse
@@ -99,6 +98,39 @@ WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
 # An added test or assertion rewrote a removed one of its role outside their run of
 # changed lines only when more than this share of the words that name them is shared.
 REWRITE_SIMILARITY = 0.5
+# Words nearly every test or assertion holds, left out of that share: without them,
+# `assert response.status_code == 403` and `== 200` share nothing, and neither do
+# test_user_can_login and test_user_can_logout share more than half.
+BOILERPLATE_WORDS = frozenset(
+    {
+        "test",
+        "tests",
+        "it",
+        "should",
+        "assert",
+        "expect",
+        "require",
+        "self",
+        "t",
+        "to",
+        "be",
+        "is",
+        "not",
+        "equal",
+        "equals",
+        "eq",
+        "ne",
+        "true",
+        "false",
+        "none",
+        "null",
+        "nil",
+        "response",
+        "resp",
+        "status",
+        "code",
+    }
+)
 NO_HEADERS_WARNING = "The input has text but no unified diff file headers, so nothing was checked."
 EMPTY_INPUT_WARNING = "The input on stdin is empty, so nothing was checked."
 EMPTY_INPUT_NEXT_ACTION = (
@@ -512,12 +544,13 @@ def _unreplaced(removed: list[Line], added: list[Line]) -> list[Line]:
 
 
 def _words(text: str, role: str, language: str) -> frozenset[str]:
-    """The words that name a test (those of its name) or an assertion (those of its line)."""
+    """The words that name a test (those of its name) or an assertion (those of its line),
+    BOILERPLATE_WORDS aside."""
     if role == "test":
         match = TEST_NAMES[language].search(text)
         if match:
             text = next(group for group in match.groups() if group is not None)
-    return frozenset(word.lower() for word in WORD.findall(text))
+    return frozenset(word.lower() for word in WORD.findall(text)) - BOILERPLATE_WORDS
 
 
 def _alike(old: str, new: str, role: str, language: str) -> bool:

@@ -133,8 +133,10 @@ offered and no template references them.
 - The integrity check leaves a rewrite to the review: a removed test or
   assertion is rewritten, not removed, only when an added one of its kind
   sits in the same run of changed lines or keeps most of the words that
-  name it (a test's name, an assertion's text). An unrelated addition
-  elsewhere in the file keeps the removal a finding.
+  name it (a test's name, an assertion's text), leaving out words nearly
+  every test holds, such as `assert`, `test`, `response` and `status`, so
+  `== 403` removed beside `== 200` added elsewhere stays a removal. An
+  unrelated addition elsewhere in the file keeps the removal a finding.
 - The integrity check reports a skip that weakens existing tests. A skip
   inside a test the same diff adds (a Go `if testing.Short() { t.Skip() }`,
   a `@pytest.mark.skipif` on a new test) skips nothing that ran before, so
