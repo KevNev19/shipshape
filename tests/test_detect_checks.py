@@ -328,6 +328,33 @@ def test_shell_punctuation_cannot_hide_a_rejected_flag(tmp_path, script):
 @pytest.mark.parametrize(
     "script",
     [
+        "eslint . --fi\\\nx",
+        'eslint . "--fi\\\nx"',
+        "eslint . --{fix,}",
+        "eslint . -{w..w}",
+        "eslint . {a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}",
+        "run-s lint:{js,fix}",
+    ],
+)
+def test_a_shell_expansion_cannot_hide_a_rejected_flag(tmp_path, script):
+    """The shell joins `--fi`, a backslash-newline and `x` into --fix, and
+    expands `--{fix,}` into --fix and --; shlex does neither."""
+    scripts = {"lint": script, "lint:js": "eslint .", "lint:fix": "eslint . --fix"}
+
+    assert "lint" not in node_checks(tmp_path, scripts)
+
+
+def test_a_brace_list_without_a_rejected_flag_is_still_proposed(tmp_path):
+    checks = node_checks(tmp_path, {"format:check": "prettier --check 'src/**/*.{ts,tsx,json}'"})
+
+    assert checks["format"] == check(
+        "npm run format:check", "package.json:scripts.format:check", "high", "node"
+    )
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
         "sh -c 'eslint . --fix'",
         "bash -c 'eslint .'",
         "/bin/sh ./lint.sh",

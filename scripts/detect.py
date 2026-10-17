@@ -278,6 +278,15 @@ NOT_A_CHECK = ("--write", "--fix", "--apply", "--watch", "-w")
 # spaced, so `--fix>lint.log`, `(eslint --fix)` and `` `eslint --fix` `` still
 # show the flag as a word.
 SHELL_PUNCTUATION = "();<>|&`"
+# A backslash before a line end: the shell drops both and joins the lines, so
+# `--fi` + backslash-newline + `x` is --fix, while shlex keeps the line end.
+LINE_CONTINUATION = re.compile(r"\\\r?\n")
+# Brace expansion, which the shell does and shlex does not: a list such as
+# `--{fix,}` becomes --fix and --. A sequence such as `{a..z}`, or a list that
+# grows past BRACE_LIMIT words, is not expanded, so its script is not proposed.
+BRACE_LIST = re.compile(r"\{([^{}]*,[^{}]*)\}")
+BRACE_SEQUENCE = re.compile(r"\{[^{}]*\.\.[^{}]*\}")
+BRACE_LIMIT = 256
 # Programs that run a string as shell code: the screen cannot follow what they
 # run, so a script that names one is never proposed.
 SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "fish", "eval"})
@@ -596,7 +605,10 @@ def _node_runner(package_managers: list[str]) -> str:
 
 def _shell_words(command: str) -> list[str] | None:
     """The words the shell reads in `command`, quotes removed and each run of
-    SHELL_PUNCTUATION a word of its own; None when it does not parse."""
+    SHELL_PUNCTUATION a word of its own; None when it does not parse, or holds a
+    line continuation, which shlex reads otherwise than the shell does."""
+    if LINE_CONTINUATION.search(command):
+        return None
     lexer = shlex.shlex(command, posix=True, punctuation_chars=SHELL_PUNCTUATION)
     lexer.whitespace_split = True
     lexer.commenters = ""
@@ -627,23 +639,47 @@ def _unsafe_command(scripts: dict, command: str, seen: set[str]) -> bool:
     for word in words:
         if set(word) <= set(SHELL_PUNCTUATION):
             continue
-        if _unsafe_word(word):
-            return True
-        # A quoted string with blanks or punctuation may be a command another
-        # program runs (concurrently, npx -c, node -e): it is screened the same way.
-        if any(char.isspace() or char in SHELL_PUNCTUATION for char in word) and (
-            _unsafe_command(scripts, word, seen)
-        ):
-            return True
-        # A word naming a script, or a glob naming several (run-s "lint:*"), may run them.
-        named = (
-            script
-            for script in scripts
-            if script == word or ("*" in word and fnmatch.fnmatchcase(script, word))
-        )
-        if any(_unsafe_node_script(scripts, script, seen) for script in named):
+        expanded = _brace_words(word)
+        if expanded is None or any(_unsafe_shell_word(scripts, each, seen) for each in expanded):
             return True
     return False
+
+
+def _brace_words(word: str) -> list[str] | None:
+    """The words brace expansion makes of `word`: [word] itself without a brace
+    list, None for a brace sequence or more than BRACE_LIMIT words."""
+    if BRACE_SEQUENCE.search(word):
+        return None
+    pending, done = [word], []
+    while pending:
+        current = pending.pop()
+        match = BRACE_LIST.search(current)
+        if match is None:
+            done.append(current)
+            continue
+        head, tail = current[: match.start()], current[match.end() :]
+        pending += [head + alternative + tail for alternative in match.group(1).split(",")]
+        if len(pending) + len(done) > BRACE_LIMIT:
+            return None
+    return done
+
+
+def _unsafe_shell_word(scripts: dict, word: str, seen: set[str]) -> bool:
+    if _unsafe_word(word):
+        return True
+    # A quoted string with blanks or punctuation may be a command another
+    # program runs (concurrently, npx -c, node -e): it is screened the same way.
+    if any(char.isspace() or char in SHELL_PUNCTUATION for char in word) and (
+        _unsafe_command(scripts, word, seen)
+    ):
+        return True
+    # A word naming a script, or a glob naming several (run-s "lint:*"), may run them.
+    named = (
+        script
+        for script in scripts
+        if script == word or ("*" in word and fnmatch.fnmatchcase(script, word))
+    )
+    return any(_unsafe_node_script(scripts, script, seen) for script in named)
 
 
 def _unsafe_word(word: str) -> bool:

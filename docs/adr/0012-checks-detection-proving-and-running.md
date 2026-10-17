@@ -85,10 +85,12 @@ offered and no template references them.
   quotes removed and punctuation such as `;`, `>`, `(` and `` ` `` as
   words of their own, and follows each command string the script passes
   on, the pre and post scripts a runner adds and every script it names.
-  A script that runs a shell (`sh`, `bash`, `eval` and the like) or
-  expands a variable is not proposed either, since the screen cannot
-  read what that runs. A `test` script the screen drops is no test
-  command, so another language's runner can still be the test guess.
+  Brace lists are expanded first, so `--{fix,}` is `--fix`. A script
+  that runs a shell (`sh`, `bash`, `eval` and the like), expands a
+  variable or a brace sequence, or continues a line with a backslash is
+  not proposed either, since the screen cannot read what that runs. A
+  `test` script the screen drops is no test command, so another
+  language's runner can still be the test guess.
 - A node `test` script with no known runner is not proposed; the owner
   sets `commands.test`.
 - `--no-network` skips only the `gh auth status` probe, the scan's one
