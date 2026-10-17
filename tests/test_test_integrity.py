@@ -269,6 +269,21 @@ def test_an_unrelated_assertion_added_elsewhere_keeps_a_removal(tmp_path, lines)
     assert result["findings"][0]["detail"] == "-assert user.can_access(resource)"
 
 
+def test_boilerplate_words_cannot_make_an_assertion_elsewhere_a_rewrite(tmp_path):
+    """The two checks share only assert, response, status and code: the 403 that
+    proved strangers are refused is gone, whatever another test now pins."""
+    lines = [
+        "@@ -3 +2,0 @@",
+        "-    assert response.status_code == 403",
+        "@@ -20,0 +20 @@",
+        "+    assert response.status_code == 200",
+    ]
+
+    result = scan_diff(tmp_path, diff(changed("tests/test_auth.py", *lines)))
+
+    assert kinds(result) == [("tests/test_auth.py", 3, "removed-assertion")]
+
+
 @pytest.mark.parametrize(
     ("path", "removed", "added"),
     [
@@ -279,6 +294,8 @@ def test_an_unrelated_assertion_added_elsewhere_keeps_a_removal(tmp_path, lines)
             "func TestDeniesStrangers(t *testing.T) {",
             "func TestPaints(t *testing.T) {",
         ),
+        # Exactly half the words that name them are shared: "more than half" is not met.
+        ("tests/test_auth.py", "def test_user_can_login():", "def test_user_can_logout():"),
     ],
 )
 def test_an_unrelated_test_added_elsewhere_keeps_a_deleted_test(tmp_path, path, removed, added):

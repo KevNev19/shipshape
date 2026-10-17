@@ -1112,6 +1112,18 @@ def test_a_failed_pr_diff_is_not_a_clean_scan() -> None:
     )
 
 
+def test_boilerplate_words_cannot_cancel_a_removal() -> None:
+    """2026-10-17: the rewrite match counted words such as assert, response, status
+    and code, so removing `assert response.status_code == 403` while adding `== 200`
+    in another test, or deleting test_user_can_login beside a new
+    test_user_can_logout, gave no finding."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_boilerplate_words_cannot_make_an_assertion_elsewhere_a_rewrite",
+        "tests/test_test_integrity.py::test_an_unrelated_test_added_elsewhere_keeps_a_deleted_test",
+        "tests/test_test_integrity.py::test_a_rewrite_in_place_or_one_that_keeps_its_words_is_left_to_the_review",
+    )
+
+
 def test_review_removes_the_pr_diff_file() -> None:
     """2026-10-17: shipshape-review saved each PR diff, possibly a private
     repository's, to a temporary file it never removed."""
@@ -1362,6 +1374,10 @@ def main() -> int:
         (
             "a failed PR diff is not a clean scan",
             test_a_failed_pr_diff_is_not_a_clean_scan,
+        ),
+        (
+            "boilerplate words cannot cancel a removal",
+            test_boilerplate_words_cannot_cancel_a_removal,
         ),
         (
             "review removes the PR diff file",
