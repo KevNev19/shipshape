@@ -44,10 +44,12 @@ in a skill cannot give them.
    escalations do not change, and security is checked under every profile.
 5. As ADR 0007 requires, the three review surfaces change together in one
    release. The generated GitHub briefings carry the profiles in words,
-   because `profiles.json` is not rendered into a consumer's repository.
-   `tests/test_review_profiles.py` pins the shared rules across the three
-   surfaces, the fitting rule in the contract, and the profile names and
-   order across the contract and `profiles.json`.
+   each with every lens it has in `profiles.json` (security through the
+   briefing's own security step), because `profiles.json` is not rendered
+   into a consumer's repository. `tests/test_review_profiles.py` pins the
+   shared rules across the three surfaces, every lens in both briefings,
+   the fitting rule in the contract, and the profile names and order
+   across the contract and `profiles.json`.
 
 ## Consequences
 

@@ -18,12 +18,17 @@ How to review:
 1. Choose the review profile from the changed files. Every review uses exactly one profile: specification, plan, documentation, or code.
    - specification (specifications, design and decision records, change
      intent): look for requirements that contradict each other or an
-     accepted decision, and requirements without an acceptance check.
+     accepted decision, requirements without an acceptance check,
+     requirements that can be read two ways, and intent that no
+     requirement covers, such as an error case, a limit or a migration.
    - plan (implementation plans): look for steps out of dependency order,
-     names used before a step creates them, and steps that do not say how
-     they are verified.
+     names used before a step creates them, steps that do not say how
+     they are verified, requirements no step covers and steps nothing asks
+     for, and steps that cannot be carried out without guessing.
    - documentation (other Markdown, MDX, reStructuredText and AsciiDoc): look
-     for statements, links and commands that are not true of the code.
+     for statements, links and commands that are not true of the code, text
+     its reader cannot follow without the code, and other documents that
+     now say something different about the same thing.
    - code (everything else, including anything under a folder whose name
      starts with a dot): look at behaviour, tests, and what else could be
      affected.

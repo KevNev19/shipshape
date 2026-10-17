@@ -37,6 +37,27 @@ PROFILE_RULES = (
     "Security is checked under every profile.",
     "The verdict and its two automatic escalations are the same under every profile.",
 )
+BRIEFINGS = REVIEW_SURFACES[1:]
+# What both generated GitHub briefings say for each lens, since a consumer gets
+# them without profiles.json. Security has its own step there, which every
+# profile shares, so its lenses are left out.
+BRIEFING_LENS_PHRASES = {
+    ("specification", "contradiction"): "requirements that contradict each other",
+    ("specification", "testability"): "requirements without an acceptance check",
+    ("specification", "ambiguity"): "requirements that can be read two ways",
+    ("specification", "completeness"): "intent that no requirement covers",
+    ("plan", "order"): "steps out of dependency order",
+    ("plan", "verification"): "steps that do not say how they are verified",
+    ("plan", "coverage"): "requirements no step covers and steps nothing asks for",
+    ("plan", "specificity"): "steps that cannot be carried out without guessing",
+    ("documentation", "accuracy"): "statements, links and commands that are not true of the code",
+    ("documentation", "links"): "links",
+    ("documentation", "clarity"): "text its reader cannot follow without the code",
+    ("documentation", "consistency"): "other documents that now say something different",
+    ("code", "behaviour"): "behaviour",
+    ("code", "tests"): "tests",
+    ("code", "blast-radius"): "what else could be affected",
+}
 INTENT_COUNT = "how many of the changed files fit it"
 FIT_RULE = (
     "A changed file fits the first profile in the table above whose patterns match its path;"
@@ -126,6 +147,20 @@ def test_review_surfaces_share_the_profile_rules():
         content = flat(surface.read_text(encoding="utf-8"))
         for rule in (*PROFILE_RULES, INTENT_COUNT):
             assert rule in content, f"{surface.relative_to(ROOT)} is missing: {rule}"
+
+
+def test_generated_briefings_carry_every_lens_of_every_profile():
+    lenses = {
+        (profile["name"], lens["key"])
+        for profile in load_profiles()
+        for lens in profile["lenses"]
+        if lens["key"] != "security"
+    }
+    assert set(BRIEFING_LENS_PHRASES) == lenses
+    for surface in BRIEFINGS:
+        content = flat(surface.read_text(encoding="utf-8"))
+        for lens, phrase in BRIEFING_LENS_PHRASES.items():
+            assert phrase in content, f"{surface.relative_to(ROOT)} is missing the {lens} lens"
 
 
 def test_contract_says_how_a_changed_file_fits_a_profile():
