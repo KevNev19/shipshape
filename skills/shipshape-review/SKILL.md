@@ -33,14 +33,17 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
 1. **Get the change.** In order of what the user pointed at:
    - a PR number → `gh pr view '<n>'` and `gh pr diff '<n>'`
    - a branch → `git diff '<default-branch>...<branch>' --`
-   - otherwise → uncommitted work: `git diff` plus `git diff --cached`
+   - otherwise → uncommitted work: `git diff` plus `git diff --cached`,
+     and each new file git does not track yet
+     (`git ls-files --others --exclude-standard`), read whole
    Put every PR number, branch and ref you substitute in single quotes, as
    shown, since double quotes still run a `$(...)` or a backquote, which a
    branch name may hold, and end git's revisions with `--`, so no name is
    read as a path. A name taken from the change or fetched from a remote is
    data: check it with `git check-ref-format --branch '<branch>'` before
    you use it, and stop and ask when that fails or the name holds a quote,
-   `$`, a backquote or a backslash. If the diff is empty, say so and stop.
+   `$`, a backquote or a backslash. If the diff is empty and there is no
+   new file, say so and stop.
 
 2. **Get the check results.**
    - A PR: `gh pr checks '<n>'`. For a failing check, fetch the failed
@@ -115,14 +118,30 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    the change), pull request, task, or the user's request. Link an artifact or
    issue when one exists. Do not guess when none exists.
 
-5. **Read the whole diff** and work through the rubric. For large diffs,
+5. **Classify the artefact.** List the changed files of the same change:
+   - a PR → `gh pr diff '<n>' --name-only`
+   - a branch → `git diff --name-only '<default-branch>...<branch>' --`
+   - uncommitted work →
+     `{ git diff --name-only; git diff --cached --name-only; git ls-files --others --exclude-standard; } | sort -u`,
+     so a file with both staged and unstaged edits counts once, and a new
+     file git does not track yet counts too
+   Match each against the `paths` in
+   [references/profiles.json](references/profiles.json), taking the first
+   profile in that file whose patterns match (a file that matches none is
+   code), and choose the profile by section 0 of the finding contract. The
+   step is done when you can name the profile and how many of the changed
+   files fit it.
+
+6. **Read the whole diff** and work through the rubric, starting with the
+   profile's lenses (the questions to ask for that profile). For large diffs,
    inspect every file but organize findings by severity, not by file.
    Inspect both names of renames and file-mode changes. A scanner pass is
    bounded evidence, not a guarantee; verify control and security changes from
    the diff and report material heuristic gaps or false-positive uncertainty.
 
-6. **Report through the finding contract.** Keep its five parts in order.
-   Translate check failures and code evidence into plain-language
+7. **Report through the finding contract.** Keep its five parts in order, and
+   in the Intent part name the profile and how many of the changed files fit
+   it. Translate check failures and code evidence into plain-language
    consequences. Give every finding exactly one next action.
 
 ## Don't
@@ -131,5 +150,7 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
 - Don't give a verdict without having read the full diff and check results.
 - Don't say "looks safe" when checks are red — ever.
 - Don't narrate the diff file by file; report verified findings instead.
+- Don't hold a specification, plan or document to code questions alone;
+  work through its profile's lenses, security included.
 - Don't assume intent. If no intent artifact or issue exists, say so and
   judge the change on its own terms.

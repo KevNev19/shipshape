@@ -1135,6 +1135,51 @@ def test_review_removes_the_pr_diff_file() -> None:
     )
 
 
+def test_generated_briefings_carry_every_profile_lens() -> None:
+    """2026-10-17: the generated GitHub briefings, which a consumer gets without
+    profiles.json, left out the specification profile's ambiguity and completeness
+    lenses, the plan profile's coverage and specificity lenses and the documentation
+    profile's clarity and consistency lenses."""
+    run_focused_pytest(
+        "tests/test_review_profiles.py::test_generated_briefings_carry_every_lens_of_every_profile",
+    )
+
+
+def test_review_counts_a_partly_staged_file_once() -> None:
+    """2026-10-17: shipshape-review listed uncommitted files as the unstaged names
+    plus the staged ones, so a file with both counted twice and could tip the
+    profile choice, such as a 2 to 2 tie that chose documentation over code."""
+    run_focused_pytest(
+        "tests/test_review_profiles.py::test_skill_counts_a_partly_staged_file_once",
+    )
+
+
+def test_the_test_integrity_floor_holds_under_every_profile() -> None:
+    """2026-10-17: the rubric let a specification, plan or documentation
+    profile's lenses replace step 1, whose last bullet holds an unexplained
+    deleted, skipped or loosened test to at least "Needs attention first", so a
+    mostly-Markdown change that deleted a test dropped that floor."""
+    run_focused_pytest(
+        "tests/test_review_profiles.py::test_skill_and_rubric_work_through_the_profile_lenses",
+    )
+
+
+def test_review_counts_a_new_untracked_file() -> None:
+    """2026-10-17: neither `git diff --name-only` list names an untracked file,
+    so a new uncommitted spec was left out of the count that picks the profile."""
+    run_focused_pytest(
+        "tests/test_review_profiles.py::test_skill_counts_and_reads_a_new_file_git_does_not_track_yet",
+    )
+
+
+def test_review_quotes_the_names_in_its_profile_step() -> None:
+    """2026-10-17: the profile step listed a PR's or branch's files with the PR
+    number and branch names unquoted, where a branch name may hold $(...)."""
+    run_focused_pytest(
+        "tests/test_review_contract.py::test_review_skill_single_quotes_every_name_in_any_of_its_commands",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1384,6 +1429,26 @@ def main() -> int:
         (
             "review removes the PR diff file",
             test_review_removes_the_pr_diff_file,
+        ),
+        (
+            "generated briefings carry every profile lens",
+            test_generated_briefings_carry_every_profile_lens,
+        ),
+        (
+            "review counts a partly staged file once",
+            test_review_counts_a_partly_staged_file_once,
+        ),
+        (
+            "the test-integrity floor holds under every profile",
+            test_the_test_integrity_floor_holds_under_every_profile,
+        ),
+        (
+            "review counts a new untracked file",
+            test_review_counts_a_new_untracked_file,
+        ),
+        (
+            "review quotes the names in its profile step",
+            test_review_quotes_the_names_in_its_profile_step,
         ),
     ]
     failures = 0
