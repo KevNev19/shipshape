@@ -6,10 +6,11 @@ kind, the command, whether it is proven, the source that revealed it, a
 confidence and a language. Only a high-confidence language proposes checks;
 the primary language wins a kind two languages could fill; the test check
 uses the package-manager command init-config stores; a package.json script
-that rewrites files or never exits, including shell flags and lifecycle hooks
-in delegated scripts, is never proposed. A plain scan never runs a command,
-so every check is unproven;
---prove runs each command once inside one budget, with no input and offline
+that rewrites files or never exits is never proposed, whether the flag is in
+its own shell words, a command string it passes on, a pre or post script or a
+script it names, and neither is one that runs a shell or expands a variable.
+A plain scan never runs a command, so every check is unproven; --prove runs
+each command once inside one budget, with no input and offline
 under --no-network, kills what it left running, and marks the ones that ran,
 whether they passed or not.
 """
@@ -301,6 +302,64 @@ def test_node_script_flag_screening_respects_shell_tokens(tmp_path, script):
     )
 
     assert "lint" not in table(scan(repo))
+
+
+def node_checks(tmp_path: Path, scripts: dict[str, str]) -> dict[str, dict]:
+    package = {"name": "example", "scripts": scripts}
+    return table(scan(write_repo(tmp_path, {"package.json": json.dumps(package)})))
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        "eslint . --fix>lint.log",
+        "(eslint . --fix)",
+        "eslint . --fix&&echo done",
+        "echo `eslint . --fix`",
+        "echo $(eslint . --fix)",
+    ],
+)
+def test_shell_punctuation_cannot_hide_a_rejected_flag(tmp_path, script):
+    assert "lint" not in node_checks(tmp_path, {"lint": script})
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        "sh -c 'eslint . --fix'",
+        "bash -c 'eslint .'",
+        "/bin/sh ./lint.sh",
+        "eval eslint .",
+        "npx -c 'eslint . --fix'",
+        "concurrently 'eslint . --fix' 'tsc'",
+        "node -e \"require('child_process').execSync('eslint . --fix')\"",
+        "eslint . $LINT_FLAGS",
+    ],
+)
+def test_a_script_running_shell_code_the_screen_cannot_read_is_never_proposed(tmp_path, script):
+    assert "lint" not in node_checks(tmp_path, {"lint": script})
+
+
+@pytest.mark.parametrize(
+    "script", ["run-s lint:fix", "npm-run-all 'lint:*'", "concurrently 'npm run lint:fix'"]
+)
+def test_a_script_named_through_any_runner_is_screened(tmp_path, script):
+    assert "lint" not in node_checks(tmp_path, {"lint": script, "lint:fix": "eslint . --fix"})
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        "eslint . && tsc --noEmit",
+        "eslint -c .eslintrc.json . 2>&1",
+        "concurrently 'eslint .' 'tsc --noEmit'",
+        "run-s lint:js",
+    ],
+)
+def test_a_safe_script_using_shell_syntax_is_still_proposed(tmp_path, script):
+    checks = node_checks(tmp_path, {"lint": script, "lint:js": "eslint ."})
+
+    assert checks["lint"] == check("npm run lint", "package.json:scripts.lint", "high", "node")
 
 
 def test_safe_node_script_cycle_does_not_recurse_forever(tmp_path):

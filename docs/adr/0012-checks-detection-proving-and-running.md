@@ -81,7 +81,13 @@ offered and no template references them.
   installed and never fetches a package. A `package.json` script that
   rewrites files (`--write`, `--fix`, `--apply`) or watches (`--watch`,
   `-w`) is never proposed; `-w` is conservative, since it is also npm's
-  workspace flag.
+  workspace flag. The screen reads a script as the shell does, with
+  quotes removed and punctuation such as `;`, `>`, `(` and `` ` `` as
+  words of their own, and follows each command string the script passes
+  on, the pre and post scripts a runner adds and every script it names.
+  A script that runs a shell (`sh`, `bash`, `eval` and the like) or
+  expands a variable is not proposed either, since the screen cannot
+  read what that runs.
 - A node `test` script with no known runner is not proposed; the owner
   sets `commands.test`.
 - `--no-network` skips only the `gh auth status` probe, the scan's one

@@ -32,6 +32,7 @@ it ran.
 """
 
 import contextlib
+import fnmatch
 import json
 import math
 import os
@@ -265,15 +266,18 @@ NODE_SCRIPTS = {
     "typecheck": ("typecheck", "type-check", "check-types"),
     "format": ("format:check", "check-format", "fmt:check", "format"),
 }
-NODE_SCRIPT_REFERENCE = re.compile(
-    r"""(?<![\w./-])(npm|pnpm|yarn|bun)\s+(?:(?:run|run-script)\s+)?"""
-    r"""(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))"""
-)
 
 # A script that rewrites files or watches forever is not a check. The flag list
 # is closed, and -w is knowingly conservative: it is also npm's workspace flag,
 # so `npm run build -w pkg` is dropped too.
 NOT_A_CHECK = ("--write", "--fix", "--apply", "--watch", "-w")
+# The shell's punctuation: each run of it is a word of its own however it is
+# spaced, so `--fix>lint.log`, `(eslint --fix)` and `` `eslint --fix` `` still
+# show the flag as a word.
+SHELL_PUNCTUATION = "();<>|&`"
+# Programs that run a string as shell code: the screen cannot follow what they
+# run, so a script that names one is never proposed.
+SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "fish", "eval"})
 
 # A lockfile other than npm's names the runner the project's scripts expect;
 # a bare package.json means npm.
@@ -546,7 +550,7 @@ def detect_test_runners(root: Path, languages: list[dict]) -> tuple[list[str], s
     if guess == "npm test":
         package, _ = _load_package_json(root)
         scripts = (package or {}).get("scripts")
-        if isinstance(scripts, dict) and _unsafe_node_script(scripts, "test", "npm"):
+        if isinstance(scripts, dict) and _unsafe_node_script(scripts, "test"):
             guess = ""
     return runners, guess
 
@@ -576,38 +580,67 @@ def _node_runner(package_managers: list[str]) -> str:
     return "npm"
 
 
-def _unsafe_node_script(
-    scripts: dict, name: str, runner: str, visited: set[str] | None = None
-) -> bool:
-    """True if a script, lifecycle hook, or delegated script rewrites or watches."""
-    body = scripts.get(name)
-    if not isinstance(body, str) or not body.strip():
-        return False
+def _shell_words(command: str) -> list[str] | None:
+    """The words the shell reads in `command`, quotes removed and each run of
+    SHELL_PUNCTUATION a word of its own; None when it does not parse."""
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=SHELL_PUNCTUATION)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
     try:
-        lexer = shlex.shlex(body, posix=True, punctuation_chars=";&|")
-        lexer.whitespace_split = True
-        lexer.commenters = ""
-        tokens = list(lexer)
+        return list(lexer)
     except ValueError:
-        return True
-    if any(
-        token == flag or token.startswith(f"{flag}=") for token in tokens for flag in NOT_A_CHECK
-    ):
-        return True
-    if visited is None:
-        visited = set()
-    if name in visited:
+        return None
+
+
+def _unsafe_node_script(scripts: dict, name: str, seen: set[str] | None = None) -> bool:
+    """True when running package.json script `name` could rewrite files, watch,
+    or run shell code the screen cannot read: through its own words, the pre
+    and post scripts a runner adds around it, or any script it names."""
+    seen = set() if seen is None else seen
+    if name in seen:
         return False
-    visited.add(name)
-    if runner in NODE_RUNNERS or runner == "npm":
-        for lifecycle in (f"pre{name}", f"post{name}"):
-            if lifecycle in scripts and _unsafe_node_script(scripts, lifecycle, runner, visited):
-                return True
-    for match in NODE_SCRIPT_REFERENCE.finditer(body):
-        called = next(group for group in match.groups()[1:] if group is not None)
-        if called in scripts and _unsafe_node_script(scripts, called, match.group(1), visited):
+    seen.add(name)
+    return any(
+        isinstance(scripts.get(script), str) and _unsafe_command(scripts, scripts[script], seen)
+        for script in (f"pre{name}", name, f"post{name}")
+    )
+
+
+def _unsafe_command(scripts: dict, command: str, seen: set[str]) -> bool:
+    words = _shell_words(command)
+    if words is None:
+        return True
+    for word in words:
+        if set(word) <= set(SHELL_PUNCTUATION):
+            continue
+        if _unsafe_word(word):
+            return True
+        # A quoted string with blanks or punctuation may be a command another
+        # program runs (concurrently, npx -c, node -e): it is screened the same way.
+        if any(char.isspace() or char in SHELL_PUNCTUATION for char in word) and (
+            _unsafe_command(scripts, word, seen)
+        ):
+            return True
+        # A word naming a script, or a glob naming several (run-s "lint:*"), may run them.
+        named = (
+            script
+            for script in scripts
+            if script == word or ("*" in word and fnmatch.fnmatchcase(script, word))
+        )
+        if any(_unsafe_node_script(scripts, script, seen) for script in named):
             return True
     return False
+
+
+def _unsafe_word(word: str) -> bool:
+    """A rewrite or watch flag, a shell, or a value the shell expands, which
+    the screen cannot read."""
+    return (
+        word in NOT_A_CHECK
+        or word.startswith(tuple(f"{flag}=" for flag in NOT_A_CHECK))
+        or word.rsplit("/", 1)[-1] in SHELLS
+        or ("$" in word and word != "$")
+    )
 
 
 def _node_script_check(root: Path, kind: str, package_managers: list[str]) -> dict | None:
@@ -619,11 +652,7 @@ def _node_script_check(root: Path, kind: str, package_managers: list[str]) -> di
     runner = _node_runner(package_managers)
     for name in NODE_SCRIPTS.get(kind, ()):
         body = scripts.get(name)
-        if (
-            isinstance(body, str)
-            and body.strip()
-            and not _unsafe_node_script(scripts, name, runner)
-        ):
+        if isinstance(body, str) and body.strip() and not _unsafe_node_script(scripts, name):
             command = f"{runner} run {name}"
             return _check(command, f"package.json:scripts.{name}", "high", "node")
     return None
@@ -673,7 +702,7 @@ def _test_check(
     if (
         test_guess == "npm test"
         and isinstance(scripts, dict)
-        and _unsafe_node_script(scripts, "test", _node_runner(package_managers))
+        and _unsafe_node_script(scripts, "test")
     ):
         return None
     for runner in test_runners:

@@ -847,6 +847,19 @@ def test_unsafe_node_test_script_does_not_hide_go_test_check() -> None:
     )
 
 
+def test_node_check_screen_reads_scripts_as_the_shell_does() -> None:
+    """2026-10-17: shell punctuation (`--fix>lint.log`, `(eslint . --fix)`),
+    a shell wrapper (`sh -c 'eslint . --fix'`), a command string passed to
+    another program, or a script named by run-s or npm-run-all kept a rewrite
+    flag from the Node check screen, so --prove could rewrite sources."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_shell_punctuation_cannot_hide_a_rejected_flag",
+        "tests/test_detect_checks.py::test_a_script_running_shell_code_the_screen_cannot_read_is_never_proposed",
+        "tests/test_detect_checks.py::test_a_script_named_through_any_runner_is_screened",
+        "tests/test_detect_checks.py::test_a_safe_script_using_shell_syntax_is_still_proposed",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -984,6 +997,10 @@ def main() -> int:
         (
             "unsafe Node test script does not hide Go test check",
             test_unsafe_node_test_script_does_not_hide_go_test_check,
+        ),
+        (
+            "Node check screen reads scripts as the shell does",
+            test_node_check_screen_reads_scripts_as_the_shell_does,
         ),
     ]
     failures = 0
