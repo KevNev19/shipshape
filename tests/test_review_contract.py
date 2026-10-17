@@ -42,6 +42,15 @@ def test_review_skill_reads_the_diff_before_running_another_authors_checks():
     assert "run them only after the user says yes" in text
 
 
+def test_review_skill_scans_a_pr_diff_only_once_gh_printed_it():
+    """Piped straight in, a failed gh pr diff gave the scan empty input and a clean answer."""
+    skill = ROOT / "skills" / "shipshape-review" / "SKILL.md"
+    text = " ".join(skill.read_text(encoding="utf-8").split())
+    assert "gh pr diff <n> |" not in text
+    assert 'gh pr diff <n> > "$diff_file" &&' in text
+    assert "when `gh pr diff` failed" in text
+
+
 def test_review_skill_asks_before_running_another_authors_checks_whatever_changed():
     """Tests and their configuration are code too, so another author's branch
     runs its own code through the checks even when no command changed."""

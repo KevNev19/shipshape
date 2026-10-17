@@ -88,8 +88,9 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    a test). Scan the same change as step 1:
 
    ```bash
-   # a PR
-   gh pr diff <n> | python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" . --stdin
+   # a PR: save the diff first, so a failed fetch is never scanned as an empty diff
+   diff_file="$(mktemp)" && gh pr diff <n> > "$diff_file" &&
+     python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" . --stdin < "$diff_file"
    # a branch
    python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" . --range=<default-branch>...<branch>
    # uncommitted work
@@ -101,8 +102,9 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    `file` and `line` are the evidence and its `consequence` is the
    plain-language consequence. Report under material uncertainties each
    language in `unsupported` (its changes were not checked for weakened
-   tests) and, when `ok` is false or `warnings` is not empty, that test
-   integrity was not checked, with the `error` or the warning.
+   tests) and, when `gh pr diff` failed, `ok` is false or `warnings` is not
+   empty, that test integrity was not checked, with gh's message, the
+   `error` or the warning.
 
 4. **Find the intent.** Use the linked intent artifact (a written record of
    what the change is meant to do), originating issue (the task that led to

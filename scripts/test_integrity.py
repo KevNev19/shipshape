@@ -12,7 +12,9 @@ Usage:
 
 With no source flag the scan reads the uncommitted change (staged and unstaged)
 against HEAD; --range diffs two revisions (commits or tree objects), --staged the
-index against HEAD, and --stdin reads a unified diff such as `gh pr diff` prints.
+index against HEAD, and --stdin reads a unified diff such as `gh pr diff` prints;
+empty input on stdin is a warning, not a clean diff, since a command that failed
+before it piped a diff in printed nothing.
 A git diff holds only the files git tracks: a file the change creates and git has
 not seen yet is not in it, so a caller that creates files compares two tree
 objects with --range. The diff is limited to <repo> and names paths from it. A
@@ -98,6 +100,10 @@ WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
 # changed lines only when more than this share of the words that name them is shared.
 REWRITE_SIMILARITY = 0.5
 NO_HEADERS_WARNING = "The input has text but no unified diff file headers, so nothing was checked."
+EMPTY_INPUT_WARNING = "The input on stdin is empty, so nothing was checked."
+EMPTY_INPUT_NEXT_ACTION = (
+    "Check that the command that printed the diff succeeded, then pipe its diff in again."
+)
 NOT_A_REPOSITORY_WARNING = "The folder is not inside a git work tree, so nothing was checked."
 
 # Five roles per language: "test" starts a test, "skip" skips tests, "assertion" is a
@@ -827,7 +833,14 @@ def scan(diff_text: str, source: str) -> dict:
             _Elsewhere(added_counts, own_added),
             _Elsewhere(removed_counts, own_removed),
         )
-    warnings = [NO_HEADERS_WARNING] if diff_text.strip() and not files else []
+    warnings = []
+    next_action = _next_action(findings, files_scanned, sorted(unsupported))
+    if diff_text.strip() and not files:
+        warnings.append(NO_HEADERS_WARNING)
+    elif source == "stdin" and not diff_text.strip():
+        # A command that failed before it piped its diff in printed nothing.
+        warnings.append(EMPTY_INPUT_WARNING)
+        next_action = EMPTY_INPUT_NEXT_ACTION
     return {
         "ok": True,
         "mode": MODE,
@@ -836,7 +849,7 @@ def scan(diff_text: str, source: str) -> dict:
         "findings": findings,
         "unsupported": sorted(unsupported),
         "warnings": warnings,
-        "next_action": _next_action(findings, files_scanned, sorted(unsupported)),
+        "next_action": next_action,
     }
 
 

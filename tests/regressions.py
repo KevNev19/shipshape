@@ -1102,6 +1102,16 @@ def test_an_unrelated_addition_does_not_cancel_a_removal() -> None:
     )
 
 
+def test_a_failed_pr_diff_is_not_a_clean_scan() -> None:
+    """2026-10-17: shipshape-review piped `gh pr diff` straight into the scan, so a
+    failed fetch gave the scan empty input, which it answered as a clean diff with no
+    warning, and the review read test integrity as checked."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_empty_input_on_stdin_is_a_warning",
+        "tests/test_review_contract.py::test_review_skill_scans_a_pr_diff_only_once_gh_printed_it",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1339,6 +1349,10 @@ def main() -> int:
         (
             "an unrelated addition does not cancel a removal",
             test_an_unrelated_addition_does_not_cancel_a_removal,
+        ),
+        (
+            "a failed PR diff is not a clean scan",
+            test_a_failed_pr_diff_is_not_a_clean_scan,
         ),
     ]
     failures = 0

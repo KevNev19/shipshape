@@ -994,6 +994,17 @@ def test_text_that_is_not_a_diff_is_a_warning(tmp_path):
     ]
 
 
+def test_empty_input_on_stdin_is_a_warning(tmp_path):
+    """What a failed `gh pr diff | test_integrity.py --stdin` pipes in."""
+    result = scan_diff(tmp_path, "")
+
+    assert result["findings"] == []
+    assert result["warnings"] == ["The input on stdin is empty, so nothing was checked."]
+    assert result["next_action"] == (
+        "Check that the command that printed the diff succeeded, then pipe its diff in again."
+    )
+
+
 def test_crlf_and_missing_newline_markers_keep_the_finding(tmp_path):
     text = diff(
         changed(
