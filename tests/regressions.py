@@ -987,6 +987,16 @@ def test_checks_run_reaps_what_it_kills() -> None:
     )
 
 
+def test_review_asks_before_running_another_authors_checks() -> None:
+    """2026-10-17: shipshape-review ran the checks on another author's
+    checked-out branch without asking unless its config, package scripts or
+    CI files changed, although the checks run that branch's tests and test
+    configuration, which are its code too."""
+    run_focused_pytest(
+        "tests/test_review_contract.py::test_review_skill_asks_before_running_another_authors_checks_whatever_changed",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1180,6 +1190,10 @@ def main() -> int:
         (
             "checks run reaps what it kills",
             test_checks_run_reaps_what_it_kills,
+        ),
+        (
+            "review asks before running another author's checks",
+            test_review_asks_before_running_another_authors_checks,
         ),
     ]
     failures = 0

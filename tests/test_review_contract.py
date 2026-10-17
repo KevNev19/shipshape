@@ -31,3 +31,14 @@ def test_review_skill_reads_the_diff_before_running_another_authors_checks():
     for changed in (".sdlc/config.json", "package scripts", ".github/workflows/"):
         assert changed in text
     assert "run them only after the user says yes" in text
+
+
+def test_review_skill_asks_before_running_another_authors_checks_whatever_changed():
+    """Tests and their configuration are code too, so another author's branch
+    runs its own code through the checks even when no command changed."""
+    skill = ROOT / "skills" / "shipshape-review" / "SKILL.md"
+    text = " ".join(skill.read_text(encoding="utf-8").split())
+    assert "say that they run that branch's code" in text
+    for changed in ("Makefile", "pyproject.toml", "conftest.py"):
+        assert changed in text
+    assert "Whatever changed, run them only after the user says yes" in text

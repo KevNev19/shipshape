@@ -41,13 +41,16 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
      log tail (`gh run view --log-failed`) and find the first real error
      line.
    - Uncommitted work, or the branch checked out here: the checks run the
-     repository's own commands. On a branch someone else wrote, first read
-     its diff for changes to `.sdlc/config.json`, package scripts (such as
-     the `scripts` in `package.json`) and CI files (`.github/workflows/`).
-     When any of them changed, name the commands the checks will run (the
-     `commands` in `.sdlc/config.json`) and run them only after the user
-     says yes; without a yes, report that the checks were not run, as a
-     material uncertainty. Then tell the user you are running the
+     repository's own commands, and through them its code. On a branch
+     someone else wrote, first read its diff, then name the commands the
+     checks will run (the `commands` in `.sdlc/config.json`), say that
+     they run that branch's code, and point out any change to what decides
+     what they run: `.sdlc/config.json`, package scripts (such as the
+     `scripts` in `package.json`), task and test configuration (such as a
+     `Makefile`, `pyproject.toml` or `conftest.py`) and CI files
+     (`.github/workflows/`). Whatever changed, run them only after the
+     user says yes; without a yes, report that the checks were not run, as
+     a material uncertainty. Then tell the user you are running the
      project's checks, and run them once:
 
      ```bash
