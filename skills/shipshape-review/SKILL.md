@@ -118,7 +118,8 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
 5. **Classify the artefact.** List the changed files of the same change:
    - a PR → `gh pr diff <n> --name-only`
    - a branch → `git diff --name-only <default-branch>...<branch>`
-   - uncommitted work → `git diff --name-only` plus `git diff --cached --name-only`
+   - uncommitted work → `{ git diff --name-only; git diff --cached --name-only; } | sort -u`,
+     so a file with both staged and unstaged edits counts once
    Match each against the `paths` in
    [references/profiles.json](references/profiles.json), taking the first
    profile in that file whose patterns match (a file that matches none is

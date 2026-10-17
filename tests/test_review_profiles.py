@@ -217,6 +217,13 @@ def test_contract_puts_the_profile_before_its_five_parts():
     assert headings == CONTRACT_SECTIONS
 
 
+def test_skill_counts_a_partly_staged_file_once():
+    """Two lists of names, staged and unstaged, name a partly staged file twice."""
+    skill = flat(SKILL.read_text(encoding="utf-8"))
+    assert "`{ git diff --name-only; git diff --cached --name-only; } | sort -u`" in skill
+    assert "`git diff --name-only` plus `git diff --cached --name-only`" not in skill
+
+
 def test_skill_and_rubric_work_through_the_profile_lenses():
     skill = SKILL.read_text(encoding="utf-8")
     assert "**Classify the artefact.**" in skill
