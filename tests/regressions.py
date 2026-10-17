@@ -838,6 +838,13 @@ def test_node_check_scripts_match_safe_configured_commands() -> None:
     )
 
 
+def test_unsafe_node_test_script_does_not_hide_go_test_check() -> None:
+    """2026-10-17: an unsafe Node test script could suppress a selected Go test."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_an_unsafe_node_test_script_does_not_hide_a_go_test_check",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -971,6 +978,10 @@ def main() -> int:
         (
             "Node check scripts match safe configured commands",
             test_node_check_scripts_match_safe_configured_commands,
+        ),
+        (
+            "unsafe Node test script does not hide Go test check",
+            test_unsafe_node_test_script_does_not_hide_go_test_check,
         ),
     ]
     failures = 0

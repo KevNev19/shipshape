@@ -281,6 +281,27 @@ def test_an_unsafe_node_test_script_is_not_guessed_or_proposed(tmp_path):
     assert "test" not in table(payload)
 
 
+def test_an_unsafe_node_test_script_does_not_hide_a_go_test_check(tmp_path):
+    repo = write_repo(
+        tmp_path,
+        {
+            "go.mod": "module example.com/app\n\ngo 1.22\n",
+            "package.json": json.dumps(
+                {
+                    "name": "example",
+                    "scripts": {"test": "vitest --watch"},
+                    "devDependencies": {"vitest": "^2.0.0"},
+                }
+            ),
+        },
+    )
+
+    payload = scan(repo)
+
+    assert payload["test_command_guess"] == "go test ./..."
+    assert table(payload)["test"] == check("go test ./...", "go.mod", "medium", "go")
+
+
 @pytest.mark.parametrize("lint_script", ["eslint . --fix", "biome check --apply ."])
 def test_node_scripts_that_rewrite_files_or_watch_are_never_proposed(tmp_path, lint_script):
     package = {

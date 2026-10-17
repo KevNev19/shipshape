@@ -649,7 +649,11 @@ def _test_check(
         return None
     package, _ = _load_package_json(root)
     scripts = (package or {}).get("scripts")
-    if isinstance(scripts, dict) and _unsafe_node_script(scripts, "test"):
+    if (
+        test_guess == "npm test"
+        and isinstance(scripts, dict)
+        and _unsafe_node_script(scripts, "test")
+    ):
         return None
     for runner in test_runners:
         if TEST_COMMANDS.get(runner) != test_guess:
