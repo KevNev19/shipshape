@@ -1091,6 +1091,17 @@ def test_a_test_file_moved_out_of_the_test_paths_is_a_deleted_test() -> None:
     )
 
 
+def test_an_unrelated_addition_does_not_cancel_a_removal() -> None:
+    """2026-10-17: a removed test or assertion counted as rewritten whenever the file
+    added as many of its kind anywhere, so deleting an authorization assertion while
+    adding an unrelated colour assertion elsewhere gave no finding."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_an_unrelated_assertion_added_elsewhere_keeps_a_removal",
+        "tests/test_test_integrity.py::test_an_unrelated_test_added_elsewhere_keeps_a_deleted_test",
+        "tests/test_test_integrity.py::test_a_rewrite_in_place_or_one_that_keeps_its_words_is_left_to_the_review",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1324,6 +1335,10 @@ def main() -> int:
         (
             "a test file moved out of the test paths is a deleted test",
             test_a_test_file_moved_out_of_the_test_paths_is_a_deleted_test,
+        ),
+        (
+            "an unrelated addition does not cancel a removal",
+            test_an_unrelated_addition_does_not_cancel_a_removal,
         ),
     ]
     failures = 0

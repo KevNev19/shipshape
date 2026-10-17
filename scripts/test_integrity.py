@@ -32,8 +32,10 @@ usage error, or a diff git cannot produce, prints {"ok": false, "mode", "error",
 The check reads changed lines, not syntax trees, through per-language patterns
 (TEST_PATTERNS). A line whose text is added again elsewhere in the diff moved, so
 it is not a removal; a removed test or assertion that an added one of its kind
-replaces in the same file was rewritten, which the review rubric judges, so it is
-not a removal either. A skip inside a test the same diff adds skips nothing that
+rewrites in the same file, in the same run of changed lines or keeping most of the
+words that name it, was rewritten, which the review rubric judges, so it is not a
+removal either; an unrelated addition elsewhere in the file rewrites nothing. A
+skip inside a test the same diff adds skips nothing that
 ran before, so it is not a finding, unless the file also removes a test or a Python
 class (which added test a removed one became is a guess); one that focuses on some
 tests (.only, fit) skips the others, so it still is. A line number is the old file's for something
@@ -90,6 +92,11 @@ GIT_DIFF = [
 HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 NODE_TEST_NAME = re.compile(r"\.(?:test|spec)\.\w+$")
 TOKEN = re.compile(r"\w+|[^\w\s]")
+# The words of a name or a line, with snake_case and camelCase split apart.
+WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
+# An added test or assertion rewrote a removed one of its role outside their run of
+# changed lines only when more than this share of the words that name them is shared.
+REWRITE_SIMILARITY = 0.5
 NO_HEADERS_WARNING = "The input has text but no unified diff file headers, so nothing was checked."
 NOT_A_REPOSITORY_WARNING = "The folder is not inside a git work tree, so nothing was checked."
 
@@ -183,6 +190,13 @@ DEFINITIONS = {
     "python": re.compile(r"^\s*(?:(?:async\s+)?def|class)\s|^\s*@"),
     "go": re.compile(r"^\s*func\s"),
 }
+# The name a test line gives its test, per language: what a moved test keeps.
+TEST_NAMES = {
+    "python": re.compile(r"\bdef\s+(\w+)"),
+    "node": re.compile(r"""\(\s*(?:'([^']*)'|"([^"]*)"|`([^`]*)`)"""),
+    "go": re.compile(r'\bfunc\s+(\w+)|\bt\.Run\s*\(\s*"([^"]*)"'),
+    "rust": re.compile(r"\bfn\s+(\w+)"),
+}
 # A skip that focuses on some tests skips every other one, so it is always a finding.
 FOCUS = re.compile(r"\.only\b|(?<![\w.])(?:fit|fdescribe)\s*\(")
 CONSEQUENCES = {
@@ -210,7 +224,9 @@ class JsonArgumentParser(argparse.ArgumentParser):
 
 @dataclass
 class Hunk:
-    """One @@ block: (line, text) pairs, old numbering when removed, new when added."""
+    """One run of changed lines in an @@ block: (line, text) pairs, old numbering when
+    removed, new when added. A context line ends a run, so a context diff's @@ block
+    holds a run per change, as a -U0 diff's does."""
 
     removed: list[Line] = field(default_factory=list)
     added: list[Line] = field(default_factory=list)
@@ -345,6 +361,9 @@ def parse_unified_diff(text: str) -> list[FileDiff]:
                 new_line, new_left = new_line + 1, new_left - 1
                 continue
             if marker in (" ", ""):
+                if hunk.removed or hunk.added:
+                    hunk = Hunk()
+                    current.hunks.append(hunk)
                 old_line, new_line = old_line + 1, new_line + 1
                 old_left, new_left = old_left - 1, new_left - 1
                 continue
@@ -483,6 +502,44 @@ def _unreplaced(removed: list[Line], added: list[Line]) -> list[Line]:
     left = list(removed)
     for _, text in added:
         left.remove(_most_like(left, text))
+    return left
+
+
+def _words(text: str, role: str, language: str) -> frozenset[str]:
+    """The words that name a test (those of its name) or an assertion (those of its line)."""
+    if role == "test":
+        match = TEST_NAMES[language].search(text)
+        if match:
+            text = next(group for group in match.groups() if group is not None)
+    return frozenset(word.lower() for word in WORD.findall(text))
+
+
+def _alike(old: str, new: str, role: str, language: str) -> bool:
+    """Whether more than REWRITE_SIMILARITY of the words naming the two lines is shared."""
+    first, second = _words(old, role, language), _words(new, role, language)
+    union = first | second
+    return bool(union) and len(first & second) / len(union) > REWRITE_SIMILARITY
+
+
+def _unrewritten(
+    fd: FileDiff, removed: list[Line], added: list[Line], role: str, language: str
+) -> list[Line]:
+    """The removed lines of a role that no added line of that role rewrote. An added line
+    rewrites the removed line most like it among those in its own run of changed lines
+    (an edit in place) and those it is _alike (an edit that also moved it); any other
+    addition, such as a new check elsewhere in the file, leaves the removal standing."""
+    old_run = {number: index for index, hunk in enumerate(fd.hunks) for number, _ in hunk.removed}
+    new_run = {number: index for index, hunk in enumerate(fd.hunks) for number, _ in hunk.added}
+    left = list(removed)
+    for number, text in added:
+        candidates = [
+            item
+            for item in left
+            if old_run.get(item[0], -1) == new_run.get(number, -2)
+            or _alike(item[1], text, role, language)
+        ]
+        if candidates:
+            left.remove(_most_like(candidates, text))
     return left
 
 
@@ -657,7 +714,7 @@ def _assertion_findings(
             added.remove(new)
             detail = f"-{old[1].strip()} => +{new[1].strip()}"
             findings.append(_finding(new_path, new[0], language, "loosened-assertion", detail))
-    for number, text in _unreplaced(removed, added):
+    for number, text in _unrewritten(fd, removed, added, "assertion", language):
         findings.append(
             _finding(old_path, number, language, "removed-assertion", f"-{text.strip()}")
         )
@@ -682,7 +739,7 @@ def scan_file(
         _matching(fd.added, patterns["test"]),
         added_elsewhere,
     )
-    gone_tests = _unreplaced(tests, test_twins)
+    gone_tests = _unrewritten(fd, tests, test_twins, "test", language)
     if fd.deleted and in_tests:
         if not gone_tests:
             return []
