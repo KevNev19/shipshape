@@ -976,6 +976,17 @@ def test_cargo_failures_add_up_across_test_binaries() -> None:
     )
 
 
+def test_checks_run_reaps_what_it_kills() -> None:
+    """2026-10-17: in a container whose PID 1 reaps nothing, checks.py killed a
+    check's whole group at once, so the shell died before it could reap its
+    child and every stopped or finished check left a zombie; on Windows only
+    the shell was killed."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_run_reaps_what_it_kills_where_pid_1_reaps_nothing",
+        "tests/test_checks.py::test_run_ends_the_process_tree_where_there_are_no_process_groups",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1165,6 +1176,10 @@ def main() -> int:
         (
             "cargo failures add up across test binaries",
             test_cargo_failures_add_up_across_test_binaries,
+        ),
+        (
+            "checks run reaps what it kills",
+            test_checks_run_reaps_what_it_kills,
         ),
     ]
     failures = 0
