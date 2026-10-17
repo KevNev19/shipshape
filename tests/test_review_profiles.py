@@ -217,11 +217,27 @@ def test_contract_puts_the_profile_before_its_five_parts():
     assert headings == CONTRACT_SECTIONS
 
 
+UNCOMMITTED_FILES = (
+    "`{ git diff --name-only; git diff --cached --name-only;"
+    " git ls-files --others --exclude-standard; } | sort -u`"
+)
+
+
 def test_skill_counts_a_partly_staged_file_once():
     """Two lists of names, staged and unstaged, name a partly staged file twice."""
     skill = flat(SKILL.read_text(encoding="utf-8"))
-    assert "`{ git diff --name-only; git diff --cached --name-only; } | sort -u`" in skill
+    assert UNCOMMITTED_FILES in skill
     assert "`git diff --name-only` plus `git diff --cached --name-only`" not in skill
+
+
+def test_skill_counts_and_reads_a_new_file_git_does_not_track_yet():
+    """Neither git diff lists an untracked file, so a new uncommitted spec went uncounted."""
+    skill = flat(SKILL.read_text(encoding="utf-8"))
+    assert UNCOMMITTED_FILES in skill
+    assert (
+        "and each new file git does not track yet"
+        " (`git ls-files --others --exclude-standard`), read whole" in skill
+    )
 
 
 def test_skill_and_rubric_work_through_the_profile_lenses():
