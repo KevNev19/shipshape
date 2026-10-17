@@ -36,6 +36,7 @@ import json
 import math
 import os
 import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -265,14 +266,14 @@ NODE_SCRIPTS = {
     "format": ("format:check", "check-format", "fmt:check", "format"),
 }
 NODE_SCRIPT_REFERENCE = re.compile(
-    r"""(?<![\w./-])(?:npm|pnpm|yarn|bun)\s+(?:(?:run|run-script)\s+)?"""
+    r"""(?<![\w./-])(npm|pnpm|yarn|bun)\s+(?:(?:run|run-script)\s+)?"""
     r"""(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))"""
 )
 
 # A script that rewrites files or watches forever is not a check. The flag list
 # is closed, and -w is knowingly conservative: it is also npm's workspace flag,
 # so `npm run build -w pkg` is dropped too.
-NOT_A_CHECK = re.compile(r"(?:^|\s)(?:--write|--fix|--apply|--watch|-w)(?=$|[\s=])")
+NOT_A_CHECK = ("--write", "--fix", "--apply", "--watch", "-w")
 
 # A lockfile other than npm's names the runner the project's scripts expect;
 # a bare package.json means npm.
@@ -545,7 +546,7 @@ def detect_test_runners(root: Path, languages: list[dict]) -> tuple[list[str], s
     if guess == "npm test":
         package, _ = _load_package_json(root)
         scripts = (package or {}).get("scripts")
-        if isinstance(scripts, dict) and _unsafe_node_script(scripts, "test"):
+        if isinstance(scripts, dict) and _unsafe_node_script(scripts, "test", "npm"):
             guess = ""
     return runners, guess
 
@@ -575,21 +576,36 @@ def _node_runner(package_managers: list[str]) -> str:
     return "npm"
 
 
-def _unsafe_node_script(scripts: dict, name: str, visited: set[str] | None = None) -> bool:
-    """True if a script or any local script it calls rewrites files or watches."""
+def _unsafe_node_script(
+    scripts: dict, name: str, runner: str, visited: set[str] | None = None
+) -> bool:
+    """True if a script, lifecycle hook, or delegated script rewrites or watches."""
     body = scripts.get(name)
     if not isinstance(body, str) or not body.strip():
         return False
-    if NOT_A_CHECK.search(body):
+    try:
+        lexer = shlex.shlex(body, posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = list(lexer)
+    except ValueError:
+        return True
+    if any(
+        token == flag or token.startswith(f"{flag}=") for token in tokens for flag in NOT_A_CHECK
+    ):
         return True
     if visited is None:
         visited = set()
     if name in visited:
         return False
     visited.add(name)
+    if runner in NODE_RUNNERS or runner == "npm":
+        for lifecycle in (f"pre{name}", f"post{name}"):
+            if lifecycle in scripts and _unsafe_node_script(scripts, lifecycle, runner, visited):
+                return True
     for match in NODE_SCRIPT_REFERENCE.finditer(body):
-        called = next(group for group in match.groups() if group is not None)
-        if called in scripts and _unsafe_node_script(scripts, called, visited):
+        called = next(group for group in match.groups()[1:] if group is not None)
+        if called in scripts and _unsafe_node_script(scripts, called, match.group(1), visited):
             return True
     return False
 
@@ -600,10 +616,15 @@ def _node_script_check(root: Path, kind: str, package_managers: list[str]) -> di
     scripts = (package or {}).get("scripts")
     if not isinstance(scripts, dict):
         return None
+    runner = _node_runner(package_managers)
     for name in NODE_SCRIPTS.get(kind, ()):
         body = scripts.get(name)
-        if isinstance(body, str) and body.strip() and not _unsafe_node_script(scripts, name):
-            command = f"{_node_runner(package_managers)} run {name}"
+        if (
+            isinstance(body, str)
+            and body.strip()
+            and not _unsafe_node_script(scripts, name, runner)
+        ):
+            command = f"{runner} run {name}"
             return _check(command, f"package.json:scripts.{name}", "high", "node")
     return None
 
@@ -652,7 +673,7 @@ def _test_check(
     if (
         test_guess == "npm test"
         and isinstance(scripts, dict)
-        and _unsafe_node_script(scripts, "test")
+        and _unsafe_node_script(scripts, "test", _node_runner(package_managers))
     ):
         return None
     for runner in test_runners:

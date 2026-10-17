@@ -828,10 +828,12 @@ def test_prove_under_no_network_runs_commands_offline() -> None:
 
 
 def test_node_check_scripts_match_safe_configured_commands() -> None:
-    """2026-10-17: delegated Node scripts could hide write/watch flags, and
-    pnpm, Yarn or Bun test checks could prove a different command than config."""
+    """2026-10-17: Node check scripts could hide unsafe shell flags or lifecycle hooks,
+    and pnpm, Yarn or Bun test checks could prove a different command than config."""
     run_focused_pytest(
         "tests/test_detect_checks.py::test_node_scripts_that_delegate_to_unsafe_scripts_are_never_proposed",
+        "tests/test_detect_checks.py::test_node_check_screens_lifecycle_hooks_for_selected_and_delegated_scripts",
+        "tests/test_detect_checks.py::test_node_script_flag_screening_respects_shell_tokens",
         "tests/test_detect_checks.py::test_safe_node_script_cycle_does_not_recurse_forever",
         "tests/test_detect_checks.py::test_an_unsafe_node_test_script_is_not_guessed_or_proposed",
         "tests/test_detect_checks.py::test_node_scripts_propose_checks_through_the_projects_runner",

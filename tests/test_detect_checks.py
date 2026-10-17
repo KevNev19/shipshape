@@ -6,8 +6,9 @@ kind, the command, whether it is proven, the source that revealed it, a
 confidence and a language. Only a high-confidence language proposes checks;
 the primary language wins a kind two languages could fill; the test check
 uses the package-manager command init-config stores; a package.json script
-that rewrites files or never exits, including a delegated script, is never
-proposed. A plain scan never runs a command, so every check is unproven;
+that rewrites files or never exits, including shell flags and lifecycle hooks
+in delegated scripts, is never proposed. A plain scan never runs a command,
+so every check is unproven;
 --prove runs each command once inside one budget, with no input and offline
 under --no-network, kills what it left running, and marks the ones that ran,
 whether they passed or not.
@@ -250,6 +251,56 @@ def test_node_scripts_that_delegate_to_unsafe_scripts_are_never_proposed(tmp_pat
 
     assert "lint" not in checks
     assert checks["build"]["command"] == "npm run build"
+
+
+@pytest.mark.parametrize(
+    ("lockfile", "runner"),
+    [
+        (None, "npm"),
+        ("pnpm-lock.yaml", "pnpm"),
+        ("yarn.lock", "yarn"),
+        ("bun.lockb", "bun"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("hook", "body"),
+    [
+        ("prelint", "eslint . '--fix'"),
+        ("postlint", "eslint . --fix; echo done"),
+        ("prelint:delegated", "eslint . --fix"),
+        ("postlint:delegated", "eslint . --watch"),
+    ],
+)
+def test_node_check_screens_lifecycle_hooks_for_selected_and_delegated_scripts(
+    tmp_path, lockfile, runner, hook, body
+):
+    package = {
+        "name": "example",
+        "scripts": {
+            "lint": "npm run lint:delegated",
+            "lint:delegated": "eslint .",
+            hook: body,
+        },
+    }
+    files = {"package.json": json.dumps(package)}
+    if lockfile:
+        files[lockfile] = "\n"
+    repo = write_repo(tmp_path, files)
+
+    assert "lint" not in table(scan(repo))
+
+
+@pytest.mark.parametrize(
+    "script",
+    ["eslint . --fix; echo done", "eslint . '--fix'", "eslint . --fix=src"],
+)
+def test_node_script_flag_screening_respects_shell_tokens(tmp_path, script):
+    repo = write_repo(
+        tmp_path,
+        {"package.json": json.dumps({"name": "example", "scripts": {"lint": script}})},
+    )
+
+    assert "lint" not in table(scan(repo))
 
 
 def test_safe_node_script_cycle_does_not_recurse_forever(tmp_path):
