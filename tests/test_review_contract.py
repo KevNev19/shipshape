@@ -22,3 +22,12 @@ def test_review_surfaces_share_verdict_and_escalation_rules():
         content = surface.read_text(encoding="utf-8")
         for rule in REQUIRED_RULES:
             assert rule in content, f"{surface.relative_to(ROOT)} is missing: {rule}"
+
+
+def test_review_skill_reads_the_diff_before_running_another_authors_checks():
+    skill = ROOT / "skills" / "shipshape-review" / "SKILL.md"
+    text = " ".join(skill.read_text(encoding="utf-8").split())
+    assert "On a branch someone else wrote, first read its diff" in text
+    for changed in (".sdlc/config.json", "package scripts", ".github/workflows/"):
+        assert changed in text
+    assert "run them only after the user says yes" in text

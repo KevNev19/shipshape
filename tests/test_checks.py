@@ -44,9 +44,10 @@ ESCAPES_THE_GROUP = (
     f"{PYTHON} -c 'import os, time; os.setsid(); "
     'open("child.pid", "w").write(str(os.getpid())); time.sleep(60)\' & wait'
 )
-BLANK_LINES = 40_000
+BLANK_LINES = 100_000
 # The runner reads a run of blank lines in linear time: the quadratic patterns
-# this guards against took seconds per pattern on 40,000 lines.
+# this guards against took seconds per pattern on 40,000 lines, so 100,000 lines
+# leave a wide margin under the budget.
 BLANK_LINES_BUDGET_MS = 1000
 
 
@@ -258,6 +259,20 @@ def test_run_counts_failures_after_a_long_run_of_blank_lines_in_linear_time(tmp_
     result = payload["results"][0]
     assert result["exit_code"] == 1 and result["failures"] is None
     assert result["duration_ms"] < BLANK_LINES_BUDGET_MS
+
+
+def test_run_reads_only_the_last_mebibyte_of_output(tmp_path):
+    summary_then_filler = (
+        f'{PYTHON} -c \'import sys; print("Found 9 errors in 1 file"); '
+        'sys.stdout.write("x" * (3 << 20)); print(); print("last")\'; exit 1'
+    )
+
+    code, payload = run_script("checks.py", "run", tmp_path, f"--command={summary_then_filler}")
+
+    assert code == 0, payload
+    [result] = payload["results"]
+    assert result["tail"][-1] == "last"
+    assert result["failures"] is None
 
 
 def test_run_keeps_only_the_last_lines_of_output(tmp_path):
