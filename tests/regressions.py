@@ -1145,6 +1145,15 @@ def test_generated_briefings_carry_every_profile_lens() -> None:
     )
 
 
+def test_review_counts_a_partly_staged_file_once() -> None:
+    """2026-10-17: shipshape-review listed uncommitted files as the unstaged names
+    plus the staged ones, so a file with both counted twice and could tip the
+    profile choice, such as a 2 to 2 tie that chose documentation over code."""
+    run_focused_pytest(
+        "tests/test_review_profiles.py::test_skill_counts_a_partly_staged_file_once",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1398,6 +1407,10 @@ def main() -> int:
         (
             "generated briefings carry every profile lens",
             test_generated_briefings_carry_every_profile_lens,
+        ),
+        (
+            "review counts a partly staged file once",
+            test_review_counts_a_partly_staged_file_once,
         ),
     ]
     failures = 0
