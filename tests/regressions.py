@@ -1088,6 +1088,8 @@ def test_a_test_file_moved_out_of_the_test_paths_is_a_deleted_test() -> None:
     run_focused_pytest(
         "tests/test_test_integrity.py::test_a_test_file_renamed_out_of_the_test_paths_is_a_deleted_test",
         "tests/test_test_integrity.py::test_range_scan_reports_a_test_file_moved_out_of_the_test_paths",
+        "tests/test_test_integrity.py::test_a_test_file_renamed_out_of_the_test_paths_with_edits_is_one_deleted_test",
+        "tests/test_test_integrity.py::test_range_scan_reports_a_test_file_moved_out_and_edited",
     )
 
 

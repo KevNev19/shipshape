@@ -899,6 +899,23 @@ def test_a_test_file_renamed_out_of_the_test_paths_is_a_deleted_test(tmp_path, o
     assert result["findings"][0]["detail"] == f"test file moved out of the test paths to {new}"
 
 
+def test_a_test_file_renamed_out_of_the_test_paths_with_edits_is_one_deleted_test(tmp_path):
+    """git mv plus an edit is a rename with hunks; its tests no longer run either."""
+    section = [
+        "diff --git a/tests/test_auth.py b/src/auth_checks.py",
+        "similarity index 87%",
+        "rename from tests/test_auth.py",
+        "rename to src/auth_checks.py",
+        "--- a/tests/test_auth.py",
+        "+++ b/src/auth_checks.py",
+        "@@ -1 +1 @@",
+        "-def test_logs_in():",
+        "+def test_logs_in_again():",
+    ]
+
+    assert kinds(scan_diff(tmp_path, diff(section))) == [("tests/test_auth.py", 1, "deleted-test")]
+
+
 def test_a_test_file_renamed_within_the_test_paths_is_not_a_finding(tmp_path):
     text = diff(renamed("tests/test_auth.py", "tests/test_login.py"))
 
@@ -1107,6 +1124,18 @@ def test_range_scan_reports_a_test_file_moved_out_of_the_test_paths(repo):
     assert kinds(result) == [("tests/test_math.py", 1, "deleted-test")]
 
 
+def test_range_scan_reports_a_test_file_moved_out_and_edited(repo):
+    (repo / "src").mkdir()
+    git(repo, "mv", "tests/test_math.py", "src/math_checks.py")
+    write(repo, "src/math_checks.py", MATH_TESTS.replace("test_adds", "test_adds_again"))
+    git(repo, "commit", "-qam", "move and edit")
+
+    code, result = run_script("test_integrity.py", repo, "--range=HEAD~1..HEAD")
+
+    assert code == 0
+    assert kinds(result) == [("tests/test_math.py", 1, "deleted-test")]
+
+
 def test_a_git_source_scans_a_test_file_that_is_not_utf8(repo):
     path = repo / "tests" / "test_names.py"
     path.write_bytes("def test_name():\n    assert name() == 'café'\n".encode("latin-1"))
@@ -1129,6 +1158,17 @@ def test_a_repository_git_refuses_to_open_is_an_error_not_a_clean_scan(tmp_path)
     assert code == 2
     assert result["ok"] is False
     assert result["error"]
+    assert "findings" not in result
+
+
+def test_a_broken_repository_above_the_folder_is_an_error_too(tmp_path):
+    broken = tmp_path / "broken"
+    (broken / ".git").mkdir(parents=True)
+    (broken / "sub").mkdir()
+
+    code, result = run_script("test_integrity.py", broken / "sub")
+
+    assert code == 2
     assert "findings" not in result
 
 
