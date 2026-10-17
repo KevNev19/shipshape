@@ -241,6 +241,74 @@ def test_reflowed_assertion_is_not_a_finding(tmp_path, path, old, new):
     assert result["findings"] == []
 
 
+@pytest.mark.parametrize(
+    "lines",
+    [
+        [
+            "@@ -3 +2,0 @@",
+            "-    assert user.can_access(resource)",
+            "@@ -20,0 +20 @@",
+            '+    assert button.color == "blue"',
+        ],
+        [
+            "@@ -3,6 +3,6 @@",
+            "-    assert user.can_access(resource)",
+            "     x = 1",
+            "     y = 2",
+            "     z = 3",
+            '+    assert button.color == "blue"',
+            "     w = 4",
+        ],
+    ],
+    ids=["-U0", "context"],
+)
+def test_an_unrelated_assertion_added_elsewhere_keeps_a_removal(tmp_path, lines):
+    result = scan_diff(tmp_path, diff(changed("tests/test_auth.py", *lines)))
+
+    assert kinds(result) == [("tests/test_auth.py", 3, "removed-assertion")]
+    assert result["findings"][0]["detail"] == "-assert user.can_access(resource)"
+
+
+@pytest.mark.parametrize(
+    ("path", "removed", "added"),
+    [
+        ("tests/test_auth.py", "def test_denies_strangers():", "def test_paints_buttons():"),
+        ("test/auth.test.js", "  it('denies strangers', () => {", "  it('paints buttons', () => {"),
+        (
+            "auth_test.go",
+            "func TestDeniesStrangers(t *testing.T) {",
+            "func TestPaints(t *testing.T) {",
+        ),
+    ],
+)
+def test_an_unrelated_test_added_elsewhere_keeps_a_deleted_test(tmp_path, path, removed, added):
+    lines = ["@@ -3 +2,0 @@", f"-{removed}", "@@ -20,0 +20 @@", f"+{added}"]
+
+    assert kinds(scan_diff(tmp_path, diff(changed(path, *lines)))) == [(path, 3, "deleted-test")]
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        [
+            "@@ -3 +3 @@",
+            "-    assert len(items) == 3",
+            "+    assert items == [first, second, third]",
+        ],
+        [
+            "@@ -3 +2,0 @@",
+            "-    assert add(2, 2) == 4",
+            "@@ -20,0 +20 @@",
+            "+    assert add(2, 2) == 4.0",
+        ],
+        ["@@ -3 +2,0 @@", "-def test_logs_in():", "@@ -20,0 +20 @@", "+def test_logs_in_again():"],
+    ],
+    ids=["in place", "moved and edited", "moved and renamed"],
+)
+def test_a_rewrite_in_place_or_one_that_keeps_its_words_is_left_to_the_review(tmp_path, lines):
+    assert scan_diff(tmp_path, diff(changed("tests/test_auth.py", *lines)))["findings"] == []
+
+
 def test_changed_expected_value_is_left_to_the_review(tmp_path):
     text = diff(
         changed(

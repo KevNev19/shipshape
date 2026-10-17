@@ -130,6 +130,11 @@ offered and no template references them.
   `GOPROXY=off`, `npm_config_offline=true`): a command that then needs a
   download fails, which still proves it ran. Other tools keep their own
   network behaviour.
+- The integrity check leaves a rewrite to the review: a removed test or
+  assertion is rewritten, not removed, only when an added one of its kind
+  sits in the same run of changed lines or keeps most of the words that
+  name it (a test's name, an assertion's text). An unrelated addition
+  elsewhere in the file keeps the removal a finding.
 - The integrity check reports a skip that weakens existing tests. A skip
   inside a test the same diff adds (a Go `if testing.Short() { t.Skip() }`,
   a `@pytest.mark.skipif` on a new test) skips nothing that ran before, so
