@@ -1135,6 +1135,16 @@ def test_review_removes_the_pr_diff_file() -> None:
     )
 
 
+def test_generated_briefings_carry_every_profile_lens() -> None:
+    """2026-10-17: the generated GitHub briefings, which a consumer gets without
+    profiles.json, left out the specification profile's ambiguity and completeness
+    lenses, the plan profile's coverage and specificity lenses and the documentation
+    profile's clarity and consistency lenses."""
+    run_focused_pytest(
+        "tests/test_review_profiles.py::test_generated_briefings_carry_every_lens_of_every_profile",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1384,6 +1394,10 @@ def main() -> int:
         (
             "review removes the PR diff file",
             test_review_removes_the_pr_diff_file,
+        ),
+        (
+            "generated briefings carry every profile lens",
+            test_generated_briefings_carry_every_profile_lens,
         ),
     ]
     failures = 0

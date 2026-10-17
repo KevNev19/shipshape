@@ -20,12 +20,17 @@ narrate it file by file.
 Every review uses exactly one profile: specification, plan, documentation, or code.
 Specifications, design and decision records, and change intent are
 specification: look for requirements that contradict each other or an
-accepted decision, and requirements without an acceptance check.
-Implementation plans are plan: look for steps out of dependency order, names
-used before a step creates them, and steps that do not say how they are
-verified. Other Markdown, MDX, reStructuredText and AsciiDoc is
-documentation: look for statements, links and commands that are not true of
-the code. Everything else, including anything under a folder whose name
+accepted decision, requirements without an acceptance check, requirements
+that can be read two ways, and intent that no requirement covers, such as an
+error case, a limit or a migration. Implementation plans are plan: look for
+steps out of dependency order, names used before a step creates them, steps
+that do not say how they are verified, requirements no step covers and steps
+nothing asks for, and steps that cannot be carried out without guessing.
+Other Markdown, MDX, reStructuredText and AsciiDoc is documentation: look for
+statements, links and commands that are not true of the code, text its reader
+cannot follow without the code, and other documents that now say something
+different about the same thing.
+Everything else, including anything under a folder whose name
 starts with a dot, is code: look at behaviour, tests, and what else could be
 affected. Use the profile that fits the most changed files when that is at least half of them,
 the earlier one in that list on a tie; otherwise review the change as code.
