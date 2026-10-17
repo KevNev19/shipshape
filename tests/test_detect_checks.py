@@ -412,6 +412,30 @@ def test_an_unsafe_node_test_script_does_not_hide_a_go_test_check(tmp_path):
     assert table(payload)["test"] == check("go test ./...", "go.mod", "medium", "go")
 
 
+def test_an_unsafe_node_test_script_lets_another_languages_runner_be_guessed(tmp_path):
+    """Node sorts before Python, so the Node runner was the guess and nothing
+    replaced it once its test script was dropped."""
+    package = {
+        "name": "example",
+        "scripts": {"test": "vitest --watch"},
+        "devDependencies": {"vitest": "^2.0.0"},
+    }
+    repo = write_repo(
+        tmp_path,
+        {
+            "package.json": json.dumps(package),
+            "pyproject.toml": '[project]\nname = "example"\n',
+            "tests/test_example.py": "def test_example():\n    assert True\n",
+        },
+    )
+
+    payload = scan(repo)
+
+    assert payload["test_runners"] == ["pytest", "vitest"]
+    assert payload["test_command_guess"] == "pytest"
+    assert table(payload)["test"] == check("pytest", "tests/", "medium", "python")
+
+
 @pytest.mark.parametrize("lint_script", ["eslint . --fix", "biome check --apply ."])
 def test_node_scripts_that_rewrite_files_or_watch_are_never_proposed(tmp_path, lint_script):
     package = {

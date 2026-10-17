@@ -860,6 +860,15 @@ def test_node_check_screen_reads_scripts_as_the_shell_does() -> None:
     )
 
 
+def test_unsafe_node_test_script_lets_another_runner_be_guessed() -> None:
+    """2026-10-17: dropping an unsafe Node test script cleared the test guess
+    instead of passing to the next runner, so a Node and Python repo whose
+    test script watched got the no-tests placeholder instead of pytest."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_an_unsafe_node_test_script_lets_another_languages_runner_be_guessed",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1001,6 +1010,10 @@ def main() -> int:
         (
             "Node check screen reads scripts as the shell does",
             test_node_check_screen_reads_scripts_as_the_shell_does,
+        ),
+        (
+            "unsafe Node test script lets another runner be guessed",
+            test_unsafe_node_test_script_lets_another_runner_be_guessed,
         ),
     ]
     failures = 0

@@ -536,23 +536,28 @@ def detect_test_runners(root: Path, languages: list[dict]) -> tuple[list[str], s
     if "rust" in high:
         runners.add("cargo test")
     runners = sorted(runners)
+    # A Node test script that rewrites files or watches is not a test command:
+    # the guess passes over the Node runners, so another language's runner can
+    # still be the one guessed.
+    candidates = runners
+    if _unsafe_node_test(root):
+        candidates = [runner for runner in runners if RUNNER_LANGUAGE.get(runner) != "node"]
+    return runners, _guess_test_command(candidates, languages)
+
+
+def _guess_test_command(runners: list[str], languages: list[dict]) -> str:
     # Guess follows language confidence order, not runner alphabetical order.
-    guess = ""
     for entry in languages:
         for runner in runners:
             if RUNNER_LANGUAGE.get(runner) == entry["name"]:
-                guess = TEST_COMMANDS[runner]
-                break
-        if guess:
-            break
-    if not guess and runners:
-        guess = TEST_COMMANDS.get(runners[0], "")
-    if guess == "npm test":
-        package, _ = _load_package_json(root)
-        scripts = (package or {}).get("scripts")
-        if isinstance(scripts, dict) and _unsafe_node_script(scripts, "test"):
-            guess = ""
-    return runners, guess
+                return TEST_COMMANDS[runner]
+    return TEST_COMMANDS.get(runners[0], "") if runners else ""
+
+
+def _unsafe_node_test(root: Path) -> bool:
+    package, _ = _load_package_json(root)
+    scripts = (package or {}).get("scripts")
+    return isinstance(scripts, dict) and _unsafe_node_script(scripts, "test")
 
 
 def _check(command: str, source: str, confidence: str, language: str) -> dict:
@@ -696,14 +701,6 @@ def _test_check(
     disagree after applying the project's package manager: high confidence
     when a manifest names the runner, medium when the runner is implicit."""
     if not test_guess:
-        return None
-    package, _ = _load_package_json(root)
-    scripts = (package or {}).get("scripts")
-    if (
-        test_guess == "npm test"
-        and isinstance(scripts, dict)
-        and _unsafe_node_script(scripts, "test")
-    ):
         return None
     for runner in test_runners:
         if TEST_COMMANDS.get(runner) != test_guess:
