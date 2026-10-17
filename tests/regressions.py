@@ -1164,6 +1164,22 @@ def test_the_test_integrity_floor_holds_under_every_profile() -> None:
     )
 
 
+def test_review_counts_a_new_untracked_file() -> None:
+    """2026-10-17: neither `git diff --name-only` list names an untracked file,
+    so a new uncommitted spec was left out of the count that picks the profile."""
+    run_focused_pytest(
+        "tests/test_review_profiles.py::test_skill_counts_and_reads_a_new_file_git_does_not_track_yet",
+    )
+
+
+def test_review_quotes_the_names_in_its_profile_step() -> None:
+    """2026-10-17: the profile step listed a PR's or branch's files with the PR
+    number and branch names unquoted, where a branch name may hold $(...)."""
+    run_focused_pytest(
+        "tests/test_review_contract.py::test_review_skill_single_quotes_every_name_in_any_of_its_commands",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1425,6 +1441,14 @@ def main() -> int:
         (
             "the test-integrity floor holds under every profile",
             test_the_test_integrity_floor_holds_under_every_profile,
+        ),
+        (
+            "review counts a new untracked file",
+            test_review_counts_a_new_untracked_file,
+        ),
+        (
+            "review quotes the names in its profile step",
+            test_review_quotes_the_names_in_its_profile_step,
         ),
     ]
     failures = 0

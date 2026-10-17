@@ -1,5 +1,6 @@
 """Review surfaces keep ADR 0007's verdict and escalation invariants aligned."""
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -17,6 +18,8 @@ QUOTED_COMMANDS = [
     "gh pr checks '<n>'",
     "git log --format=%ae '<default-branch>..HEAD'",
 ]
+# What the review skill substitutes into a shell command from the change itself.
+REF_PLACEHOLDERS = ("<n>", "<branch>", "<default-branch>")
 QUOTED_IN_THE_INTEGRITY_SCAN = [
     "gh pr diff '<n>' > \"$diff_file\"",
     "test_integrity.py\" . --range='<default-branch>...<branch>'",
@@ -113,3 +116,18 @@ def test_review_skill_quotes_every_name_it_puts_in_a_command():
     for command in QUOTED_IN_THE_INTEGRITY_SCAN:
         assert command in text, f"not single-quoted: {command}"
     assert "git check-ref-format --branch '<branch>'" in skill_text()
+
+
+def code_in(markdown: str) -> list[str]:
+    """The fenced blocks and inline code spans of a Markdown text."""
+    fence = re.compile(r"```[a-z]*\n(.*?)```", re.S)
+    return fence.findall(markdown) + re.findall(r"`([^`]+)`", fence.sub("", markdown))
+
+
+def test_review_skill_single_quotes_every_name_in_any_of_its_commands():
+    """Every step's commands, the file count of the profile step included."""
+    skill = (ROOT / "skills" / "shipshape-review" / "SKILL.md").read_text(encoding="utf-8")
+    for code in code_in(skill):
+        unquoted = re.sub(r"'[^']*'", "", code)
+        for placeholder in REF_PLACEHOLDERS:
+            assert placeholder not in unquoted, f"{placeholder} is not single-quoted in: {code}"
