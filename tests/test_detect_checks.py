@@ -5,11 +5,12 @@ found, in the order test, lint, build, typecheck, format, each naming the
 kind, the command, whether it is proven, the source that revealed it, a
 confidence and a language. Only a high-confidence language proposes checks;
 the primary language wins a kind two languages could fill; the test check
-always agrees with test_command_guess; a package.json script that rewrites
-files or never exits is never proposed. A plain scan never runs a command,
-so every check is unproven; --prove runs each command once inside one budget,
-with no input and offline under --no-network, kills what it left running,
-and marks the ones that ran, whether they passed or not.
+uses the package-manager command init-config stores; a package.json script
+that rewrites files or never exits, including a delegated script, is never
+proposed. A plain scan never runs a command, so every check is unproven;
+--prove runs each command once inside one budget, with no input and offline
+under --no-network, kills what it left running, and marks the ones that ran,
+whether they passed or not.
 """
 
 import json
@@ -213,7 +214,12 @@ def test_node_scripts_propose_checks_through_the_projects_runner(tmp_path, lockf
     payload = scan(repo)
 
     assert table(payload) == {
-        "test": check("npm test", "package.json", "high", "node"),
+        "test": check(
+            "bun run test" if runner == "bun" else f"{runner} test",
+            "package.json",
+            "high",
+            "node",
+        ),
         "lint": check(f"{runner} run lint", "package.json:scripts.lint", "high", "node"),
         "build": check(f"{runner} run build", "package.json:scripts.build", "high", "node"),
         "typecheck": check(
@@ -224,6 +230,55 @@ def test_node_scripts_propose_checks_through_the_projects_runner(tmp_path, lockf
         ),
     }
     assert payload["test_command_guess"] == "npm test"
+
+
+def test_node_scripts_that_delegate_to_unsafe_scripts_are_never_proposed(tmp_path):
+    package = {
+        "name": "example",
+        "scripts": {
+            "lint": "npm run lint:middle",
+            "lint:middle": "pnpm run lint:cycle",
+            "lint:cycle": "yarn run lint:middle && npm run lint:fix",
+            "lint:fix": "eslint . --fix",
+            "build": "npm run build:part",
+            "build:part": "tsc -p .",
+        },
+    }
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
+
+    checks = table(scan(repo))
+
+    assert "lint" not in checks
+    assert checks["build"]["command"] == "npm run build"
+
+
+def test_safe_node_script_cycle_does_not_recurse_forever(tmp_path):
+    package = {
+        "name": "example",
+        "scripts": {
+            "lint": "npm run lint:shared",
+            "lint:shared": "pnpm run lint",
+        },
+    }
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
+
+    assert table(scan(repo))["lint"] == check(
+        "npm run lint", "package.json:scripts.lint", "high", "node"
+    )
+
+
+def test_an_unsafe_node_test_script_is_not_guessed_or_proposed(tmp_path):
+    package = {
+        "name": "example",
+        "scripts": {"test": "npm run test:watch", "test:watch": "vitest --watch"},
+        "devDependencies": {"vitest": "^2.0.0"},
+    }
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
+
+    payload = scan(repo)
+
+    assert payload["test_command_guess"] == ""
+    assert "test" not in table(payload)
 
 
 @pytest.mark.parametrize("lint_script", ["eslint . --fix", "biome check --apply ."])

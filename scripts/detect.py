@@ -264,6 +264,10 @@ NODE_SCRIPTS = {
     "typecheck": ("typecheck", "type-check", "check-types"),
     "format": ("format:check", "check-format", "fmt:check", "format"),
 }
+NODE_SCRIPT_REFERENCE = re.compile(
+    r"""(?<![\w./-])(?:npm|pnpm|yarn|bun)\s+(?:(?:run|run-script)\s+)?"""
+    r"""(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))"""
+)
 
 # A script that rewrites files or watches forever is not a check. The flag list
 # is closed, and -w is knowingly conservative: it is also npm's workspace flag,
@@ -538,6 +542,11 @@ def detect_test_runners(root: Path, languages: list[dict]) -> tuple[list[str], s
             break
     if not guess and runners:
         guess = TEST_COMMANDS.get(runners[0], "")
+    if guess == "npm test":
+        package, _ = _load_package_json(root)
+        scripts = (package or {}).get("scripts")
+        if isinstance(scripts, dict) and _unsafe_node_script(scripts, "test"):
+            guess = ""
     return runners, guess
 
 
@@ -566,6 +575,25 @@ def _node_runner(package_managers: list[str]) -> str:
     return "npm"
 
 
+def _unsafe_node_script(scripts: dict, name: str, visited: set[str] | None = None) -> bool:
+    """True if a script or any local script it calls rewrites files or watches."""
+    body = scripts.get(name)
+    if not isinstance(body, str) or not body.strip():
+        return False
+    if NOT_A_CHECK.search(body):
+        return True
+    if visited is None:
+        visited = set()
+    if name in visited:
+        return False
+    visited.add(name)
+    for match in NODE_SCRIPT_REFERENCE.finditer(body):
+        called = next(group for group in match.groups() if group is not None)
+        if called in scripts and _unsafe_node_script(scripts, called, visited):
+            return True
+    return False
+
+
 def _node_script_check(root: Path, kind: str, package_managers: list[str]) -> dict | None:
     # A package.json that does not parse proposes no scripts; the scan still answers.
     package, _ = _load_package_json(root)
@@ -574,10 +602,15 @@ def _node_script_check(root: Path, kind: str, package_managers: list[str]) -> di
         return None
     for name in NODE_SCRIPTS.get(kind, ()):
         body = scripts.get(name)
-        if isinstance(body, str) and body.strip() and not NOT_A_CHECK.search(body):
+        if isinstance(body, str) and body.strip() and not _unsafe_node_script(scripts, name):
             command = f"{_node_runner(package_managers)} run {name}"
             return _check(command, f"package.json:scripts.{name}", "high", "node")
     return None
+
+
+def _node_test_command(package_managers: list[str]) -> str:
+    runner = _node_runner(package_managers)
+    return "bun run test" if runner == "bun" else f"{runner} test"
 
 
 def _language_check(
@@ -606,21 +639,28 @@ def _first_language_check(
     return None
 
 
-def _test_check(root: Path, test_runners: list[str], test_guess: str) -> dict | None:
+def _test_check(
+    root: Path, test_runners: list[str], test_guess: str, package_managers: list[str]
+) -> dict | None:
     """The check for the runner behind test_command_guess, so the two never
-    disagree: high confidence when a manifest names the runner, medium when
-    the runner is implicit."""
+    disagree after applying the project's package manager: high confidence
+    when a manifest names the runner, medium when the runner is implicit."""
     if not test_guess:
+        return None
+    package, _ = _load_package_json(root)
+    scripts = (package or {}).get("scripts")
+    if isinstance(scripts, dict) and _unsafe_node_script(scripts, "test"):
         return None
     for runner in test_runners:
         if TEST_COMMANDS.get(runner) != test_guess:
             continue
         language = RUNNER_LANGUAGE[runner]
+        command = _node_test_command(package_managers) if language == "node" else test_guess
         for filename, markers in TEST_RUNNER_MARKERS.items():
             needle = markers.get(runner)
             if needle and needle in _read_text(root / filename):
-                return _check(test_guess, filename, "high", language)
-        return _check(test_guess, IMPLICIT_RUNNER_SOURCES[runner], "medium", language)
+                return _check(command, filename, "high", language)
+        return _check(command, IMPLICIT_RUNNER_SOURCES[runner], "medium", language)
     return None
 
 
@@ -640,7 +680,7 @@ def detect_checks(
     checks = []
     for kind in CHECK_KINDS:
         if kind == "test":
-            found = _test_check(root, test_runners, test_guess)
+            found = _test_check(root, test_runners, test_guess, package_managers)
         else:
             found = _first_language_check(root, high, kind, package_managers)
         if found:
