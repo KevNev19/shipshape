@@ -330,6 +330,10 @@ def test_shell_punctuation_cannot_hide_a_rejected_flag(tmp_path, script):
     [
         "eslint . --fi\\\nx",
         'eslint . "--fi\\\nx"',
+        "eslint . $(cat .lint-flags)",
+        "eslint . `cat .lint-flags`",
+        "eslint . --fi?",
+        "eslint . -[w]",
         "eslint . --{fix,}",
         "eslint . -{w..w}",
         "eslint . {a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}",
@@ -337,15 +341,20 @@ def test_shell_punctuation_cannot_hide_a_rejected_flag(tmp_path, script):
     ],
 )
 def test_a_shell_expansion_cannot_hide_a_rejected_flag(tmp_path, script):
-    """The shell joins `--fi`, a backslash-newline and `x` into --fix, and
-    expands `--{fix,}` into --fix and --; shlex does neither."""
+    """The shell joins `--fi`, a backslash-newline and `x` into --fix, expands
+    `--{fix,}` into --fix and --, puts a command's output in place of `$(...)`,
+    and turns `--fi?` into a file named --fix; shlex does none of that."""
     scripts = {"lint": script, "lint:js": "eslint .", "lint:fix": "eslint . --fix"}
 
     assert "lint" not in node_checks(tmp_path, scripts)
 
 
-def test_a_brace_list_without_a_rejected_flag_is_still_proposed(tmp_path):
-    checks = node_checks(tmp_path, {"format:check": "prettier --check 'src/**/*.{ts,tsx,json}'"})
+@pytest.mark.parametrize(
+    "script",
+    ["prettier --check 'src/**/*.{ts,tsx,json}'", "prettier --check --ignore-path=**/.gitignore ."],
+)
+def test_a_pattern_that_cannot_make_a_rejected_flag_is_still_proposed(tmp_path, script):
+    checks = node_checks(tmp_path, {"format:check": script})
 
     assert checks["format"] == check(
         "npm run format:check", "package.json:scripts.format:check", "high", "node"

@@ -870,12 +870,13 @@ def test_unsafe_node_test_script_lets_another_runner_be_guessed() -> None:
 
 
 def test_a_shell_expansion_cannot_hide_a_rejected_flag() -> None:
-    """2026-10-17: the shell joins `--fi`, a backslash-newline and `x` into --fix and
-    expands `--{fix,}` into --fix, but shlex does neither, so the Node check screen
-    passed scripts that rewrite files."""
+    """2026-10-17: the shell joins `--fi`, a backslash-newline and `x` into --fix,
+    expands `--{fix,}` into --fix, puts `$(cat .lint-flags)` output in the command
+    and turns `--fi?` into a file named --fix, but shlex does none of that, so the
+    Node check screen passed scripts that rewrite files."""
     run_focused_pytest(
         "tests/test_detect_checks.py::test_a_shell_expansion_cannot_hide_a_rejected_flag",
-        "tests/test_detect_checks.py::test_a_brace_list_without_a_rejected_flag_is_still_proposed",
+        "tests/test_detect_checks.py::test_a_pattern_that_cannot_make_a_rejected_flag_is_still_proposed",
     )
 
 

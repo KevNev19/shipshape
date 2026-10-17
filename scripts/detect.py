@@ -290,6 +290,13 @@ BRACE_LIMIT = 256
 # Programs that run a string as shell code: the screen cannot follow what they
 # run, so a script that names one is never proposed.
 SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "fish", "eval"})
+# Expansions that put text the screen cannot read into a command: a parameter
+# ($X, ${X}) and a command substitution ($(...) or backquotes), whose output
+# may be a rewrite flag.
+EXPANSIONS = ("$", "`")
+# Filename pattern characters: a flag whose name holds one (`--fi?`) becomes the
+# name of any file it matches, which may be a rewrite flag.
+GLOB_CHARACTERS = "*?["
 
 # A lockfile other than npm's names the runner the project's scripts expect;
 # a bare package.json means npm.
@@ -637,6 +644,8 @@ def _unsafe_command(scripts: dict, command: str, seen: set[str]) -> bool:
     if words is None:
         return True
     for word in words:
+        if any(mark in word for mark in EXPANSIONS):
+            return True
         if set(word) <= set(SHELL_PUNCTUATION):
             continue
         expanded = _brace_words(word)
@@ -683,13 +692,14 @@ def _unsafe_shell_word(scripts: dict, word: str, seen: set[str]) -> bool:
 
 
 def _unsafe_word(word: str) -> bool:
-    """A rewrite or watch flag, a shell, or a value the shell expands, which
-    the screen cannot read."""
+    """A rewrite or watch flag, a shell, or a flag whose name is a filename
+    pattern, which the screen cannot read."""
+    flag_name = word.partition("=")[0] if word.startswith("-") else ""
     return (
         word in NOT_A_CHECK
         or word.startswith(tuple(f"{flag}=" for flag in NOT_A_CHECK))
         or word.rsplit("/", 1)[-1] in SHELLS
-        or ("$" in word and word != "$")
+        or any(char in flag_name for char in GLOB_CHARACTERS)
     )
 
 

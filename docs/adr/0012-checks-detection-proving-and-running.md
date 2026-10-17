@@ -87,10 +87,15 @@ offered and no template references them.
   on, the pre and post scripts a runner adds and every script it names.
   Brace lists are expanded first, so `--{fix,}` is `--fix`. A script
   that runs a shell (`sh`, `bash`, `eval` and the like), expands a
-  variable or a brace sequence, or continues a line with a backslash is
-  not proposed either, since the screen cannot read what that runs. A
-  `test` script the screen drops is no test command, so another
-  language's runner can still be the test guess.
+  variable, a command's output or a brace sequence, names a flag with a
+  filename pattern (`--fi?`), or continues a line with a backslash is
+  not proposed either, since the screen cannot read what that runs. The
+  screen reads what a script says, not what a tool takes from its own
+  configuration or what files a repository lays out for a pattern to
+  match; proving runs the repository's own code in any case, so it is
+  for a repository the caller trusts. A `test` script the screen drops
+  is no test command, so another language's runner can still be the
+  test guess.
 - A node `test` script with no known runner is not proposed; the owner
   sets `commands.test`.
 - `--no-network` skips only the `gh auth status` probe, the scan's one
