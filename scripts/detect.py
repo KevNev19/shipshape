@@ -681,11 +681,11 @@ def _node_test_script_runner(root: Path, package_managers: list[str]) -> str:
     return _script_runner(scripts, "test", _node_runner(package_managers), set())
 
 
-def _script_runner(scripts: dict, name: str, manager: str, seen: set[str]) -> str:
+def _script_runner(scripts: dict, name: str, manager: str, seen: set[str], depth: int = 0) -> str:
     """The script runner in script `name`'s words or in a script it names, down
-    to MAX_SCRIPT_DEPTH scripts, which the safety screen follows no further."""
+    to MAX_SCRIPT_DEPTH scripts deep, which the safety screen follows no further."""
     body = scripts.get(name)
-    if name in seen or len(seen) > MAX_SCRIPT_DEPTH or not isinstance(body, str):
+    if name in seen or depth > MAX_SCRIPT_DEPTH or not isinstance(body, str):
         return ""
     seen.add(name)
     words = _shell_words(body) or []
@@ -694,7 +694,7 @@ def _script_runner(scripts: dict, name: str, manager: str, seen: set[str]) -> st
         return found
     for word in words:
         for script in _named_scripts(scripts, word) or []:
-            found = _script_runner(scripts, script, manager, seen)
+            found = _script_runner(scripts, script, manager, seen, depth + 1)
             if found:
                 return found
     return ""

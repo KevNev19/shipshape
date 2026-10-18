@@ -658,6 +658,20 @@ def test_nodes_built_in_test_runner_proposes_the_package_managers_test(
     assert table(payload)["test"] == check(command, "package.json:scripts.test", "high", "node")
 
 
+def test_the_built_in_runner_is_found_past_many_sibling_scripts(tmp_path):
+    """The scan stops at a chain deeper than the screen follows, not at a wide one."""
+    scripts = {f"test:{index:02}": "echo ready" for index in range(40)}
+    scripts["test:zz"] = "node --test"
+    scripts["test"] = "run-s 'test:*'"
+    package = {"name": "example", "scripts": scripts}
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
+
+    payload = scan(repo)
+
+    assert payload["test_runners"] == ["node --test"]
+    assert table(payload)["test"] == check("npm test", "package.json:scripts.test", "high", "node")
+
+
 @pytest.mark.parametrize("test_script", ["bun test", "bun test --coverage", "node --test"])
 def test_bun_as_the_package_manager_runs_its_own_test_runner(tmp_path, test_script):
     package = {"name": "example", "scripts": {"test": test_script}}
