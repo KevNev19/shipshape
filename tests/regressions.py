@@ -1180,6 +1180,17 @@ def test_review_quotes_the_names_in_its_profile_step() -> None:
     )
 
 
+def test_nodes_built_in_test_runner_is_a_test_check() -> None:
+    """2026-10-18: a package.json test script running node's built-in runner
+    (`node --test`, with files or node options such as
+    --experimental-test-coverage) proposed no test check, even beside a
+    lockfile, while a jest script got `npm test`."""
+    run_focused_pytest(
+        "tests/test_detect_checks.py::test_nodes_built_in_test_runner_proposes_the_package_managers_test",
+        "tests/test_detect_checks.py::test_a_script_runner_that_watches_or_rewrites_is_not_proposed",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1449,6 +1460,10 @@ def main() -> int:
         (
             "review quotes the names in its profile step",
             test_review_quotes_the_names_in_its_profile_step,
+        ),
+        (
+            "node's built-in test runner is a test check",
+            test_nodes_built_in_test_runner_is_a_test_check,
         ),
     ]
     failures = 0

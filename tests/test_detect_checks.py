@@ -5,7 +5,9 @@ found, in the order test, lint, build, typecheck, format, each naming the
 kind, the command, whether it is proven, the source that revealed it, a
 confidence and a language. Only a high-confidence language proposes checks;
 the primary language wins a kind two languages could fill; the test check
-uses the package-manager command init-config stores; a package.json script
+uses the package-manager command init-config stores, for a runner a
+dependency names or one the test script starts itself (node --test, tsx
+--test, and bun test under bun); a package.json script
 that rewrites files or never exits is never proposed, whether the flag is in
 its own shell words, a command string it passes on, a pre or post script or a
 script it names or matches by glob, and neither is one that runs a shell,
@@ -595,16 +597,149 @@ def test_a_check_only_format_name_wins_over_a_check_only_format_script(tmp_path)
     )
 
 
-def test_a_node_test_script_with_no_known_runner_proposes_no_test_check(tmp_path):
-    package = {"name": "example", "scripts": {"test": "node --test", "lint": "eslint ."}}
+@pytest.mark.parametrize(
+    "test_script",
+    [
+        "node scripts/run-tests.js",
+        "node app.js --test",
+        "bun test",
+        "deno test",
+        "tsx scripts/run-tests.ts --test",
+    ],
+)
+def test_a_node_test_script_with_no_known_runner_proposes_no_test_check(tmp_path, test_script):
+    """--test after node's first argument is that script's own, and `bun test`
+    needs bun, which an npm project does not install."""
+    package = {"name": "example", "scripts": {"test": test_script, "lint": "eslint ."}}
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package), "package-lock.json": "{}\n"})
+
+    payload = scan(repo)
+
+    assert payload["test_runners"] == []
+    assert payload["test_command_guess"] == ""
+    assert table(payload) == {
+        "lint": check("npm run lint", "package.json:scripts.lint", "high", "node")
+    }
+
+
+@pytest.mark.parametrize(
+    ("scripts", "runner"),
+    [
+        ({"test": "node --test"}, "node --test"),
+        ({"test": "node --test test/"}, "node --test"),
+        ({"test": "node --test test/a.test.js test/b.test.js"}, "node --test"),
+        ({"test": "node --experimental-test-coverage --test"}, "node --test"),
+        ({"test": "node --import tsx --test src/**/*.test.ts"}, "node --test"),
+        ({"test": "NODE_ENV=test node --test"}, "node --test"),
+        ({"test": "c8 node --test"}, "node --test"),
+        ({"test": "tsx --test"}, "tsx --test"),
+        ({"test": "npm run test:unit", "test:unit": "node --test"}, "node --test"),
+        ({"test": "run-s test:*", "test:unit": "node --test"}, "node --test"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("lockfile", "command"),
+    [
+        ("package-lock.json", "npm test"),
+        ("pnpm-lock.yaml", "pnpm test"),
+        ("yarn.lock", "yarn test"),
+    ],
+)
+def test_nodes_built_in_test_runner_proposes_the_package_managers_test(
+    tmp_path, scripts, runner, lockfile, command
+):
+    package = {"name": "example", "scripts": scripts}
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package), lockfile: "\n"})
+
+    payload = scan(repo)
+
+    assert payload["test_runners"] == [runner]
+    assert payload["test_command_guess"] == "npm test"
+    assert table(payload)["test"] == check(command, "package.json:scripts.test", "high", "node")
+
+
+def test_the_built_in_runner_is_found_past_many_sibling_scripts(tmp_path):
+    """The scan stops at a chain deeper than the screen follows, not at a wide one."""
+    scripts = {f"test:{index:02}": "echo ready" for index in range(40)}
+    scripts["test:zz"] = "node --test"
+    scripts["test"] = "run-s 'test:*'"
+    package = {"name": "example", "scripts": scripts}
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
+
+    payload = scan(repo)
+
+    assert payload["test_runners"] == ["node --test"]
+    assert table(payload)["test"] == check("npm test", "package.json:scripts.test", "high", "node")
+
+
+@pytest.mark.parametrize("test_script", ["bun test", "bun test --coverage", "node --test"])
+def test_bun_as_the_package_manager_runs_its_own_test_runner(tmp_path, test_script):
+    package = {"name": "example", "scripts": {"test": test_script}}
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package), "bun.lock": "{}\n"})
+
+    payload = scan(repo)
+
+    assert payload["test_runners"] == [test_script.split(" --coverage")[0]]
+    assert table(payload)["test"] == check(
+        "bun run test", "package.json:scripts.test", "high", "node"
+    )
+
+
+@pytest.mark.parametrize("runner", ["ava", "tap", "uvu"])
+def test_a_test_runner_dependency_proposes_the_test_script(tmp_path, runner):
+    package = {
+        "name": "example",
+        "scripts": {"test": f"{runner} test/"},
+        "devDependencies": {runner: "^1.0.0"},
+    }
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
+
+    payload = scan(repo)
+
+    assert payload["test_runners"] == [runner]
+    assert table(payload)["test"] == check("npm test", "package.json", "high", "node")
+
+
+@pytest.mark.parametrize(
+    "test_script",
+    [
+        "node --test --watch",
+        "node --watch-path=src --test",
+        "node --test --test-update-snapshots",
+        "tsx --test && tsx watch src/index.ts",
+        "bun test --watch",
+        "bun test --update-snapshots",
+        "node --test; prettier --write .",
+        "npm run test:unit",
+    ],
+)
+def test_a_script_runner_that_watches_or_rewrites_is_not_proposed(tmp_path, test_script):
+    package = {
+        "name": "example",
+        "scripts": {"test": test_script, "test:unit": "node --test --watch"},
+    }
+    repo = write_repo(tmp_path, {"package.json": json.dumps(package), "bun.lock": "{}\n"})
+
+    payload = scan(repo)
+
+    assert payload["test_command_guess"] == ""
+    assert "test" not in table(payload)
+
+
+@pytest.mark.parametrize("test_script", ["ava --update-snapshots", "tap --snapshot"])
+def test_a_dependency_runner_that_rewrites_snapshots_is_not_proposed(tmp_path, test_script):
+    runner = test_script.split()[0]
+    package = {
+        "name": "example",
+        "scripts": {"test": test_script},
+        "devDependencies": {runner: "^1.0.0"},
+    }
     repo = write_repo(tmp_path, {"package.json": json.dumps(package)})
 
     payload = scan(repo)
 
     assert payload["test_command_guess"] == ""
-    assert table(payload) == {
-        "lint": check("npm run lint", "package.json:scripts.lint", "high", "node")
-    }
+    assert "test" not in table(payload)
 
 
 def test_a_package_json_that_does_not_parse_still_scans(tmp_path):

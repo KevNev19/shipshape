@@ -144,24 +144,50 @@ FRAMEWORK_MARKERS = {
 }
 
 TEST_RUNNER_MARKERS = {
-    "package.json": {"jest": '"jest"', "vitest": '"vitest"', "mocha": '"mocha"'},
+    "package.json": {
+        "jest": '"jest"',
+        "vitest": '"vitest"',
+        "mocha": '"mocha"',
+        "ava": '"ava"',
+        "tap": '"tap"',
+        "uvu": '"uvu"',
+    },
     "pyproject.toml": {"pytest": "pytest"},
 }
 
+# Runners no dependency marks, found in the words of package.json's test script
+# or a script it names: node's built-in runner, started by node or tsx, and
+# bun's, proposed only when bun is the package manager that runs the script.
+SCRIPT_TEST_RUNNERS = ("node --test", "tsx --test", "bun test")
+SCRIPT_TEST_RUNNER_SOURCE = "package.json:scripts.test"
+# The node and tsx options that take the next word as their value, so the
+# options of `node --import tsx --test` run on past tsx to --test.
+NODE_VALUE_OPTIONS = frozenset(
+    {
+        "--import",
+        "--require",
+        "-r",
+        "--loader",
+        "--experimental-loader",
+        "--conditions",
+        "-C",
+        "--env-file",
+        "--tsconfig",
+    }
+)
+
+NODE_TEST_RUNNERS = ("jest", "vitest", "mocha", "ava", "tap", "uvu", *SCRIPT_TEST_RUNNERS)
+
 TEST_COMMANDS = {
     "pytest": "pytest",
-    "jest": "npm test",
-    "vitest": "npm test",
-    "mocha": "npm test",
+    **{runner: "npm test" for runner in NODE_TEST_RUNNERS},
     "go test": "go test ./...",
     "cargo test": "cargo test",
 }
 
 RUNNER_LANGUAGE = {
     "pytest": "python",
-    "jest": "node",
-    "vitest": "node",
-    "mocha": "node",
+    **{runner: "node" for runner in NODE_TEST_RUNNERS},
     "go test": "go",
     "cargo test": "rust",
 }
@@ -273,10 +299,25 @@ NODE_SCRIPTS = {
 
 # A script that rewrites files or watches forever is not a check. The flag list
 # is closed, and -w is knowingly conservative: it is also npm's workspace flag,
-# so `npm run build -w pkg` is dropped too. jest reads --watch-all as --watchAll.
-NOT_A_CHECK = ("--write", "--fix", "--apply", "--watch", "--watchAll", "--watch-all", "-w")
-# vitest's subcommands that watch: `vitest watch` and `vitest dev`.
-VITEST_WATCH_COMMANDS = frozenset({"watch", "dev"})
+# so `npm run build -w pkg` is dropped too. jest reads --watch-all as --watchAll,
+# and node watches with --watch-path too. A test run that rewrites its snapshots
+# passes whatever they held: node's --test-update-snapshots, bun's and ava's
+# --update-snapshots and tap's --snapshot.
+NOT_A_CHECK = (
+    "--write",
+    "--fix",
+    "--apply",
+    "--watch",
+    "--watchAll",
+    "--watch-all",
+    "-w",
+    "--watch-path",
+    "--test-update-snapshots",
+    "--update-snapshots",
+    "--snapshot",
+)
+# Subcommands that watch: `vitest watch`, `vitest dev` and `tsx watch`.
+WATCH_COMMANDS = {"vitest": frozenset({"watch", "dev"}), "tsx": frozenset({"watch"})}
 # Package-manager forms that run the scripts of other packages, whose
 # package.json the screen never reads: workspaces, a recursive run, a filter, or
 # another folder. Like -w, each long form is dropped wherever it appears; -r and
@@ -590,8 +631,13 @@ def _scan_markers(root: Path, marker_map: dict[str, dict[str, str]]) -> list[str
     return sorted(found)
 
 
-def detect_test_runners(root: Path, languages: list[dict]) -> tuple[list[str], str]:
+def detect_test_runners(
+    root: Path, languages: list[dict], package_managers: list[str]
+) -> tuple[list[str], str]:
     runners = set(_scan_markers(root, TEST_RUNNER_MARKERS))
+    script_runner = _node_test_script_runner(root, package_managers)
+    if script_runner:
+        runners.add(script_runner)
     # Implicit built-in runners only for high-confidence languages, so stray
     # files deep in the tree can't claim the project's test command.
     high = {entry["name"] for entry in languages if entry["confidence"] == "high"}
@@ -624,6 +670,65 @@ def _unsafe_node_test(root: Path) -> bool:
     package, _ = _load_package_json(root)
     scripts = (package or {}).get("scripts")
     return isinstance(scripts, dict) and _unsafe_node_script(scripts, "test")
+
+
+def _node_test_script_runner(root: Path, package_managers: list[str]) -> str:
+    """The SCRIPT_TEST_RUNNERS entry package.json's test script runs, or ""."""
+    package, _ = _load_package_json(root)
+    scripts = (package or {}).get("scripts")
+    if not isinstance(scripts, dict):
+        return ""
+    return _script_runner(scripts, "test", _node_runner(package_managers), set())
+
+
+def _script_runner(scripts: dict, name: str, manager: str, seen: set[str], depth: int = 0) -> str:
+    """The script runner in script `name`'s words or in a script it names, down
+    to MAX_SCRIPT_DEPTH scripts deep, which the safety screen follows no further."""
+    body = scripts.get(name)
+    if name in seen or depth > MAX_SCRIPT_DEPTH or not isinstance(body, str):
+        return ""
+    seen.add(name)
+    words = _shell_words(body) or []
+    found = _runner_in_words(words, manager)
+    if found:
+        return found
+    for word in words:
+        for script in _named_scripts(scripts, word) or []:
+            found = _script_runner(scripts, script, manager, seen, depth + 1)
+            if found:
+                return found
+    return ""
+
+
+def _runner_in_words(words: list[str], manager: str) -> str:
+    """node or tsx with --test among its options, or `bun test` when bun is the
+    package manager: through npm, `bun test` needs a bun nothing installs."""
+    for index, word in enumerate(words):
+        program = word.rsplit("/", 1)[-1]
+        if program not in ("node", "tsx", "bun"):
+            continue
+        options, argument = _split_options(words[index + 1 :])
+        if program in ("node", "tsx") and "--test" in options:
+            return f"{program} --test"
+        if program == "bun" and manager == "bun" and argument == "test":
+            return "bun test"
+    return ""
+
+
+def _split_options(words: list[str]) -> tuple[list[str], str]:
+    """A program's options, up to its first argument, and that argument ("" when
+    none): the word after a NODE_VALUE_OPTIONS option is its value."""
+    options: list[str] = []
+    takes_value = False
+    for word in words:
+        if takes_value:
+            takes_value = False
+        elif word.startswith("-"):
+            options.append(word)
+            takes_value = word in NODE_VALUE_OPTIONS
+        else:
+            return options, word
+    return options, ""
 
 
 def _check(command: str, source: str, confidence: str, language: str) -> dict:
@@ -713,7 +818,7 @@ def _runs_other_packages(words: list[str]) -> bool:
 
 def _starts_a_watcher(words: list[str]) -> bool:
     return any(
-        program.rsplit("/", 1)[-1] == "vitest" and command in VITEST_WATCH_COMMANDS
+        command in WATCH_COMMANDS.get(program.rsplit("/", 1)[-1], ())
         for program, command in zip(words, words[1:], strict=False)
     )
 
@@ -856,6 +961,8 @@ def _test_check(
             continue
         language = RUNNER_LANGUAGE[runner]
         command = _node_test_command(package_managers) if language == "node" else test_guess
+        if runner in SCRIPT_TEST_RUNNERS:
+            return _check(command, SCRIPT_TEST_RUNNER_SOURCE, "high", language)
         for filename, markers in TEST_RUNNER_MARKERS.items():
             needle = markers.get(runner)
             if needle and needle in _read_text(root / filename):
@@ -1132,9 +1239,9 @@ def detect_existing_sdlc(root: Path) -> dict:
 def detect(root: Path, no_network: bool = False) -> dict:
     ext_counts = walk_extensions(root)
     languages = detect_languages(root, ext_counts)
-    test_runners, test_guess = detect_test_runners(root, languages)
     node_manager = detect_node_package_manager(root)
     package_managers = detect_package_managers(root, node_manager)
+    test_runners, test_guess = detect_test_runners(root, languages, package_managers)
     result = {
         "root": root.name,
         "languages": languages,
