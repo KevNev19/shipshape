@@ -31,11 +31,13 @@ git cannot produce, prints {"ok": false, "mode", "error", "next_action"} and exi
 2, the code detect.py uses.
 
 The check reads changed lines, not syntax trees, through per-language patterns
-(TEST_PATTERNS). A line whose text is added again elsewhere in the diff moved, so
-it is not a removal; a removed test or assertion that an added one of its kind
-rewrites in the same file, in the same run of changed lines or keeping most of the
-words that name it (BOILERPLATE_WORDS such as assert, test or response aside), was
-rewritten, which the review rubric judges, so it is not a removal either; an
+(TEST_PATTERNS). A skip or a check written inside a string literal is text, not code,
+and a check a formatter wrapped over several lines is named by all of them. A line
+whose text is added again elsewhere in the diff moved, so it is not a removal; a
+removed test or assertion that an added one of its kind rewrites in the same file,
+in the same run of changed lines or keeping most of the words that name it
+(BOILERPLATE_WORDS such as assert, test or response aside), was rewritten, which the
+review rubric judges, so it is not a removal either; an
 unrelated addition elsewhere in the file rewrites nothing. A skip inside a test
 the same diff adds skips nothing that ran before, so it is not a finding, unless
 the file also removes a test or a Python class (which added test a removed one
@@ -98,6 +100,12 @@ WORD = re.compile(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+")
 # An added test or assertion rewrote a removed one of its role outside their run of
 # changed lines only when more than this share of the words that name them is shared.
 REWRITE_SIMILARITY = 0.5
+# A check a formatter wrapped (`assert value == (` and the lines that close it) is
+# named by the words of all its lines, read up to this many lines on.
+MAX_WRAPPED_LINES = 20
+# String literals, set aside when counting the brackets a line leaves open and when
+# looking for a skip or a check.
+STRING_LITERAL = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
 # Words nearly every test or assertion holds, left out of that share: without them,
 # `assert response.status_code == 403` and `== 200` share nothing, and neither do
 # test_user_can_login and test_user_can_logout share more than half.
@@ -221,6 +229,9 @@ INLINE_TEST_LANGUAGES = {"rust"}
 MARKER = re.compile(r"^\s*(?:@|#\[)")
 PYTHON_DEF = re.compile(r"^\s*(?:async\s+)?def\s")
 PYTHON_CLASS = re.compile(r"^\s*class\s")
+# The line that closes a Python def's wrapped parameter list, `):` or `) -> None:`,
+# which sits at the def's own indent without closing its body.
+PYTHON_SIGNATURE_END = re.compile(r"^\s*\)\s*(?:->[^:]*)?:\s*(?:#.*)?$")
 # A Python or Go call that skips belongs to the nearest test above it, unless another
 # definition starts between them. Node's skips that are not a test's own line skip a
 # group (describe.skip), so they belong to no single test.
@@ -503,8 +514,14 @@ def _entries(lines: list[Line]) -> list[Line]:
     return entries
 
 
-def _matching(lines: list[Line], pattern: re.Pattern[str]) -> list[Line]:
-    return [(number, text) for number, text in _entries(lines) if pattern.search(text)]
+def _matching(lines: list[Line], pattern: re.Pattern[str], in_code: bool = False) -> list[Line]:
+    """The entries the pattern finds; with in_code, only outside string literals, where
+    a skip or a check written as text (a fixture, a message) does not run."""
+    return [
+        (number, text)
+        for number, text in _entries(lines)
+        if pattern.search(STRING_LITERAL.sub('""', text) if in_code else text)
+    ]
 
 
 def _keys(lines: list[Line]) -> set[str]:
@@ -553,6 +570,27 @@ def _words(text: str, role: str, language: str) -> frozenset[str]:
     return frozenset(word.lower() for word in WORD.findall(text)) - BOILERPLATE_WORDS
 
 
+def _open_brackets(text: str) -> int:
+    code = STRING_LITERAL.sub("", text)
+    return sum(code.count(char) for char in "([{") - sum(code.count(char) for char in ")]}")
+
+
+def _wrapped(lines: list[Line]) -> dict[int, str]:
+    """Each line that leaves a bracket open, joined to the lines after it in the same run
+    of consecutive lines until the bracket closes, so a wrapped check is read whole."""
+    by_number = dict(lines)
+    texts = {}
+    for number, text in lines:
+        depth, joined, following = _open_brackets(text), [text], number + 1
+        while depth > 0 and following in by_number and len(joined) < MAX_WRAPPED_LINES:
+            joined.append(by_number[following])
+            depth += _open_brackets(by_number[following])
+            following += 1
+        if len(joined) > 1:
+            texts[number] = " ".join(part.strip() for part in joined)
+    return texts
+
+
 def _alike(old: str, new: str, role: str, language: str) -> bool:
     """Whether more than REWRITE_SIMILARITY of the words naming the two lines is shared."""
     first, second = _words(old, role, language), _words(new, role, language)
@@ -569,13 +607,15 @@ def _unrewritten(
     addition, such as a new check elsewhere in the file, leaves the removal standing."""
     old_run = {number: index for index, hunk in enumerate(fd.hunks) for number, _ in hunk.removed}
     new_run = {number: index for index, hunk in enumerate(fd.hunks) for number, _ in hunk.added}
+    old_whole, new_whole = _wrapped(fd.removed), _wrapped(fd.added)
     left = list(removed)
     for number, text in added:
+        whole = new_whole.get(number, text)
         candidates = [
             item
             for item in left
             if old_run.get(item[0], -1) == new_run.get(number, -2)
-            or _alike(item[1], text, role, language)
+            or _alike(old_whole.get(item[0], item[1]), whole, role, language)
         ]
         if candidates:
             left.remove(_most_like(candidates, text))
@@ -671,7 +711,7 @@ def _skip_owner(run: list[Line], at: int, language: str) -> int | None:
         return None
     shallowest = _indent(text)
     for above, line in reversed(run[:at]):
-        if not line.strip():
+        if not line.strip() or (language == "python" and PYTHON_SIGNATURE_END.match(line)):
             continue
         if test.search(line):
             # A call belongs to a test only when everything from the header to it is
@@ -739,9 +779,13 @@ def _assertion_findings(
     new_path = fd.new_path or fd.old_path or ""
     inside = _inside(fd, gone_tests)
     removed = [
-        line for line in _matching(fd.removed, patterns["assertion"]) if line[0] not in inside
+        line
+        for line in _matching(fd.removed, patterns["assertion"], in_code=True)
+        if line[0] not in inside
     ]
-    removed, added = _unmoved(removed, _matching(fd.added, patterns["assertion"]), added_elsewhere)
+    removed, added = _unmoved(
+        removed, _matching(fd.added, patterns["assertion"], in_code=True), added_elsewhere
+    )
     findings = []
     for hunk in fd.hunks:
         old_numbers = {number for number, _ in hunk.removed}
@@ -789,8 +833,8 @@ def scan_file(
         for number, text in gone_tests
     ]
     skips, _ = _unmoved(
-        _matching(fd.added, patterns["skip"]),
-        _matching(fd.removed, patterns["skip"]),
+        _matching(fd.added, patterns["skip"], in_code=True),
+        _matching(fd.removed, patterns["skip"], in_code=True),
         removed_elsewhere,
     )
     # A skip inside a test the diff adds skips nothing that ran before.

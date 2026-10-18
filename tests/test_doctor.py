@@ -7,6 +7,11 @@ from pathlib import Path
 import pytest
 from conftest import init_repo, prepend_to_path, run_script
 
+# Where every unverified or unsafe remote protection sends the owner next.
+PROTECTION_NEXT_ACTION = (
+    "Use /shipshape-access to verify or repair the requested remote branch protection."
+)
+
 
 @pytest.fixture(autouse=True)
 def pin_doctor_subprocess_path(hermetic_doctor_path):
@@ -234,6 +239,7 @@ def test_tiered_review_gates_fail_when_protection_api_is_inaccessible(tmp_path, 
     assert code == 1
     assert tiered_review["status"] == "FAIL"
     assert "unverified" in tiered_review["detail"]
+    assert tiered_review["next_action"] == PROTECTION_NEXT_ACTION
 
 
 def test_tiered_review_gates_pass_only_for_canonical_source_bound_ruleset(tmp_path, monkeypatch):
@@ -265,6 +271,7 @@ def test_tiered_review_gates_fail_when_no_active_ruleset_exists(tmp_path, monkey
     assert code == 1
     assert tiered_review["status"] == "FAIL"
     assert "active branch rules was empty" in tiered_review["detail"]
+    assert tiered_review["next_action"] == PROTECTION_NEXT_ACTION
 
 
 @pytest.mark.parametrize(
@@ -286,6 +293,7 @@ def test_tiered_review_gates_fail_for_unsafe_ruleset(tmp_path, monkeypatch, rule
     assert code == 1
     assert tiered_review["status"] == "FAIL"
     assert reason in tiered_review["detail"]
+    assert tiered_review["next_action"] == PROTECTION_NEXT_ACTION
 
 
 def test_tiered_review_gates_fail_when_workflow_is_missing(tmp_path):
@@ -312,6 +320,7 @@ def test_tiered_review_gates_fail_when_api_output_is_malformed(tmp_path, monkeyp
     assert code == 1
     assert tiered_review["status"] == "FAIL"
     assert "malformed JSON" in tiered_review["detail"]
+    assert tiered_review["next_action"] == PROTECTION_NEXT_ACTION
 
 
 def test_non_tiered_pr_protection_is_verified_read_only(tmp_path, monkeypatch):
