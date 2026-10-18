@@ -969,6 +969,75 @@ def test_quoted_skips_and_stronger_checks_are_not_findings(tmp_path, path, lines
     assert scan_diff(tmp_path, diff(changed(path, header, *lines)))["findings"] == []
 
 
+@pytest.mark.parametrize(
+    "lines",
+    [
+        ["    source = \"pytest.skip('later')\""],
+        ['    ("tests/test_math.py", \'    self.skipTest("later")\'),'],
+        ["    \"pytest.skip('later', allow_module_level=True)\","],
+        ["  const fixture = \"it.skip('adds', () => {})\""],
+    ],
+)
+def test_a_skip_written_inside_a_string_is_not_a_finding(tmp_path, lines):
+    """Text that names a skip, such as a fixture for this check, skips nothing."""
+    path = "test/fixture.test.js" if lines[0].startswith("  const") else "tests/test_quality.py"
+    text = diff(changed(path, f"@@ -4,0 +5,{len(lines)} @@", *[f"+{x}" for x in lines]))
+
+    assert scan_diff(tmp_path, text)["findings"] == []
+
+
+@pytest.mark.parametrize("closer", ["):", ") -> None:"])
+def test_a_skip_inside_a_test_with_a_wrapped_signature_is_not_a_finding(tmp_path, closer):
+    """The line that closes a wrapped signature sits at the def's indent; it does
+    not close the test, so the skip below it is still inside the new test."""
+    text = diff(
+        added_after(
+            "tests/test_math.py",
+            7,
+            "",
+            "def test_adds_on_every_platform_it_runs_on(",
+            "    tmp_path, monkeypatch",
+            closer,
+            "    if sys.platform == 'win32':",
+            "        pytest.skip('posix only')",
+            "    assert add(1, 1) == 2",
+        )
+    )
+
+    assert scan_diff(tmp_path, text)["findings"] == []
+
+
+@pytest.mark.parametrize(
+    ("added", "expected"),
+    [
+        (
+            [
+                "+    assert permissions == (",
+                '+        "  actions: read\\n  contents: write\\n  pull-requests: write\\n"',
+                "+    )",
+            ],
+            [],
+        ),
+        (
+            ["+    assert button.color == (", '+        "blue"', "+    )"],
+            [("tests/test_render.py", 3, "removed-assertion")],
+        ),
+    ],
+    ids=["same check wrapped", "other check wrapped"],
+)
+def test_a_check_rewritten_into_a_wrapped_one_is_not_a_finding(tmp_path, added, expected):
+    """The words of a wrapped check are those of all its lines: a rewrite into one
+    keeps the words of what it replaced, an unrelated one still does not."""
+    lines = [
+        "@@ -3 +2,0 @@",
+        '-    assert permissions == "  contents: write\\n  pull-requests: write\\n"',
+        f"@@ -20,0 +20,{len(added)} @@",
+        *added,
+    ]
+
+    assert kinds(scan_diff(tmp_path, diff(changed("tests/test_render.py", *lines)))) == expected
+
+
 def test_plain_diff_with_context_and_timestamps_is_read(tmp_path):
     text = diff(
         [

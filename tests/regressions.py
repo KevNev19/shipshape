@@ -259,6 +259,52 @@ def test_verification_window_uses_the_exact_clock_boundary() -> None:
     ], search_queries
 
 
+def test_verification_cost_window_follows_the_given_clock() -> None:
+    """2026-10-13: the verification-cost tests expired once the wall clock left
+    their 30-day window, because summarize read datetime.now directly. Guard:
+    the run window and the merged-PR query follow the clock it is given, so a
+    later clock leaves the same run out."""
+    from scripts import verification_cost
+
+    original_fetch = verification_cost.fetch_json
+    original_token = os.environ.get("GITHUB_TOKEN")
+    search_queries = []
+
+    def fake_fetch(path: str):
+        if path.startswith("repos/"):
+            run = {
+                "run_attempt": 1,
+                "run_started_at": "2026-08-12T10:00:00Z",
+                "updated_at": "2026-08-12T10:05:00Z",
+            }
+            return {"workflow_runs": [run]}
+        search_queries.append(urllib.parse.unquote(path.split("q=", 1)[1].split("&", 1)[0]))
+        return {"total_count": 1}
+
+    try:
+        os.environ["GITHUB_TOKEN"] = "regression-token"
+        verification_cost.fetch_json = fake_fetch
+        current = verification_cost.summarize(
+            "example/project", 30, now=datetime(2026, 8, 20, tzinfo=timezone.utc)
+        )
+        later = verification_cost.summarize(
+            "example/project", 30, now=datetime(2027, 8, 20, tzinfo=timezone.utc)
+        )
+    finally:
+        verification_cost.fetch_json = original_fetch
+        if original_token is None:
+            os.environ.pop("GITHUB_TOKEN", None)
+        else:
+            os.environ["GITHUB_TOKEN"] = original_token
+
+    assert current["runs"] == 1, f"expected the recent run to be counted: {current}"
+    assert later["runs"] == 0, f"expected the old run to be left out: {later}"
+    assert search_queries == [
+        "repo:example/project is:pr is:merged merged:>=2026-07-21T00:00:00+00:00",
+        "repo:example/project is:pr is:merged merged:>=2027-07-21T00:00:00+00:00",
+    ], search_queries
+
+
 def test_automatic_merge_rejects_nested_and_renamed_controls() -> None:
     """2026-09-09: nested controls and a rename away from a control path were
     classified from only the destination basename and became auto-mergeable;
@@ -1191,6 +1237,29 @@ def test_nodes_built_in_test_runner_is_a_test_check() -> None:
     )
 
 
+def test_remote_protection_failures_name_their_next_step() -> None:
+    """2026-10-18: when the tiered-review doctor checks became the remote
+    protection check, their tests stopped pinning next_action, so an
+    unverified or unsafe ruleset could name any next step, or none."""
+    run_focused_pytest(
+        "tests/test_doctor.py::test_tiered_review_gates_fail_when_protection_api_is_inaccessible",
+        "tests/test_doctor.py::test_tiered_review_gates_fail_when_no_active_ruleset_exists",
+        "tests/test_doctor.py::test_tiered_review_gates_fail_for_unsafe_ruleset",
+        "tests/test_doctor.py::test_tiered_review_gates_fail_when_api_output_is_malformed",
+    )
+
+
+def test_wrapped_code_and_quoted_skips_are_read_as_written() -> None:
+    """2026-10-18: over its own history the integrity check reported a skip in
+    a new test whose signature wrapped, an assertion rewritten into a wrapped
+    one, and pytest.skip written inside a string literal as weakened tests."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_a_skip_inside_a_test_with_a_wrapped_signature_is_not_a_finding",
+        "tests/test_test_integrity.py::test_a_check_rewritten_into_a_wrapped_one_is_not_a_finding",
+        "tests/test_test_integrity.py::test_a_skip_written_inside_a_string_is_not_a_finding",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1216,6 +1285,10 @@ def main() -> int:
         (
             "verification window uses exact clock boundary",
             test_verification_window_uses_the_exact_clock_boundary,
+        ),
+        (
+            "verification-cost window follows the given clock",
+            test_verification_cost_window_follows_the_given_clock,
         ),
         (
             "automatic merge rejects nested and renamed controls",
@@ -1464,6 +1537,14 @@ def main() -> int:
         (
             "node's built-in test runner is a test check",
             test_nodes_built_in_test_runner_is_a_test_check,
+        ),
+        (
+            "remote protection failures name their next step",
+            test_remote_protection_failures_name_their_next_step,
+        ),
+        (
+            "wrapped code and quoted skips are read as written",
+            test_wrapped_code_and_quoted_skips_are_read_as_written,
         ),
     ]
     failures = 0
