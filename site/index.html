@@ -275,7 +275,7 @@
       <header class="section-head">
         <p class="eyebrow">Commands</p>
         <h2 id="commands-title">Eight commands, two hosts</h2>
-        <p class="lead">Each one is a short conversation. In Codex, type <code>$shipshape-init</code>; in Claude Code, <code>/shipshape-init</code>. Doctor and review only look and report. Init, customize, access, release and intent show you exactly what they will do and wait for your yes.</p>
+        <p class="lead">Each one is a short conversation. In Codex, type <code>$shipshape-init</code>; in Claude Code, <code>/shipshape-init</code>. Doctor only looks and reports. Review reads the change and runs your project's own checks on local work, asking first on a branch someone else wrote. Init, customize, access, release and intent show you exactly what they will do and wait for your yes.</p>
       </header>
 
       <ul class="commands">
@@ -294,8 +294,8 @@
         <li class="cmd">
           <code>$shipshape-review</code>
           <h3>Plain-language review</h3>
-          <p>Explains a change in plain words and ends on a clear verdict. It never edits or merges.</p>
-          <p class="tag">Read-only</p>
+          <p>Explains a change in plain words and ends on a clear verdict. It runs your project's own checks on local work, asking first on a branch someone else wrote, and never merges or approves.</p>
+          <p class="tag">Runs your checks</p>
         </li>
         <li class="cmd">
           <code>$shipshape-release</code>

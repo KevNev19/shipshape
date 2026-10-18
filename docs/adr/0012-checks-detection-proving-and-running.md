@@ -49,8 +49,16 @@ script that prints one JSON object and runs under `python3 -I`
    `commands.*`, or commands given on its command line, and reports per
    check whether it passed, the failure count when the tool prints one,
    and the last lines of its output, within one time budget that a stop
-   ends without leaving a check's processes behind. It exits 0 whenever it
-   printed its answer; the answer's `ok` says whether every check passed.
+   ends without leaving a check's processes behind. A check's output goes
+   to a temporary file, so a process the check leaves behind cannot keep
+   the runner waiting; a check whose output passes 64 MiB is ended, and
+   each tail line and the tail as a whole are capped. A stop is SIGTERM,
+   SIGINT, SIGHUP or SIGQUIT. It exits 0 whenever it printed its answer;
+   the answer's `ok` is true only when checks ran, none was left
+   unreached by a stop or the budget, and every one passed. On Windows,
+   which has no process groups, only a check still running when the
+   budget ends or a stop arrives has its process tree killed; what a
+   finished check leaves behind is not found.
    Consumers get the same script as `.sdlc/scripts/checks.py` through the
    manifest, under the drift contract of
    [ADR 0003](0003-token-substitution-templates.md).
@@ -124,5 +132,9 @@ offered and no template references them.
   caller that asks runs them; `shipshape-init` writes nothing into the
   repository before its plan gate and does not prove. Doctor stays
   read-only: it never runs a check.
+- `shipshape-review` runs the configured checks on local work and asks
+  before running a branch someone else wrote, because the checks run that
+  branch's code. Review is therefore not read-only: the README and the site
+  say it runs your checks, and that it never merges or approves.
 - Built in steps: detection and the prove step land with this record; the
   runner, then the integrity check, follow as separate changes.

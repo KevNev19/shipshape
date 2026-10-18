@@ -939,6 +939,119 @@ def test_a_script_named_by_any_glob_is_screened() -> None:
     )
 
 
+def test_check_output_cannot_hold_the_runner() -> None:
+    """2026-10-16: checks.py read a check's output through a pipe, so a check
+    that passed but left a child holding its output ran out the budget and was
+    reported failed, a child that left the check's process group kept the
+    runner from answering a stop, and the whole output was held in memory."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_a_check_that_leaves_a_child_holding_its_output_passes_at_once",
+        "tests/test_checks.py::test_a_stop_answers_while_a_child_outside_the_group_holds_the_output",
+    )
+
+
+def test_failure_counts_take_linear_time_on_blank_lines() -> None:
+    """2026-10-16: the pytest and jest or vitest summary patterns matched blanks
+    with \\s*, which ran across line ends, so a run of blank lines in a check's
+    output took quadratic time to count failures in."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_run_counts_failures_after_a_long_run_of_blank_lines_in_linear_time",
+    )
+
+
+def test_a_run_where_nothing_ran_is_not_ok() -> None:
+    """2026-10-16: checks.py answered "ok": true when no check ran, so a caller
+    gating on "ok" read a repo without checks as green."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_run_without_config_or_commands_runs_nothing_and_exits_zero",
+        "tests/test_checks.py::test_run_with_no_command_set_runs_nothing",
+    )
+
+
+def test_cargo_failures_add_up_across_test_binaries() -> None:
+    """2026-10-16: cargo test --no-fail-fast prints a summary per test binary,
+    and checks.py counted only the last one's failures."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_run_counts_the_failures_a_tool_reports",
+    )
+
+
+def test_checks_run_reaps_what_it_kills() -> None:
+    """2026-10-17: in a container whose PID 1 reaps nothing, checks.py killed a
+    check's whole group at once, so the shell died before it could reap its
+    child and every stopped or finished check left a zombie; on Windows only
+    the shell was killed."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_run_reaps_what_it_kills_where_pid_1_reaps_nothing",
+        "tests/test_checks.py::test_run_ends_the_process_tree_where_there_are_no_process_groups",
+    )
+
+
+def test_review_asks_before_running_another_authors_checks() -> None:
+    """2026-10-17: shipshape-review ran the checks on another author's
+    checked-out branch without asking unless its config, package scripts or
+    CI files changed, although the checks run that branch's tests and test
+    configuration, which are its code too."""
+    run_focused_pytest(
+        "tests/test_review_contract.py::test_review_skill_asks_before_running_another_authors_checks_whatever_changed",
+    )
+
+
+def test_checks_run_answers_and_kills_the_check_on_any_stop() -> None:
+    """2026-10-17: checks.py handled only SIGTERM, so Ctrl-C, a closed terminal
+    or SIGQUIT ended the runner with no JSON while the check, leading a session
+    of its own, kept running; the wait's cleanup also skipped an exception."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_a_stop_kills_the_running_check_and_still_answers",
+        "tests/test_checks.py::test_a_signal_the_caller_ignored_stays_ignored",
+        "tests/test_checks.py::test_a_check_is_killed_however_its_wait_ends",
+    )
+
+
+def test_a_check_not_reached_is_never_all_passed() -> None:
+    """2026-10-17: a stop or the budget that kept a check from running still
+    gave "ok": true when the checks that ran passed, and a stop before the
+    first check said "All checks passed."."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_a_stop_before_the_first_check_is_not_all_passed",
+        "tests/test_checks.py::test_a_stop_between_checks_is_not_ok",
+        "tests/test_checks.py::test_a_budget_that_ends_between_checks_is_not_ok",
+    )
+
+
+def test_check_output_is_capped_on_disk_and_in_the_tail() -> None:
+    """2026-10-17: a runaway check wrote gigabytes to the runner's output file,
+    and one long output line made the JSON answer as long as the line."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_run_ends_a_check_whose_output_passes_the_cap",
+        "tests/test_checks.py::test_one_long_line_cannot_fill_the_answer",
+        "tests/test_checks.py::test_the_tail_keeps_its_last_lines_within_its_size_cap",
+    )
+
+
+def test_a_command_that_cannot_start_is_not_a_config_error() -> None:
+    """2026-10-17: a NUL byte in a configured command made Popen raise
+    ValueError, which checks.py reported as an unreadable .sdlc/config.json
+    with exit 2, dropping every other check."""
+    run_focused_pytest(
+        "tests/test_checks.py::test_a_command_holding_a_nul_byte_is_one_failed_check",
+        "tests/test_checks.py::test_output_that_cannot_be_read_back_is_that_checks_failure",
+    )
+
+
+def test_review_is_not_called_read_only_and_says_how_it_runs_checks() -> None:
+    """2026-10-17: the README and site called shipshape-review read-only after
+    it began running the project's checks, and the skill left "a branch
+    someone else wrote" undefined, ran past the shell tool's time limit and
+    put branch names in commands unquoted."""
+    run_focused_pytest(
+        "tests/test_site.py::test_readme_and_site_say_review_runs_the_projects_checks",
+        "tests/test_review_contract.py::test_review_skill_says_whose_branch_it_is_from_the_commit_authors",
+        "tests/test_review_contract.py::test_review_skill_runs_the_checks_inside_the_shell_tools_time_limit",
+        "tests/test_review_contract.py::test_review_skill_quotes_every_name_it_puts_in_a_command",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1112,6 +1225,50 @@ def main() -> int:
         (
             "a script named by any glob is screened",
             test_a_script_named_by_any_glob_is_screened,
+        ),
+        (
+            "check output cannot hold the runner",
+            test_check_output_cannot_hold_the_runner,
+        ),
+        (
+            "failure counts take linear time on blank lines",
+            test_failure_counts_take_linear_time_on_blank_lines,
+        ),
+        (
+            "a run where nothing ran is not ok",
+            test_a_run_where_nothing_ran_is_not_ok,
+        ),
+        (
+            "cargo failures add up across test binaries",
+            test_cargo_failures_add_up_across_test_binaries,
+        ),
+        (
+            "checks run reaps what it kills",
+            test_checks_run_reaps_what_it_kills,
+        ),
+        (
+            "review asks before running another author's checks",
+            test_review_asks_before_running_another_authors_checks,
+        ),
+        (
+            "checks run answers and kills the check on any stop",
+            test_checks_run_answers_and_kills_the_check_on_any_stop,
+        ),
+        (
+            "a check not reached is never all passed",
+            test_a_check_not_reached_is_never_all_passed,
+        ),
+        (
+            "check output is capped on disk and in the tail",
+            test_check_output_is_capped_on_disk_and_in_the_tail,
+        ),
+        (
+            "a command that cannot start is not a config error",
+            test_a_command_that_cannot_start_is_not_a_config_error,
+        ),
+        (
+            "review is not called read-only and says how it runs checks",
+            test_review_is_not_called_read_only_and_says_how_it_runs_checks,
         ),
     ]
     failures = 0
