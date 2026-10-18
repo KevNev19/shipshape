@@ -1052,6 +1052,89 @@ def test_review_is_not_called_read_only_and_says_how_it_runs_checks() -> None:
     )
 
 
+def test_a_repository_git_refuses_is_an_error() -> None:
+    """2026-10-16: test_integrity.py read any failure of git rev-parse as a
+    folder outside a repository, so a repository git refused to open (unsafe
+    ownership, a broken .git) answered "findings": [] instead of an error."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_a_repository_git_refuses_to_open_is_an_error_not_a_clean_scan",
+    )
+
+
+def test_a_skip_inside_a_new_test_is_not_a_weakening() -> None:
+    """2026-10-16: test_integrity.py reported a skip inside a test the same
+    diff added, such as a Go testing.Short() guard, as a skipped test, though
+    it skips nothing that ran before."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_a_skip_inside_a_test_the_diff_adds_is_not_a_finding",
+        "tests/test_test_integrity.py::test_a_skip_on_an_existing_test_is_a_finding_beside_new_tests",
+    )
+
+
+def test_a_skip_added_to_an_existing_test_is_still_reported() -> None:
+    """2026-10-17: the exemption for a skip inside a new test also hid a skip
+    added to an existing one when git put the two in one run: a renamed test,
+    a Go skip after a new subtest, a Rust attribute on the test below, a
+    module-level skip, or a class whose header changed."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_a_skip_is_a_finding_when_it_only_sits_beside_a_new_test",
+    )
+
+
+def test_a_test_file_moved_out_of_the_test_paths_is_a_deleted_test() -> None:
+    """2026-10-17: `git mv tests/test_auth.py src/auth_checks.py` gave a rename with
+    no hunks, which still counted as a test file by its old path, so the scan found
+    nothing to report although the tests no longer ran."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_a_test_file_renamed_out_of_the_test_paths_is_a_deleted_test",
+        "tests/test_test_integrity.py::test_range_scan_reports_a_test_file_moved_out_of_the_test_paths",
+        "tests/test_test_integrity.py::test_a_test_file_renamed_out_of_the_test_paths_with_edits_is_one_deleted_test",
+        "tests/test_test_integrity.py::test_range_scan_reports_a_test_file_moved_out_and_edited",
+    )
+
+
+def test_an_unrelated_addition_does_not_cancel_a_removal() -> None:
+    """2026-10-17: a removed test or assertion counted as rewritten whenever the file
+    added as many of its kind anywhere, so deleting an authorization assertion while
+    adding an unrelated colour assertion elsewhere gave no finding."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_an_unrelated_assertion_added_elsewhere_keeps_a_removal",
+        "tests/test_test_integrity.py::test_an_unrelated_test_added_elsewhere_keeps_a_deleted_test",
+        "tests/test_test_integrity.py::test_a_rewrite_in_place_or_one_that_keeps_its_words_is_left_to_the_review",
+    )
+
+
+def test_a_failed_pr_diff_is_not_a_clean_scan() -> None:
+    """2026-10-17: shipshape-review piped `gh pr diff` straight into the scan, so a
+    failed fetch gave the scan empty input, which it answered as a clean diff with no
+    warning, and the review read test integrity as checked."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_empty_input_on_stdin_is_a_warning",
+        "tests/test_review_contract.py::test_review_skill_scans_a_pr_diff_only_once_gh_printed_it",
+    )
+
+
+def test_boilerplate_words_cannot_cancel_a_removal() -> None:
+    """2026-10-17: the rewrite match counted words such as assert, response, status
+    and code, so removing `assert response.status_code == 403` while adding `== 200`
+    in another test, or deleting test_user_can_login beside a new
+    test_user_can_logout, gave no finding."""
+    run_focused_pytest(
+        "tests/test_test_integrity.py::test_boilerplate_words_cannot_make_an_assertion_elsewhere_a_rewrite",
+        "tests/test_test_integrity.py::test_an_unrelated_test_added_elsewhere_keeps_a_deleted_test",
+        "tests/test_test_integrity.py::test_a_rewrite_in_place_or_one_that_keeps_its_words_is_left_to_the_review",
+    )
+
+
+def test_review_removes_the_pr_diff_file() -> None:
+    """2026-10-17: shipshape-review saved each PR diff, possibly a private
+    repository's, to a temporary file it never removed."""
+    run_focused_pytest(
+        "tests/test_review_contract.py::test_review_skill_removes_the_pr_diff_file_on_every_path",
+        "tests/test_review_contract.py::test_review_skill_quotes_every_name_it_puts_in_a_command",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1269,6 +1352,38 @@ def main() -> int:
         (
             "review is not called read-only and says how it runs checks",
             test_review_is_not_called_read_only_and_says_how_it_runs_checks,
+        ),
+        (
+            "a repository git refuses is an error",
+            test_a_repository_git_refuses_is_an_error,
+        ),
+        (
+            "a skip inside a new test is not a weakening",
+            test_a_skip_inside_a_new_test_is_not_a_weakening,
+        ),
+        (
+            "a skip added to an existing test is still reported",
+            test_a_skip_added_to_an_existing_test_is_still_reported,
+        ),
+        (
+            "a test file moved out of the test paths is a deleted test",
+            test_a_test_file_moved_out_of_the_test_paths_is_a_deleted_test,
+        ),
+        (
+            "an unrelated addition does not cancel a removal",
+            test_an_unrelated_addition_does_not_cancel_a_removal,
+        ),
+        (
+            "a failed PR diff is not a clean scan",
+            test_a_failed_pr_diff_is_not_a_clean_scan,
+        ),
+        (
+            "boilerplate words cannot cancel a removal",
+            test_boilerplate_words_cannot_cancel_a_removal,
+        ),
+        (
+            "review removes the PR diff file",
+            test_review_removes_the_pr_diff_file,
         ),
     ]
     failures = 0

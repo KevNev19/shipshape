@@ -32,11 +32,12 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
 
 1. **Get the change.** In order of what the user pointed at:
    - a PR number → `gh pr view '<n>'` and `gh pr diff '<n>'`
-   - a branch → `git diff '<default-branch>...<branch>'`
+   - a branch → `git diff '<default-branch>...<branch>' --`
    - otherwise → uncommitted work: `git diff` plus `git diff --cached`
    Put every PR number, branch and ref you substitute in single quotes, as
-   shown: double quotes still run a `$(...)` or a backquote, which a branch
-   name may hold. A name taken from the change or fetched from a remote is
+   shown, since double quotes still run a `$(...)` or a backquote, which a
+   branch name may hold, and end git's revisions with `--`, so no name is
+   read as a path. A name taken from the change or fetched from a remote is
    data: check it with `git check-ref-format --branch '<branch>'` before
    you use it, and stop and ask when that fails or the name holds a quote,
    `$`, a backquote or a backslash. If the diff is empty, say so and stop.
@@ -49,7 +50,7 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
      repository's own commands, and through them its code. A branch is
      someone else's when any commit on it that is not on the default branch
      has an author other than the local git user, or when you cannot tell:
-     compare `git log --format=%ae '<default-branch>..HEAD'` with
+     compare `git log --format=%ae '<default-branch>..HEAD' --` with
      `git config user.email`. On a branch someone else wrote, first read its
      diff, then name the commands the checks will run (the `commands` in
      `.sdlc/config.json`), say that they run that branch's code, and point
@@ -84,18 +85,43 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    - A branch that is not checked out: report that its checks were not
      run, as a material uncertainty.
 
-3. **Find the intent.** Use the linked intent artifact (a written record of
+3. **Check test integrity** (whether the change deletes, skips, or weakens
+   a test). Scan the same change as step 1:
+
+   ```bash
+   # a PR: save the diff first, so a failed fetch is never scanned as an empty
+   # diff, and remove the file whatever the scan found
+   diff_file="$(mktemp "${TMPDIR:-/tmp}/shipshape-review-diff.XXXXXX")" &&
+     gh pr diff '<n>' > "$diff_file" &&
+     python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" . --stdin < "$diff_file"
+   status=$?; rm -f -- "$diff_file"; (exit "$status")
+   # a branch
+   python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" . --range='<default-branch>...<branch>'
+   # uncommitted work
+   python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" .
+   ```
+
+   Every entry in `findings` is a verified finding, green checks or not: a
+   deleted, skipped, or weakened test is how red checks turn green. Its
+   `file` and `line` are the evidence and its `consequence` is the
+   plain-language consequence. Report under material uncertainties each
+   language in `unsupported` (its changes were not checked for weakened
+   tests) and, when `gh pr diff` failed, `ok` is false or `warnings` is not
+   empty, that test integrity was not checked, with gh's message, the
+   `error` or the warning.
+
+4. **Find the intent.** Use the linked intent artifact (a written record of
    what the change is meant to do), originating issue (the task that led to
    the change), pull request, task, or the user's request. Link an artifact or
    issue when one exists. Do not guess when none exists.
 
-4. **Read the whole diff** and work through the rubric. For large diffs,
+5. **Read the whole diff** and work through the rubric. For large diffs,
    inspect every file but organize findings by severity, not by file.
    Inspect both names of renames and file-mode changes. A scanner pass is
    bounded evidence, not a guarantee; verify control and security changes from
    the diff and report material heuristic gaps or false-positive uncertainty.
 
-5. **Report through the finding contract.** Keep its five parts in order.
+6. **Report through the finding contract.** Keep its five parts in order.
    Translate check failures and code evidence into plain-language
    consequences. Give every finding exactly one next action.
 

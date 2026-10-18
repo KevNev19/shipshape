@@ -12,6 +12,10 @@ or narrate the diff file by file. Send the output through the
 - Are there tests for the new behaviour? Were existing tests changed to
   pass — and if so, is that legitimate (the correct answer changed) or
   suspicious (weakening a check)?
+- Each test-integrity finding (a deleted or skipped test, a removed or
+  loosened assertion) gets that question. When the intent explains it, its
+  next action is to confirm the explanation; when nothing does, it requires
+  at least "Needs attention first".
 
 ## 2. Blast radius
 

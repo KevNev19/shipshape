@@ -64,11 +64,13 @@ script that prints one JSON object and runs under `python3 -I`
    [ADR 0003](0003-token-substitution-templates.md).
 4. **A diff check guards test integrity.** `test_integrity.py` reads a diff
    (the uncommitted change, a range of commits or trees, the staged change,
-   or stdin) and reports deleted test files, deleted or skipped tests, and
+   or stdin) and reports deleted test files (a test file renamed to a path
+   that is no test file among them), deleted or skipped tests, and
    removed or loosened assertions, for python, node, go and rust. Each
    finding carries a file and a line, so the findings-first review
    ([ADR 0007](0007-findings-first-review.md)) reports it as a verified
-   finding.
+   finding. A repository git refuses to open is an error, never a clean
+   answer.
 
 Check commands other than `test` may be empty, and an empty token is a
 render error ([ADR 0003](0003-token-substitution-templates.md)), so the
@@ -128,6 +130,19 @@ offered and no template references them.
   `GOPROXY=off`, `npm_config_offline=true`): a command that then needs a
   download fails, which still proves it ran. Other tools keep their own
   network behaviour.
+- The integrity check leaves a rewrite to the review: a removed test or
+  assertion is rewritten, not removed, only when an added one of its kind
+  sits in the same run of changed lines or keeps most of the words that
+  name it (a test's name, an assertion's text), leaving out words nearly
+  every test holds, such as `assert`, `test`, `response` and `status`, so
+  `== 403` removed beside `== 200` added elsewhere stays a removal. An
+  unrelated addition elsewhere in the file keeps the removal a finding.
+- The integrity check reports a skip that weakens existing tests. A skip
+  inside a test the same diff adds (a Go `if testing.Short() { t.Skip() }`,
+  a `@pytest.mark.skipif` on a new test) skips nothing that ran before, so
+  it is not reported; a skip on an existing test, a renamed or moved one,
+  or outside the new test's body still is, and so is a focus (`.only`,
+  `fit`), which skips every other test.
 - Proving and running execute the repository's own commands, so only a
   caller that asks runs them; `shipshape-init` writes nothing into the
   repository before its plan gate and does not prove. Doctor stays
