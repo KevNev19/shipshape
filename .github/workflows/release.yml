@@ -1,7 +1,7 @@
 # What this is: publishes a version tag only after a trusted default-branch
 # helper proves the tag's exact commit passed every enabled release gate.
 # Safe to edit: yes — shipshape will ask before overwriting your edits.
-# managed-by: shipshape v0.3.0
+# managed-by: shipshape v0.4.0
 name: Release
 
 on:

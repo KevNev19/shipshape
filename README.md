@@ -134,9 +134,9 @@ yes anyway.
 
 | Command | What it does |
 |---|---|
-| `$shipshape-init` | The front door. Scan, interview, preview, set up. |
+| `$shipshape-init` | The front door. Scan, interview, preview, set up. You confirm each check command it finds before it's saved. |
 | `$shipshape-doctor` | Read-only health check: problems first, then one next step. |
-| `$shipshape-review` | Review of any change, in plain words, with a clear verdict. Runs your project's own checks on local work, asking first on a branch someone else wrote; never merges or approves. |
+| `$shipshape-review` | Plain-words review of any change (code, spec, plan or docs) with a clear verdict, flagging weakened tests. Runs your project's own checks on local work, asking first on a branch someone else wrote; never merges or approves. |
 | `$shipshape-release` | Checks your tests passed, suggests a version, publishes on your yes. |
 | `$shipshape-access` | "Give Sam access" becomes the exact GitHub command, shown first. |
 | `$shipshape-customize` | Change anything off the defaults; only affected files regenerate. |
@@ -174,6 +174,9 @@ install either orchestrator plugin.
 - **Plain words, honest verdicts.** Skills translate ("the login test
   expected X and got Y"), a red CI never gets called "looks safe", and a
   file being present is never reported as a check that ran.
+  `python3 .sdlc/scripts/checks.py run .` runs your saved checks and
+  reports each one, and a review flags deleted, skipped or weakened
+  tests by file and line.
 - **It runs on itself.** This repository was set up by shipshape: its secret
   guard, CodeQL, Dependabot, release workflow and weekly health check are
   its own output. Where a file was already hand-written, shipshape left it
@@ -182,8 +185,8 @@ install either orchestrator plugin.
 ## Make it yours
 
 One file, `.sdlc/config.json`, drives everything: working style
-(straight-to-main or pull-request), team or solo, features on or off, test
-command, reviewers. Change it with `$shipshape-customize`; shipshape
+(straight-to-main or pull-request), team or solo, features on or off, check
+commands, reviewers. Change it with `$shipshape-customize`; shipshape
 regenerates only what's affected and leaves your edits alone.
 
 ## Under the hood
