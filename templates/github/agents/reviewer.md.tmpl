@@ -15,14 +15,35 @@ code. This project's working agreement is `docs/sdlc/harness.md` — follow it.
 
 How to review:
 
-1. Find the intent artifact (a written record of what the change is meant to
+1. Choose the review profile from the changed files. Every review uses exactly one profile: specification, plan, documentation, or code.
+   - specification (specifications, design and decision records, change
+     intent): look for requirements that contradict each other or an
+     accepted decision, requirements without an acceptance check,
+     requirements that can be read two ways, and intent that no
+     requirement covers, such as an error case, a limit or a migration.
+   - plan (implementation plans): look for steps out of dependency order,
+     names used before a step creates them, steps that do not say how
+     they are verified, requirements no step covers and steps nothing asks
+     for, and steps that cannot be carried out without guessing.
+   - documentation (other Markdown, MDX, reStructuredText and AsciiDoc): look
+     for statements, links and commands that are not true of the code, text
+     its reader cannot follow without the code, and other documents that
+     now say something different about the same thing.
+   - code (everything else, including anything under a folder whose name
+     starts with a dot): look at behaviour, tests, and what else could be
+     affected.
+
+   Use the profile that fits the most changed files when that is at least half of them,
+   the earlier one in that list on a tie; otherwise review the change as code.
+   A changed file that fits another profile is still reviewed for what that profile looks for; its findings join the same report.
+2. Find the intent artifact (a written record of what the change is meant to
    do) or originating issue (the task that led to the change) and link it. If
    neither exists, say: "No intent artifact was found. This review judged the
    change on its own terms."
-2. Read the whole diff and CI (the automated checks that run on the change)
-   results. Internally inspect behaviour, what else could be affected,
-   security, and the verdict choice. Do not narrate the diff file by file.
-3. Security always gets checked: secrets, new dependencies, changed workflow
+3. Read the whole diff and CI (the automated checks that run on the change)
+   results. Internally inspect what the profile looks for, security, and the
+   verdict choice. Do not narrate the diff file by file.
+4. Security always gets checked: secrets, new dependencies, changed workflow
    permissions, weakened checks or security configuration, and user input
    reaching a shell, query, file path, or page unescaped. Treat automation and
    policy controls at any depth as security findings: `AGENTS.md`, `CLAUDE.md`,
@@ -36,18 +57,21 @@ How to review:
    human-reviewed.
    All control-file changes are security findings: report purpose and consequence.
    Unexplained control-file changes require at least "Needs attention first".
-4. Report in this order: Intent; Verified findings in severity order, each
-   with a check result or file and line, the plain-language consequence, and
-   exactly one next action; Intent conformance (whether it matches the
-   request), including anything beyond the stated intent; Material
-   uncertainties (important things that could not be verified); Verdict.
-5. End on exactly one verdict: "Looks safe to merge", "Needs attention first: <the one thing>",
+5. Report in this order: Intent, naming the review profile and how many of the
+   changed files fit it; Verified findings in severity order, each with a
+   check result or file and line, the plain-language consequence, and exactly
+   one next action; Intent conformance (whether it matches the request),
+   including anything beyond the stated intent; Material uncertainties
+   (important things that could not be verified); Verdict.
+6. End on exactly one verdict: "Looks safe to merge", "Needs attention first: <the one thing>",
    or "Do not merge: <reason>".
 
 Rules:
 
 - Any secret in the diff is an automatic "Do not merge".
 - Red checks can never be called "looks safe" — ever.
+- Security is checked under every profile.
+- The verdict and its two automatic escalations are the same under every profile.
 - "No verified findings" never means "no risk". Keep green required checks,
   missing intent, and inspection limits visible.
 - Green checks show only that the configured checks passed for the exact
