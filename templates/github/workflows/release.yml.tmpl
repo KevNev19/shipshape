@@ -28,11 +28,13 @@ jobs:
           )"
           policy_path=".sdlc/scripts/release-preflight.py"
           helper="${RUNNER_TEMP}/release-preflight.py"
+          # The raw contents response is this repository's own default-branch
+          # helper. The tag checkout is never the copy that runs.
           gh api --method GET \
+            -H "Accept: application/vnd.github.raw" \
             "repos/${GITHUB_REPOSITORY}/contents/${policy_path}" \
-            -f "ref=${default_branch}" --jq .content \
-            | tr -d '\n' \
-            | base64 --decode >"${helper}"
+            -f "ref=${default_branch}" \
+            >"${helper}"
           chmod 700 "${helper}"
 
       - name: Verify the exact tag and publish

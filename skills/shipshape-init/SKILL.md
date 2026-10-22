@@ -181,7 +181,28 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    next step, then remove the exact directory created in step 2.
 
    ```bash
-   rm -rf "${SHIPSHAPE_SESSION_DIR}"
+   python3 - "$SHIPSHAPE_SESSION_DIR" <<'PY'
+   import os
+   import pathlib
+   import sys
+   import tempfile
+
+   root = pathlib.Path(sys.argv[1]).resolve()
+   temp_root = pathlib.Path(os.environ.get("TMPDIR") or tempfile.gettempdir()).resolve()
+   if (
+       root.parent != temp_root
+       or not root.name.startswith("shipshape-init.")
+       or not root.is_dir()
+   ):
+       raise SystemExit(
+           "refusing to remove a session directory that is not the temp directory this skill created"
+       )
+   for name in ("detect.json", "config.json", "plan.json"):
+       candidate = root / name
+       if candidate.is_file():
+           candidate.unlink()
+   root.rmdir()
+   PY
    ```
 
 ## Don't

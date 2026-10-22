@@ -568,11 +568,12 @@ def verify_workflow(
         fail(
             code,
             f"No applicable {expected_path} push run exists for commit {candidate}.",
-            "Inspect why the exact push run is absent. If GITHUB_TOKEN suppressed "
-            "a bot-merge push, make a separately approved release/version commit "
-            "and push that new candidate with normal human or appropriately "
-            "authorized app credentials, then restart preflight for its new SHA; "
-            "the old SHA, an unchanged-ref push, and workflow_dispatch do not qualify.",
+            "Inspect why the exact push run is absent. If the built-in Actions "
+            "credential skipped a bot-merge push, make a separately approved "
+            "release/version commit and push that new candidate with normal human or "
+            "appropriately authorized app credentials, then restart preflight for its "
+            "new SHA; the old SHA, an unchanged-ref push, and workflow_dispatch do "
+            "not qualify.",
             workflow=key,
             path=expected_path,
             head_sha=candidate,

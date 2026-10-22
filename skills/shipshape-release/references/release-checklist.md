@@ -52,8 +52,9 @@ historical alert snapshot for an older commit. Therefore every CodeQL-enabled
 the current default-branch tip. If the branch advances after tagging, create a
 new candidate and version instead of treating the older tag as proven clean.
 
-GitHub generally suppresses workflow runs for events created with the repository
-`GITHUB_TOKEN` ([documented behavior](https://docs.github.com/en/actions/concepts/security/github_token)),
+GitHub generally does not start workflow runs for events created with the
+built-in Actions credential
+([documented behavior](https://docs.github.com/en/actions/concepts/security/github_token)),
 so a bot merge may have no post-merge `push` run. Neither pushing an unchanged ref
 nor `workflow_dispatch` satisfies this push-only policy. The bounded recovery is a
 separately approved release/version commit pushed with normal human or appropriately

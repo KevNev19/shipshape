@@ -62,7 +62,11 @@ def test_review_skill_removes_the_pr_diff_file_on_every_path():
     """The file holds the whole PR diff, which may be a private repository's."""
     text = skill_text()
     assert 'diff_file="$(mktemp "${TMPDIR:-/tmp}/shipshape-review-diff.XXXXXX")" &&' in text
-    assert 'status=$?; rm -f -- "$diff_file"; (exit "$status")' in text
+    assert (
+        "status=$?; python3 -c 'import pathlib, sys; "
+        "pathlib.Path(sys.argv[1]).unlink(missing_ok=True)' "
+        '"$diff_file"; (exit "$status")'
+    ) in text
 
 
 def test_review_skill_ends_git_revisions_before_any_path():

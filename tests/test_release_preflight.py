@@ -1498,7 +1498,11 @@ def test_release_skill_uses_portable_deterministic_preflight_and_keeps_approval_
     assert skill.count("release_preflight.py") >= 2
     assert "/tmp/shipshape-release-preflight.json" not in skill
     assert "mktemp" in skill
-    assert 'rm -f -- "$preflight_file"' in skill
+    assert "whether the result passes or fails" in skill
+    assert (
+        "python3 -c 'import pathlib, sys; pathlib.Path(sys.argv[1]).unlink(missing_ok=True)' "
+        '"$preflight_file"'
+    ) in skill
     assert "gh run list --branch" not in skill
     assert "gh run list --workflow" not in checklist
     assert "approval" in skill.lower() or "yes" in skill.lower()

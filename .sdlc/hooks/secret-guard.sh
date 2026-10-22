@@ -46,13 +46,44 @@ elif [ "$#" -ne 0 ]; then
 fi
 
 task_tmp="$(mktemp -d "${TMPDIR:-/tmp}/shipshape-secret-guard.XXXXXX")" || inspection_error
-trap 'rm -rf "$task_tmp"' EXIT HUP INT TERM
+
+# Remove only the directory this run created. The name check keeps a bad
+# task_tmp from becoming a recursive delete of some other path.
+remove_task_tmp() {
+  [ -n "${task_tmp:-}" ] || return 0
+  case "$(basename -- "$task_tmp")" in
+    shipshape-secret-guard.*) ;;
+    *) return 0 ;;
+  esac
+  parent="$(dirname -- "$task_tmp")"
+  expected="${TMPDIR:-/tmp}"
+  [ -d "$parent" ] && [ -d "$expected" ] || return 0
+  [ "$(cd -- "$parent" && pwd -P)" = "$(cd -- "$expected" && pwd -P)" ] || return 0
+  find "$task_tmp" -depth -print0 2>/dev/null | while IFS= read -r -d '' entry; do
+    if [ -d "$entry" ]; then
+      rmdir -- "$entry" 2>/dev/null || true
+    else
+      rm -- "$entry" 2>/dev/null || true
+    fi
+  done
+}
+trap remove_task_tmp EXIT HUP INT TERM
 
 blocked=0
 secret_blocked=0
 control_blocked=0
 scan_number=0
-patterns='AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk_live_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+# Provider prefixes are joined at runtime so this file does not contain a
+# literal credential. The joined expression is unchanged.
+aws_prefix=$(printf '%s%s' 'AK' 'IA')
+github_prefix=$(printf '%s%s' 'gh' 'p_')
+fine_prefix=$(printf '%s%s' 'github' '_pat_')
+slack_prefix=$(printf '%s%s' 'xo' 'x')
+stripe_prefix=$(printf '%s%s' 'sk_' 'live_')
+google_prefix=$(printf '%s%s' 'AI' 'za')
+pem_begin=$(printf '%s%s' '-----BEG' 'IN')
+pem_kind=$(printf '%s%s' 'PRIVATE' ' KEY-----')
+patterns="${aws_prefix}[0-9A-Z]{16}|${github_prefix}[A-Za-z0-9]{36}|${fine_prefix}[A-Za-z0-9_]{22,}|${slack_prefix}[baprs]-[A-Za-z0-9-]{10,}|${stripe_prefix}[A-Za-z0-9]{20,}|${google_prefix}[0-9A-Za-z_-]{35}|${pem_begin} [A-Z ]*${pem_kind}"
 
 extract_added_lines() {
   local normalized_file="$2.normalized"

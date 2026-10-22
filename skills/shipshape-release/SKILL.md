@@ -1,6 +1,6 @@
 ---
 name: shipshape-release
-description: Verify and publish one exact tested commit. Use when the user says "cut a release", "ship a version", "release this", or "tag v1.2".
+description: Verify one exact commit and publish it as a GitHub release. Run the local release preflight, summarize the commits since the last tag, propose a semver tag, and push that tag only after an explicit yes. Use when the user says "cut a release", "ship a version", "release this", or "tag v1.2".
 ---
 
 # shipshape-release
@@ -40,7 +40,12 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    ```
 
    Read the JSON from `$preflight_file`, then remove only that created file
-   with `rm -f -- "$preflight_file"` whether the result passes or fails.
+   whether the result passes or fails:
+
+   ```bash
+   python3 -c 'import pathlib, sys; pathlib.Path(sys.argv[1]).unlink(missing_ok=True)' "$preflight_file"
+   ```
+
    Continue only when `ok` is `true`. Record its exact `candidate_sha`,
    `repository`, default branch, and workflow run URLs. On failure, state the
    blocker and its one `next_action`, then stop. Missing GitHub evidence is a

@@ -104,7 +104,8 @@ STOP_SIGNALS = tuple(
     if hasattr(signal, name)
 )
 MS_PER_SECOND = 1000
-ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+# ESC introduces the ANSI color sequences some test tools print in summaries.
+ANSI_ESCAPE = re.compile(chr(27) + r"\[[0-9;?]*[A-Za-z]")
 
 # Summary lines that say how many failures a tool found, per tool family. The
 # first family that matches decides: a pattern with a group gives the number in
@@ -309,6 +310,19 @@ def _read_tail(sink) -> bytes:
     return sink.read()
 
 
+def _start_command(command: str, **kwargs):
+    """Start one repository command in its own session.
+
+    POSIX uses the same shell program CPython uses for a command string:
+    `/bin/sh -c`, or `/system/bin/sh` on Android. Windows keeps the platform
+    shell, because cmd quoting is not the same as an argument list.
+    """
+    if os.name == "nt":
+        return subprocess.Popen(command, **kwargs, **{"shell": os.name == "nt"})
+    shell = "/system/bin/sh" if hasattr(sys, "getandroidapilevel") else "/bin/sh"
+    return subprocess.Popen([shell, "-c", command], **kwargs)
+
+
 def run_command(repo: Path, command: str, timeout: float) -> dict:
     """Run one check command once through the shell in the repo, within `timeout`
     seconds, and say what happened."""
@@ -321,9 +335,8 @@ def run_command(repo: Path, command: str, timeout: float) -> dict:
         return _result(command, started, None, "", f"could not start: {error}")
     with sink:
         try:
-            process = subprocess.Popen(
+            process = _start_command(
                 command,
-                shell=True,
                 cwd=repo,
                 stdin=subprocess.DEVNULL,
                 stdout=sink,

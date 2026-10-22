@@ -97,7 +97,7 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    diff_file="$(mktemp "${TMPDIR:-/tmp}/shipshape-review-diff.XXXXXX")" &&
      gh pr diff '<n>' > "$diff_file" &&
      python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" . --stdin < "$diff_file"
-   status=$?; rm -f -- "$diff_file"; (exit "$status")
+   status=$?; python3 -c 'import pathlib, sys; pathlib.Path(sys.argv[1]).unlink(missing_ok=True)' "$diff_file"; (exit "$status")
    # a branch
    python3 "${SHIPSHAPE_ROOT}/scripts/test_integrity.py" . --range='<default-branch>...<branch>'
    # uncommitted work

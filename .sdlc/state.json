@@ -34,7 +34,7 @@
     ".github/workflows/release.yml": {
       "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "b91d6e18644c2dc17b8a6e1b9ab78c7ad79a9b441aeb075c2203005fc777aac7",
+      "sha256": "46d6148a8e8b7e3916af79559b405365c026ad9ce232f583da1b38b1bf1fe693",
       "template": "github/workflows/release.yml.tmpl"
     },
     ".github/workflows/secret-scan.yml": {
@@ -63,13 +63,13 @@
     ".sdlc/hooks/secret-guard.sh": {
       "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "0d789a58b649d85173299ba46b9ecb72e039c67f8f5bba50406658f0409b97d5",
+      "sha256": "27e3e51697c94e764f099f6fc106f855dab625500fe213925a48547c31e4ca3e",
       "template": "hooks/secret-guard.sh.tmpl"
     },
     ".sdlc/scripts/checks.py": {
       "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "9d773d22e119ea67f756d72bf6b282bfebb1c4422576c7d3616379ad7ddd5e1f",
+      "sha256": "b9bdebc68076428f35f4e29747a56eb226bf411f59bfedec4250e7012dd93b68",
       "template": "scripts/checks.py.tmpl"
     },
     ".sdlc/scripts/doctor.py": {
@@ -81,7 +81,7 @@
     ".sdlc/scripts/release-preflight.py": {
       "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "0898931508aeb64825f1ed1c5f1073b92e436f340c2320f00ede7aa559fc2cbe",
+      "sha256": "fe11f30e24299bf66ab01d7cd350af6237fba3241162a6f5ba5a9d12bf405017",
       "template": "scripts/release-preflight.py.tmpl"
     },
     ".sdlc/scripts/review-gates.py": {
