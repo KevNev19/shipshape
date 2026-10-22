@@ -17,6 +17,27 @@ from conftest import init_repo, run_script
 FAKE_AWS_KEY = "AKIA" + "IOSFODNN7EXAMPLE"
 SYNTHETIC_AWS_KEY = "AKIA" + "ABCDEFGHIJKLMNOP"
 FOLLOWUP_AWS_KEY = "AKIA" + "A" * 16
+LITERAL_CREDENTIAL_MARKERS = (
+    "AKIA",
+    "ghp_",
+    "github_pat_",
+    "sk_live_",
+    "AIza",
+    "-----BEGIN",
+    "PRIVATE KEY",
+)
+
+
+def test_secret_patterns_are_not_stored_as_literal_credentials():
+    """The detector is assembled at runtime so the shipped hook is not a credential."""
+    root = Path(__file__).resolve().parent.parent
+    for relative in (
+        "templates/hooks/secret-guard.sh.tmpl",
+        ".sdlc/hooks/secret-guard.sh",
+    ):
+        source = (root / relative).read_text(encoding="utf-8")
+        for marker in LITERAL_CREDENTIAL_MARKERS:
+            assert marker not in source, f"{relative} contains {marker}"
 
 
 def guarded_repo(tmp_path):

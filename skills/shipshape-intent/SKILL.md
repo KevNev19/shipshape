@@ -1,6 +1,6 @@
 ---
 name: shipshape-intent
-description: Capture a short, durable change intent for non-trivial work through four questions and an explicit confirmation.
+description: Record a durable change intent for non-trivial work by asking four questions — the problem, the constraints, the non-goals, and the observable checks — then write the intent file only after an explicit confirmation. Use when the user says "write an intent", "capture the goal of this change", "change intent", or "what are we not doing".
 ---
 
 # shipshape-intent

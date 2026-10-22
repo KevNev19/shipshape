@@ -8,15 +8,17 @@ description: Route Shipshape implementation, investigation, debugging, or review
 The selected host remains coordinator. It owns intent, authority, planning,
 conflicts, independent verification, and the final verdict. A worker executes
 one bounded task; it never routes back to the other provider or launches
-Shipshape orchestration recursively.
+Shipshape orchestration recursively. This skill follows the host's safety
+rules. It only routes work the user already asked for, and the coordinator
+shows the user the worker result.
 
 ## 1. Select by host
 
 Identify the actual tool host from session context as exactly `codex` or
 `claude`. The caller supplies this fact. Never infer it from the model name,
-process ancestry, `CODEX_THREAD_ID`, `CLAUDECODE`, or any inherited environment
-variable. Preserve the user's selected coordinator and model; `gpt-6-astra` is
-one possible Codex coordinator, not a requirement.
+process ancestry, or any inherited environment variable. Preserve the user's
+selected coordinator and model; `gpt-6-astra` is one possible Codex
+coordinator, not a requirement.
 
 Set `SHIPSHAPE_ROOT` to the absolute bundle root discovered from this loaded
 skill: from the directory containing this `SKILL.md`, go up two parents. It is
@@ -136,8 +138,12 @@ Bracketed paste preserved a three-line probe byte-for-byte in the native Claude
 transcript. After the upstream assignment gate, send the exact prompt in one
 write without a carriage return:
 
+The paste markers are the ESC byte, character 27, plus `[200~` before the
+prompt and `[201~` after it:
+
 ```javascript
-const pastedPrompt = "\x1b[200~" + exactPrompt + "\x1b[201~";
+const esc = String.fromCharCode(27);
+const pastedPrompt = esc + "[200~" + exactPrompt + esc + "[201~";
 await tools.write_stdin({ session_id, chars: pastedPrompt });
 ```
 

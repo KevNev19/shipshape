@@ -1079,6 +1079,19 @@ def _adopting_orphans():
         prctl(PR_SET_CHILD_SUBREAPER, ctypes.c_ulong(previous.value), *[ctypes.c_ulong(0)] * 3)
 
 
+def _start_command(command: str, **kwargs):
+    """Start one proposed command in its own session.
+
+    POSIX uses the same shell program CPython uses for a command string:
+    `/bin/sh -c`, or `/system/bin/sh` on Android. Windows keeps the platform
+    shell, because cmd quoting is not the same as an argument list.
+    """
+    if os.name == "nt":
+        return subprocess.Popen(command, **kwargs, **{"shell": os.name == "nt"})
+    shell = "/system/bin/sh" if hasattr(sys, "getandroidapilevel") else "/bin/sh"
+    return subprocess.Popen([shell, "-c", command], **kwargs)
+
+
 def _ran(
     root: Path, command: str, deadline: float, stop: _StopRequest, env: dict[str, str] | None
 ) -> bool:
@@ -1089,9 +1102,8 @@ def _ran(
     if remaining <= 0 or stop.requested:
         return False
     try:
-        process = subprocess.Popen(
+        process = _start_command(
             command,
-            shell=True,
             cwd=root,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
