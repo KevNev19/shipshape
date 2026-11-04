@@ -414,6 +414,13 @@ translations retain the non-engineer voice.
 
 ### 10. Verification cost is invisible
 
+**2026-11-04 status.** `scripts/verification_cost.py summarize` remains
+invoke-only. It now reports commits that reached the default branch
+(`landed_changes` and `minutes_per_landed_change`) as well as merged pull
+requests. Money stays `unknown`; the script does not guess a billing rate.
+`/shipshape-doctor` translates the JSON only when someone asks what
+verification cost. No consumer workflow or budget gate was added.
+
 **Gap.** The lifecycle treats verification as the scarce, metered activity,
 but shipshape shows health status without showing how many runs or minutes were
 spent to obtain it.
