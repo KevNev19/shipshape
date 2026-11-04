@@ -1,6 +1,7 @@
 """The marketing site and the README art it feeds stay wired together."""
 
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,8 +31,33 @@ def test_site_local_references_exist():
 
 def test_site_scripts_stay_out_of_global_scope():
     # A top-level `var status` silently becomes the string window.status.
+    # Read the site with the HTML parser. A tag-shaped regular expression is
+    # the pattern CodeQL calls a bad HTML filter, and this test is not a filter.
+    class InlineScripts(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.scripts = []
+            self._chunks = None
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "script" and "src" not in dict(attrs):
+                self._chunks = []
+
+        def handle_endtag(self, tag):
+            if tag == "script" and self._chunks is not None:
+                self.scripts.append("".join(self._chunks))
+                self._chunks = None
+
+        def handle_data(self, data):
+            if self._chunks is not None:
+                self._chunks.append(data)
+
     html = (SITE / "index.html").read_text(encoding="utf-8")
-    for script in re.findall(r"<script>(.*?)</script>", html, re.S):
+    parser = InlineScripts()
+    parser.feed(html)
+    parser.close()
+    assert parser.scripts, "the site should include an inline script"
+    for script in parser.scripts:
         code = "\n".join(line for line in script.splitlines() if not line.strip().startswith("//"))
         assert code.strip().startswith("(function"), "wrap inline scripts in a function"
 

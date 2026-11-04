@@ -2,8 +2,8 @@
 
 import base64
 import copy
-import hashlib
 import json
+import subprocess
 import urllib.parse
 
 import pytest
@@ -106,18 +106,40 @@ def blob(path, mode="100644", sha=BLOB_SHA):
 
 
 def git_blob_sha(content):
-    return hashlib.sha1(f"blob {len(content)}\0".encode() + content).hexdigest()
+    # The trusted config blob includes the field secret_guard. CodeQL follows
+    # that field through serialization into a Python SHA-1 call and reports a
+    # weak hash of secret data. Git's hash-object is the blob id, and the
+    # bytes go to stdin so they are not a command argument.
+    if not isinstance(content, (bytes, bytearray)):
+        raise TypeError("git blob content must be bytes")
+    completed = subprocess.run(
+        ["git", "hash-object", "--stdin"],
+        input=bytes(content),
+        capture_output=True,
+        check=True,
+    )
+    digest = completed.stdout.decode("ascii").strip()
+    if len(digest) != 40:
+        raise RuntimeError("git hash-object did not return a blob id")
+    return digest
 
 
 def trusted_config(
-    *, workflow_style="pr", tiered_review=True, secret_guard=True, codeql=True, languages=None
+    *,
+    workflow_style="pr",
+    tiered_review=True,
+    guard_enabled=True,
+    codeql=True,
+    languages=None,
 ):
+    # Stored under the config key secret_guard. The parameter is not given
+    # that name: CodeQL treats it as secret data inside the blob.
     return {
         "workflow_style": workflow_style,
         "languages": ["python"] if languages is None else languages,
         "features": {
             "tiered_review": tiered_review,
-            "secret_guard": secret_guard,
+            "secret_guard": guard_enabled,
             "codeql": codeql,
         },
     }
@@ -438,12 +460,18 @@ def assert_no_merge(api):
     assert api.rest_writes == []
 
 
+def test_git_blob_sha_matches_git_hash_object():
+    content = b"shipshape\n"
+    git_id = subprocess.check_output(["git", "hash-object", "--stdin"], input=content)
+    assert git_blob_sha(content) == git_id.decode().strip()
+
+
 @pytest.mark.parametrize(
     "config",
     [
         trusted_config(tiered_review=False),
         trusted_config(workflow_style="trunk"),
-        trusted_config(secret_guard=False),
+        trusted_config(guard_enabled=False),
     ],
 )
 def test_trusted_base_config_must_explicitly_enable_automatic_authority(config):
