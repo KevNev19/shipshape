@@ -138,7 +138,7 @@ yes anyway.
 | `$shipshape-doctor` | Read-only health check: problems first, then one next step. |
 | `$shipshape-review` | Plain-words review of any change (code, spec, plan or docs) with a clear verdict, flagging weakened tests. Runs your project's own checks on local work, asking first on a branch someone else wrote; never merges or approves. |
 | `$shipshape-release` | Checks your tests passed, suggests a version, publishes on your yes. |
-| `$shipshape-access` | "Give Sam access" becomes the exact GitHub command, shown first. |
+| `$shipshape-access` | "Give Sam access" becomes the exact GitHub command, shown first. When the project board is on, Sam is invited to the board too if repository access does not already cover it. |
 | `$shipshape-customize` | Change anything off the defaults; only affected files regenerate. |
 | `$shipshape-intent` | Records what a bigger change is for and how you'll know it worked. |
 | `$shipshape-orchestrate` | Coordinate a bounded change through the worker runtime for the current host. |
@@ -192,7 +192,7 @@ regenerates only what's affected and leaves your edits alone.
 ## Under the hood
 
 For the curious: a stdlib-only Python engine (`detect.py` → `render.py` →
-`protection.py` → `doctor.py`), token-substitution templates with zero
+`protection.py` → `project_board.py` → `doctor.py`), token-substitution templates with zero
 template logic, frozen-fixture tests, and dated regression checks that keep
 fixed bugs from coming back. Decisions are recorded in
 [`docs/adr/`](docs/adr/). Run the whole pipeline against a scratch repo with
