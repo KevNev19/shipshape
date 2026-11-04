@@ -699,3 +699,45 @@ def test_both_doctors_do_not_echo_credential_like_config_or_hook_contents(tmp_pa
     assert plugin_code == rendered_code == 0
     assert marker not in json.dumps(plugin_payload)
     assert marker not in json.dumps(rendered_payload)
+
+
+def test_rendered_doctor_warns_when_test_quality_scanner_was_not_rendered(tmp_path):
+    repo = rendered_repo(tmp_path)
+    config_path = repo / ".sdlc/config.json"
+    config = json.loads(config_path.read_text())
+    config["features"]["test_quality"] = True
+    config_path.write_text(json.dumps(config))
+
+    code, payload = run_rendered_doctor(repo)
+    check = check_map(payload)["test quality"]
+    assert code == 0
+    assert check["status"] == "WARN"
+    assert "scanner script is missing" in check["detail"]
+
+
+def test_both_doctors_warn_when_rendered_test_quality_finds_an_empty_test(tmp_path):
+    repo = init_repo("repo-python", tmp_path, overrides=["features.test_quality=true"])
+    code, payload = run_script("render.py", "apply", repo)
+    assert code == 0, payload
+    assert (repo / ".sdlc/scripts/test_quality.py").is_file()
+    (repo / "tests" / "test_empty.py").write_text(
+        "def test_empty():\n    return None\n", encoding="utf-8"
+    )
+    config_path = repo / ".sdlc/config.json"
+    config = json.loads(config_path.read_text())
+    config["features"]["branch_protection"] = False
+    config_path.write_text(json.dumps(config))
+    subprocess.run(["git", "init", "-qb", "main"], cwd=repo, check=True)
+    hooks = repo / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    (hooks / "pre-commit").symlink_to("../../.sdlc/hooks/secret-guard.sh")
+
+    plugin_code, plugin_payload = run_script("doctor.py", repo)
+    rendered_code, rendered_payload = run_rendered_doctor(repo)
+    plugin_check = check_map(plugin_payload)["test quality"]
+    rendered_check = check_map(rendered_payload)["test quality"]
+
+    assert plugin_code == rendered_code == 0
+    assert plugin_check["status"] == rendered_check["status"] == "WARN"
+    assert "test_empty" in plugin_check["detail"]
+    assert plugin_check["detail"] == rendered_check["detail"]

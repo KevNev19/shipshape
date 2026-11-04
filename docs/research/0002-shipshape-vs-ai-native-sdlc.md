@@ -58,6 +58,14 @@ and [`templates/adapters/AGENTS.md.tmpl`](../../templates/adapters/AGENTS.md.tmp
 
 ### 1. Test quality is not sensed
 
+**2026-11-04 status.** Optional and off by default. `features.test_quality`
+makes doctor warn when a Python test has no recognized assertion. The warning
+never fails the scorecard and never blocks a merge. The same limits measured
+in [0003](0003-test-quality-precision-study.md) remain: helper-held assertions
+can be missed, and `assert True` still passes. Mutation testing is not part
+of this check; it stays an unstudied opt-in follow-up because it needs a
+non-stdlib tool and a measured runtime.
+
 **Gap.** The verification-centric lifecycle asks whether tests can detect a
 wrong implementation, not merely whether they execute lines. Shipshape has no
 integrated mutation score, coverage gate, or general test-quality sensor; its

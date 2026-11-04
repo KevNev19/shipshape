@@ -103,9 +103,11 @@ flake-DoS concern.
 
 ## Next steps
 
-1. Keep the current prototype kit-local and advisory. Do not turn it into a
-   full `test_quality` tool or a gate on this evidence.
+1. Keep the scanner advisory. A 2026-11-04 slice turns it on only when
+   `features.test_quality` is set, and doctor then warns instead of failing.
+   That is not a merge gate. Helper misses and meaningless assertions remain.
 2. Mutation-testing cost measurement (mutmut on a small real repo) is the
-   remaining unstudied half of open question 1.
+   remaining unstudied half of open question 1. It is not shipped: it is not
+   stdlib-only, and its runtime is unmeasured.
 3. The cost prototype needs the denominator change before any further
    piloting.
