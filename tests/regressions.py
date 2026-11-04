@@ -1249,6 +1249,75 @@ def test_remote_protection_failures_name_their_next_step() -> None:
     )
 
 
+def test_site_inline_script_is_parsed_not_matched_as_a_tag() -> None:
+    """2026-11-04: CodeQL py/bad-tag-filter flagged the site test's script-tag
+    regular expression. The test reads the site's own HTML; a tag-shaped
+    expression is the bad filter the query describes."""
+    source = (ROOT / "tests" / "test_site.py").read_text(encoding="utf-8")
+    assert "HTMLParser" in source
+    assert "<script>" not in source
+    assert "</script>" not in source
+    from tests import test_site
+
+    test_site.test_site_scripts_stay_out_of_global_scope()
+
+
+def test_git_blob_identifier_is_not_a_credential_hash() -> None:
+    """2026-11-04: CodeQL py/weak-sensitive-data-hashing flagged the test helper
+    that builds a git blob id. The config field secret_guard is serialized
+    into the blob, and CodeQL follows that field into hashlib.sha1. Marking
+    SHA-1 usedforsecurity=False and renaming the parameter did not remove the
+    flow. Git's hash-object computes the same id."""
+    import inspect
+
+    from tests.test_review_gates import git_blob_sha, trusted_config
+
+    content = b"shipshape\n"
+    git_id = subprocess.check_output(["git", "hash-object", "--stdin"], input=content, cwd=ROOT)
+    assert git_blob_sha(content) == git_id.decode().strip()
+    source = inspect.getsource(git_blob_sha)
+    assert "hashlib" not in source
+    assert "hash-object" in source
+    assert "secret_guard" not in inspect.signature(trusted_config).parameters
+
+
+def test_weekly_report_names_a_denied_secret_scan_and_one_issue() -> None:
+    """2026-11-04: the weekly security report opened a new issue every Monday
+    and recorded Dependabot and secret-scanning failures as a bare API error,
+    so the open reports could not say what was missing."""
+    from scripts import security_report
+
+    workflow = (ROOT / ".github" / "workflows" / "security-quality-report.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "vulnerability-alerts: read" in workflow
+    assert 'title="Security & quality report"' in workflow
+    assert "gh issue edit" in workflow
+    assert "Security & quality report $(date" not in workflow
+
+    class Api:
+        def get(self, path):
+            if path.endswith("secret-scanning/alerts?state=open&per_page=100&page=1"):
+                raise security_report.CollectionError("denied", access_denied=True)
+            if path == "repos/example/project":
+                return {"full_name": "example/project", "default_branch": "main"}
+            if "actions/runs" in path:
+                return {"workflow_runs": [], "total_count": 0}
+            return []
+
+    with tempfile.TemporaryDirectory() as tmp:
+        report = security_report.collect_report(
+            Api(),
+            "example/project",
+            Path(tmp),
+            assignment_status="manual_handoff",
+        )
+    section = report["raw_collection"]["sections"]["secret_scanning"]
+    assert section["error"] == "GitHub API access was denied"
+    assert "ACTIONS_PAT" in report["body"]
+    assert "Collection unavailable" in report["body"]
+
+
 def test_wrapped_code_and_quoted_skips_are_read_as_written() -> None:
     """2026-10-18: over its own history the integrity check reported a skip in
     a new test whose signature wrapped, an assertion rewritten into a wrapped
@@ -1545,6 +1614,18 @@ def main() -> int:
         (
             "wrapped code and quoted skips are read as written",
             test_wrapped_code_and_quoted_skips_are_read_as_written,
+        ),
+        (
+            "site inline script is parsed not matched as a tag",
+            test_site_inline_script_is_parsed_not_matched_as_a_tag,
+        ),
+        (
+            "git blob identifier is not a credential hash",
+            test_git_blob_identifier_is_not_a_credential_hash,
+        ),
+        (
+            "weekly report names a denied secret scan and one issue",
+            test_weekly_report_names_a_denied_secret_scan_and_one_issue,
         ),
     ]
     failures = 0
