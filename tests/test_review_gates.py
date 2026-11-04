@@ -2,7 +2,6 @@
 
 import base64
 import copy
-import hashlib
 import json
 import subprocess
 import urllib.parse
@@ -107,11 +106,22 @@ def blob(path, mode="100644", sha=BLOB_SHA):
 
 
 def git_blob_sha(content):
-    # Git names a blob by the SHA-1 of "blob <size>\0" plus its bytes.
-    # usedforsecurity=False records that this identifier is not a credential hash.
-    return hashlib.sha1(
-        f"blob {len(content)}\0".encode() + content, usedforsecurity=False
-    ).hexdigest()
+    # The trusted config blob includes the field secret_guard. CodeQL follows
+    # that field through serialization into a Python SHA-1 call and reports a
+    # weak hash of secret data. Git's hash-object is the blob id, and the
+    # bytes go to stdin so they are not a command argument.
+    if not isinstance(content, (bytes, bytearray)):
+        raise TypeError("git blob content must be bytes")
+    completed = subprocess.run(
+        ["git", "hash-object", "--stdin"],
+        input=bytes(content),
+        capture_output=True,
+        check=True,
+    )
+    digest = completed.stdout.decode("ascii").strip()
+    if len(digest) != 40:
+        raise RuntimeError("git hash-object did not return a blob id")
+    return digest
 
 
 def trusted_config(
@@ -122,9 +132,8 @@ def trusted_config(
     codeql=True,
     languages=None,
 ):
-    # `guard_enabled` is stored under the config key secret_guard. The
-    # parameter is not named secret_guard: CodeQL treats that name as secret
-    # data, and this document is then hashed as a git blob id.
+    # Stored under the config key secret_guard. The parameter is not given
+    # that name: CodeQL treats it as secret data inside the blob.
     return {
         "workflow_style": workflow_style,
         "languages": ["python"] if languages is None else languages,

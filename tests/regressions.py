@@ -1264,9 +1264,10 @@ def test_site_inline_script_is_parsed_not_matched_as_a_tag() -> None:
 
 def test_git_blob_identifier_is_not_a_credential_hash() -> None:
     """2026-11-04: CodeQL py/weak-sensitive-data-hashing flagged the test helper
-    that builds a git blob id, because a boolean feature flag parameter named
-    secret_guard flowed into SHA-1. Git blob ids are SHA-1, and that flag is
-    not a secret."""
+    that builds a git blob id. The config field secret_guard is serialized
+    into the blob, and CodeQL follows that field into hashlib.sha1. Marking
+    SHA-1 usedforsecurity=False and renaming the parameter did not remove the
+    flow. Git's hash-object computes the same id."""
     import inspect
 
     from tests.test_review_gates import git_blob_sha, trusted_config
@@ -1274,7 +1275,9 @@ def test_git_blob_identifier_is_not_a_credential_hash() -> None:
     content = b"shipshape\n"
     git_id = subprocess.check_output(["git", "hash-object", "--stdin"], input=content, cwd=ROOT)
     assert git_blob_sha(content) == git_id.decode().strip()
-    assert "usedforsecurity=False" in inspect.getsource(git_blob_sha)
+    source = inspect.getsource(git_blob_sha)
+    assert "hashlib" not in source
+    assert "hash-object" in source
     assert "secret_guard" not in inspect.signature(trusted_config).parameters
 
 

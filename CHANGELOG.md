@@ -15,10 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CodeQL no longer sees a bad HTML-tag filter in the site test. The test
   reads the site's inline scripts with the HTML parser.
-- CodeQL no longer sees the git blob id in the review-gate tests as a weak
-  hash of secret data. The id is still Git's SHA-1, marked
-  `usedforsecurity=False`, and the boolean feature flag that flowed into it
-  is no longer named like a secret.
+- The review-gate tests ask `git hash-object` for a blob id. The config
+  field `secret_guard` is part of that blob, and hashing those bytes with
+  `hashlib.sha1` is the weak-hash finding.
 - The weekly security and quality report reads Dependabot alerts with the
   workflow token (`vulnerability-alerts: read`). Secret scanning still needs
   `ACTIONS_PAT`, and a denial now says so instead of a bare API failure.
