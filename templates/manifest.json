@@ -311,6 +311,13 @@
       "overwrite_policy": "ask-if-drifted"
     },
     {
+      "src": "docs/progressive-delivery.md.tmpl",
+      "dest": "docs/sdlc/progressive-delivery.md",
+      "feature_flag": "progressive_delivery",
+      "pillar": "release",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
       "src": "github/PULL_REQUEST_TEMPLATE.md.tmpl",
       "dest": ".github/PULL_REQUEST_TEMPLATE.md",
       "when": { "workflow_style": "pr" },

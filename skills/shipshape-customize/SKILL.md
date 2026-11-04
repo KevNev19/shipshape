@@ -8,6 +8,8 @@ description: Change how this repository's SDLC setup behaves — switch working 
 Edit `.sdlc/config.json` conversationally and re-render the affected files.
 Never hand-edit managed files to customize — change the config, regenerate.
 Follow [../shipshape-init/references/voice.md](../shipshape-init/references/voice.md).
+Before turning on progressive delivery, read
+[references/progressive-delivery.md](references/progressive-delivery.md).
 
 Use this entrypoint only when the user requests a Shipshape setup change.
 

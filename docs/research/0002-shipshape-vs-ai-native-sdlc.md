@@ -490,6 +490,14 @@ jargon.
 
 ### 12. Progressive delivery has no supported shape or evidence base
 
+**2026-11-04 status.** Optional and off by default.
+`features.progressive_delivery` renders `docs/sdlc/progressive-delivery.md`,
+a checklist for a feature flag and a canary. It states that the checklist
+follows pre-merge checks and does not replace them. No deploy workflow, no
+`deployment_platform` condition, and no rollback automation were added.
+Those still wait on a named first platform and controlled deployment
+evidence. `scripts/render.py` was not changed.
+
 **Gap.** No shipshape template expresses a flag, canary, health check,
 promotion, or rollback. The v0 lifecycle names runtime verification as a
 needed layer, but the kit ends at a tagged GitHub release.
