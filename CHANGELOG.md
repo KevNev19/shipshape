@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An optional GitHub Projects board (`features.project_board`, ADR 0014).
   It is off unless asked for. Setup only adds missing fields and open
   issues, and the weekly health job can place its issue on the board.
+- An optional commit label (`features.provenance_labels`). It checks a
+  self-declared `Agent-Assisted-By: Tool Name` line and still accepts a
+  commit that leaves the line off. The label is context, not a safety
+  check. Pull requests also ask an optional "How was this made?" question.
 
 ### Fixed
 

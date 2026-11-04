@@ -16,7 +16,8 @@
     "github_agents": true,
     "scheduled_health": true,
     "tiered_review": false,
-    "project_board": false
+    "project_board": false,
+    "provenance_labels": false
   },
   "commands": {
     "test": "",
