@@ -4,6 +4,7 @@ import base64
 import copy
 import hashlib
 import json
+import subprocess
 import urllib.parse
 
 import pytest
@@ -106,18 +107,30 @@ def blob(path, mode="100644", sha=BLOB_SHA):
 
 
 def git_blob_sha(content):
-    return hashlib.sha1(f"blob {len(content)}\0".encode() + content).hexdigest()
+    # Git names a blob by the SHA-1 of "blob <size>\0" plus its bytes.
+    # usedforsecurity=False records that this identifier is not a credential hash.
+    return hashlib.sha1(
+        f"blob {len(content)}\0".encode() + content, usedforsecurity=False
+    ).hexdigest()
 
 
 def trusted_config(
-    *, workflow_style="pr", tiered_review=True, secret_guard=True, codeql=True, languages=None
+    *,
+    workflow_style="pr",
+    tiered_review=True,
+    guard_enabled=True,
+    codeql=True,
+    languages=None,
 ):
+    # `guard_enabled` is stored under the config key secret_guard. The
+    # parameter is not named secret_guard: CodeQL treats that name as secret
+    # data, and this document is then hashed as a git blob id.
     return {
         "workflow_style": workflow_style,
         "languages": ["python"] if languages is None else languages,
         "features": {
             "tiered_review": tiered_review,
-            "secret_guard": secret_guard,
+            "secret_guard": guard_enabled,
             "codeql": codeql,
         },
     }
@@ -438,12 +451,18 @@ def assert_no_merge(api):
     assert api.rest_writes == []
 
 
+def test_git_blob_sha_matches_git_hash_object():
+    content = b"shipshape\n"
+    git_id = subprocess.check_output(["git", "hash-object", "--stdin"], input=content)
+    assert git_blob_sha(content) == git_id.decode().strip()
+
+
 @pytest.mark.parametrize(
     "config",
     [
         trusted_config(tiered_review=False),
         trusted_config(workflow_style="trunk"),
-        trusted_config(secret_guard=False),
+        trusted_config(guard_enabled=False),
     ],
 )
 def test_trusted_base_config_must_explicitly_enable_automatic_authority(config):

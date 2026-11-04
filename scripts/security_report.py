@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -19,16 +20,63 @@ MAX_PULL_REQUESTS = 1000
 ACTION_RUN_LIMIT = 20
 REPO_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 PERMISSIONS_RE = re.compile(r"(?m)^\s*permissions\s*:")
+DENIED_STATUS_RE = re.compile(r"\bHTTP\s+(?:401|403)\b|\"status\"\s*:\s*\"(?:401|403)\"")
+ACCESS_DENIED = "GitHub API access was denied"
+REQUEST_FAILED = "GitHub API request failed"
+# Fixed sentences. API response bodies are never copied into these notes.
+ACCESS_NOTES = {
+    "codeql": "Code scanning alerts need security-events: read on the workflow token.",
+    "dependabot": (
+        "Dependabot alerts need vulnerability-alerts: read on the workflow token. "
+        "This workflow sets that permission. A denial means the repository or "
+        "organization Actions policy is blocking it."
+    ),
+    "secret_scanning": (
+        "The default Actions token cannot read secret-scanning alerts. "
+        "Set the ACTIONS_PAT repository secret to a personal access token owned "
+        "by a repository administrator. A classic token needs the repo scope "
+        "(security_events is enough for this read on a public repository). "
+        "A fine-grained token needs Secret scanning alerts set to Read. "
+        "The same secret assigns the security-quality agent when its owner has Copilot."
+    ),
+    "actions": "Actions run history needs actions: read on the workflow token.",
+    "pull_requests": "Open pull requests need the workflow token to read this repository.",
+}
 
 
 class CollectionError(RuntimeError):
     """A bounded evidence source was unavailable or malformed."""
+
+    def __init__(self, message: str, *, access_denied: bool = False):
+        super().__init__(message)
+        self.access_denied = access_denied
+
+
+def _response_denied(stdout: str, stderr: str) -> bool:
+    """True when gh reported HTTP 401 or 403. The response text is not kept."""
+    return bool(DENIED_STATUS_RE.search(stdout) or DENIED_STATUS_RE.search(stderr))
+
+
+def _failure_message(error: BaseException) -> str:
+    if isinstance(error, CollectionError) and error.access_denied:
+        return ACCESS_DENIED
+    return REQUEST_FAILED
 
 
 class GitHubClient:
     """Small JSON adapter for read-only GitHub API calls."""
 
     def get(self, path: str):
+        # Secret scanning is the one read the workflow token cannot do.
+        # ACTIONS_PAT is passed only on that path, and only through the child
+        # environment, never on the command line.
+        env = None
+        if "/secret-scanning/alerts" in path:
+            token = os.environ.get("ACTIONS_PAT", "")
+            if isinstance(token, str) and token.strip():
+                env = os.environ.copy()
+                env["GH_TOKEN"] = token
+                env["GITHUB_TOKEN"] = token
         try:
             process = subprocess.run(
                 [
@@ -43,11 +91,14 @@ class GitHubClient:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                env=env,
             )
         except (OSError, subprocess.TimeoutExpired) as error:
             raise CollectionError("GitHub API command was unavailable or timed out") from error
         if process.returncode != 0:
-            raise CollectionError("GitHub API request failed")
+            if _response_denied(process.stdout or "", process.stderr or ""):
+                raise CollectionError(ACCESS_DENIED, access_denied=True)
+            raise CollectionError(REQUEST_FAILED)
         try:
             return json.loads(process.stdout)
         except json.JSONDecodeError as error:
@@ -150,8 +201,8 @@ def _collect_pages(
         path = f"{base_path}&per_page={page_size}&page={page}"
         try:
             batch = api.get(path)
-        except (CollectionError, KeyError):
-            return _failed(items, "GitHub API request failed")
+        except (CollectionError, KeyError) as error:
+            return _failed(items, _failure_message(error))
         if not isinstance(batch, list) or len(batch) > page_size:
             return _failed(items, "GitHub API pagination was malformed")
         if not all(isinstance(item, dict) for item in batch):
@@ -215,11 +266,11 @@ def _action_result(
 def _collect_action_runs(api, path: str) -> dict:
     try:
         payload = api.get(path)
-    except (CollectionError, KeyError):
+    except (CollectionError, KeyError) as error:
         return _action_result(
             [],
             status="unavailable",
-            error="GitHub API request failed",
+            error=_failure_message(error),
             total_count=None,
             window_complete=None,
             history_complete=None,
@@ -339,7 +390,7 @@ def _inspect_permission_declarations(root: Path) -> dict:
     }
 
 
-def _render_items(section: dict, formatter) -> list[str]:
+def _render_items(section: dict, formatter, *, access_note: str | None = None) -> list[str]:
     lines = [formatter(item) for item in section["items"]]
     if section["status"] == "complete" and not lines:
         return ["- None reported by the API."]
@@ -348,6 +399,8 @@ def _render_items(section: dict, formatter) -> list[str]:
         lines.append(
             f"- {prefix}: {_safe_text(section['error'])}. No absence inference can be made."
         )
+        if section["error"] == ACCESS_DENIED and access_note:
+            lines.append(f"- {access_note}")
     return lines
 
 
@@ -399,7 +452,13 @@ def _assignment(assignment_status: str) -> dict:
     if assignment_status == "requested":
         detail = "agent assignment will be attempted; assignment is not a completed review"
     elif assignment_status == "manual_handoff":
-        detail = "no assignable agent is proven; manual handoff is required"
+        detail = (
+            "no agent was assigned. Set ACTIONS_PAT to a personal access token for a "
+            "repository administrator who has Copilot (classic repo scope, or a "
+            "fine-grained token with Issues, Contents, and Pull requests read and write), "
+            "or hand this issue to the security-quality agent manually. "
+            "Assignment is not a completed review"
+        )
     else:
         detail = "agent assignment was not requested"
     return {"status": assignment_status, "detail": detail}
@@ -411,6 +470,9 @@ def _render_body(repo: str, gathered_on: date, default_branch: str, report: dict
     lines = [
         f"Weekly security and quality data for {repo}, gathered {gathered_on.isoformat()}.",
         "",
+        'The workflow keeps one open issue titled "Security & quality report" and '
+        "replaces this body each week. It does not close that issue.",
+        "",
         "Agent: read `.github/agents/security-quality.md` for the review briefing.",
         "",
         "## Collection status",
@@ -418,23 +480,31 @@ def _render_body(repo: str, gathered_on: date, default_branch: str, report: dict
         f"- Raw collection: {report['raw_collection']['status']}",
         "- Inference: not_run",
         "- Review: not_run",
+        "- Inference and review stay not_run until the security-quality agent writes "
+        "the report. They are not steps in this collection.",
         f"- Agent assignment: {assignment['status']} — {assignment['detail']}.",
         "",
         "## CodeQL alerts (open)",
         "",
-        *_render_items(sections["codeql"], _codeql_line),
+        *_render_items(sections["codeql"], _codeql_line, access_note=ACCESS_NOTES["codeql"]),
         "",
         "## Dependabot alerts (open)",
         "",
-        *_render_items(sections["dependabot"], _dependabot_line),
+        *_render_items(
+            sections["dependabot"], _dependabot_line, access_note=ACCESS_NOTES["dependabot"]
+        ),
         "",
         "## Secret scanning alerts (open)",
         "",
-        *_render_items(sections["secret_scanning"], _secret_line),
+        *_render_items(
+            sections["secret_scanning"],
+            _secret_line,
+            access_note=ACCESS_NOTES["secret_scanning"],
+        ),
         "",
         f"## CI health (last {ACTION_RUN_LIMIT} runs on `{default_branch}`)",
         "",
-        *_render_items(sections["actions"], _run_line),
+        *_render_items(sections["actions"], _run_line, access_note=ACCESS_NOTES["actions"]),
     ]
     actions = sections["actions"]
     action_history = actions["history"]
@@ -483,7 +553,11 @@ def _render_body(repo: str, gathered_on: date, default_branch: str, report: dict
             "",
             "## Open pull requests",
             "",
-            *_render_items(sections["pull_requests"], _pull_line),
+            *_render_items(
+                sections["pull_requests"],
+                _pull_line,
+                access_note=ACCESS_NOTES["pull_requests"],
+            ),
             "",
         ]
     )
