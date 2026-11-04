@@ -305,6 +305,54 @@ def test_verification_cost_window_follows_the_given_clock() -> None:
     ], search_queries
 
 
+def test_verification_cost_counts_default_branch_commits() -> None:
+    """2026-11-04: minutes per merged pull request overstated cost on trunk
+    repos, because most changes land as direct pushes. Guard: landed changes
+    are commits on the default branch, and a missing commit list stays
+    unknown instead of zero."""
+    from scripts import verification_cost
+
+    original_fetch = verification_cost.fetch_json
+    original_token = os.environ.get("GITHUB_TOKEN")
+
+    def fake_fetch(path: str):
+        if path == "repos/example/project":
+            return {"default_branch": "main"}
+        if "/commits?" in path:
+            return [{"sha": "1"}, {"sha": "2"}, {"sha": "3"}, {"sha": "4"}]
+        if path.startswith("repos/"):
+            return {
+                "workflow_runs": [
+                    {
+                        "run_attempt": 1,
+                        "run_started_at": "2026-08-12T10:00:00Z",
+                        "updated_at": "2026-08-12T10:10:00Z",
+                    }
+                ]
+            }
+        return {"total_count": 0}
+
+    try:
+        os.environ["GITHUB_TOKEN"] = "regression-token"
+        verification_cost.fetch_json = fake_fetch
+        result = verification_cost.summarize(
+            "example/project", 30, now=datetime(2026, 8, 20, tzinfo=timezone.utc)
+        )
+    finally:
+        verification_cost.fetch_json = original_fetch
+        if original_token is None:
+            os.environ.pop("GITHUB_TOKEN", None)
+        else:
+            os.environ["GITHUB_TOKEN"] = original_token
+
+    assert result["minutes"] == 10, result
+    assert result["merged_changes"] == 0, result
+    assert result["minutes_per_merge"] is None, result
+    assert result["landed_changes"] == 4, result
+    assert result["minutes_per_landed_change"] == 2.5, result
+    assert result["estimated_cost"] == {"status": "unknown", "currency": None, "amount": None}
+
+
 def test_automatic_merge_rejects_nested_and_renamed_controls() -> None:
     """2026-09-09: nested controls and a rename away from a control path were
     classified from only the destination basename and became auto-mergeable;
@@ -1289,6 +1337,10 @@ def main() -> int:
         (
             "verification-cost window follows the given clock",
             test_verification_cost_window_follows_the_given_clock,
+        ),
+        (
+            "verification cost counts default-branch commits",
+            test_verification_cost_counts_default_branch_commits,
         ),
         (
             "automatic merge rejects nested and renamed controls",

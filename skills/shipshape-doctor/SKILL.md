@@ -61,3 +61,32 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
   not ordinary drift.
 - Don't dump the raw JSON; translate it.
 - Don't invent checks the script didn't run.
+
+## Costs
+
+Run this only when the user asks what verification cost, how much CI used,
+or says "shipshape doctor costs". Do not run it during an ordinary health
+check: it needs `GITHUB_TOKEN` and it calls GitHub.
+
+Read `repo.owner_repo` from `.sdlc/config.json`. If that value is empty, ask
+which `owner/repo` to summarize and stop.
+
+```bash
+python3 "${SHIPSHAPE_ROOT}/scripts/verification_cost.py" summarize <owner/repo> --days 30
+```
+
+Translate the JSON before any raw detail. Say the window, the number of
+runs, attempts, retried runs, and minutes. When `landed_changes` is a
+number, say minutes per landed change. Landed changes are commits that
+reached the default branch, including direct pushes. `merged_changes` counts
+merged pull requests only, so it undercounts a repository that pushes
+straight to its main branch. Do not add those two counts together.
+
+`estimated_cost.status` stays `unknown` unless the JSON says otherwise.
+Never invent a price, a currency, or a budget.
+
+If `retried_runs` is greater than zero, say a retry makes a green result
+harder to trust. End with the JSON `next_action` as the one next step.
+
+Completion criterion: the user heard the counts, whether money is unknown,
+and one next action.
