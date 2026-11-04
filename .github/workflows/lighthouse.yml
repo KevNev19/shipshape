@@ -1,6 +1,7 @@
 # Checks the marketing site on pull requests. Serves site/ locally and
 # fails the job if performance, accessibility, best practices or layout
-# shift drop below the budgets in lighthouserc.json. The collect server is
+# shift drop below the budgets in lighthouserc.json. The worst of the
+# three runs is what counts. The collect server is
 # plain HTTP, so the HTTPS audit is turned off there; GitHub Pages serves
 # the deployed site over HTTPS.
 name: Lighthouse

@@ -139,6 +139,12 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
     script = html.split('id="launch-video"', 1)[1]
     assert "prefers-reduced-motion" in script
     assert "IntersectionObserver" in script
+    # Play and pause the page starts are counted apart, so one cannot clear the other.
+    assert "scriptPlays" in script
+    assert "scriptPauses" in script
+    assert "fromScript" not in script
+    # Leaving the screen pauses the film even after the visitor pressed play.
+    assert "if (userStarted) return" not in script
     captions = (SITE / "assets" / "video" / "launch.vtt").read_text(encoding="utf-8")
     assert captions.startswith("WEBVTT")
     assert "Sascha Ende" in captions
@@ -162,6 +168,7 @@ def test_lighthouse_ci_guards_site_changes():
     assert "contents: write" not in workflow
     assert "@lhci/cli@0.16.0" in workflow
     assert '"staticDistDir": "./site"' in config
+    assert '"aggregationMethod": "pessimistic"' in config
     for audit in (
         "categories:performance",
         "categories:accessibility",
