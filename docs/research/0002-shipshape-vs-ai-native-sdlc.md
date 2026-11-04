@@ -26,6 +26,8 @@ The unamended "Current state," proposal, and classification paragraphs below
 are the dated 2026-08-13 snapshot, not assertions about the checkout on
 2026-09-09. Gaps 1, 3, 5, and 6 carry explicit later evidence. The historical
 roadmap at the end records sequencing rationale rather than completed work.
+The status section dated 2026-11-04 records what was later verified in the
+tree or sliced in a follow-up change.
 
 ## What the research validates
 
@@ -640,6 +642,36 @@ assumptions. Prospective work below must still be verified independently.
 3. Revisit platform-specific progressive delivery only when controlled
    deployment evidence and a first supported target exist; it remains additive
    to pre-merge review.
+
+## Status as of 2026-11-04
+
+The lists above stay the 2026-08-13 plan. This table is the later check.
+"Slice" means a separate draft change, not a behavior already on `main` at
+the time of that check.
+
+| Gap | Status before the slices | What the slice does |
+| --- | --- | --- |
+| 1. Test quality | Kit-local assertion scan only. Not a consumer gate. | Opt-in `features.test_quality` doctor warning for Python tests with no recognized assertion. It does not fail a scorecard or block a merge. Mutation testing is not included. [PR 31](https://github.com/KevNev19/shipshape/pull/31) |
+| 2. Unknown is not healthy | Settled by ADR 0006. Scheduled doctor exists. | No further change. |
+| 3. Weekly security-quality sensor | Still kit-local. Not in the consumer manifest. | Left open. Shipping it still needs an eval of omitted alerts, invented findings, and token scope. Parallel work is already on the kit-local report. |
+| 4. Findings-first review | Settled by ADR 0007 and the finding contract. | No further change. |
+| 5. Control-path coverage | Settled by ADR 0010. The guard warns and blocks the named executable settings. | No further change. |
+| 6. Review authority | Settled by ADR 0010. Ordinary docs only, no persistent auto-merge grant. | No further change. |
+| 7. Durable change intent | Settled by ADR 0009. Four-field intent file and skill exist. | No further change. |
+| 8. Test-retry warning | Done. Doctor check `test retries` warns and never fails. | No further change. |
+| 9. Merge queue | Considered and rejected for this kit's audience. | No queue was added. |
+| 10. Verification cost | Invoke-only prototype. Merged pull requests were the only denominator, so trunk pushes were invisible. Money was already unknown. | Counts commits on the default branch as well, still does not guess a price, and `/shipshape-doctor` translates the summary only on request. [PR 32](https://github.com/KevNev19/shipshape/pull/32) |
+| 11. Provenance labels | Not shipped to consumers. | Opt-in `features.provenance_labels` commit trailer `Agent-Assisted-By: Tool Name`. Unlabeled commits still succeed. The label is not a safety check. Pull-request templates ask an optional "How was this made?" question. [PR 30](https://github.com/KevNev19/shipshape/pull/30) |
+| 12. Progressive delivery | No flag, canary, or rollback artifact. | Opt-in checklist page only. No deploy workflow and no platform setting. [PR 34](https://github.com/KevNev19/shipshape/pull/34) |
+| 13. Dead `project_board` switch | Removed from the default config. Doctor warns if an old config still has the key. | No further change. GitHub Projects support is separate work (issue 14). |
+| 14. Agent sandboxing guidance | Done. `templates/security/security-explainer.md.tmpl` has "When an AI tool works here." | No further change. The guidance does not claim the kit can enforce a sandbox. |
+
+Decisions still open, and not made by these slices:
+
+- Whether the weekly security-quality report should be rendered for consumers after an eval.
+- Whether assertion-free warnings should ever block a merge, and whether mutation testing is worth its runtime.
+- Which hosting platform, if any, should get a deploy and rollback workflow.
+- Whether the optional provenance label is worth keeping once someone measures its audit value.
 
 ## ADR questions from the 2026-08-13 snapshot
 
