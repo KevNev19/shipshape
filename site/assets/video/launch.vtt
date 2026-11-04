@@ -1,0 +1,18 @@
+WEBVTT
+
+NOTE Launch film. There is no speech. Music plays throughout.
+
+00:00.000 --> 00:02.800
+[Music: Happy Beats / Business Moves vol. 12 by Sascha Ende. No speech.] Signal flags hoist to spell SHIPSHAPE.
+
+00:02.800 --> 00:05.400
+The word itself, in the International Code of Signals. Get your repository shipshape.
+
+00:05.400 --> 00:12.200
+A sample conversation. You run $shipshape-init. Shipshape confirms the project, shows a plan that leaves existing files alone, and after you say go ahead, writes the files and switches on the secret guard.
+
+00:12.200 --> 00:16.800
+On watch. Security is the centre of the kit, not an add-on. The watch bill lists the secret guard, CI, the secret scan, CodeQL and the Wednesday health check.
+
+00:16.800 --> 00:23.000
+shipshape. Set up in one conversation, in plain English. A plugin for Codex and Claude Code, MIT licensed. /plugin marketplace add KevNev19/shipshape.

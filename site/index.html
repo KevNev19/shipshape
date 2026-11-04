@@ -18,6 +18,11 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Signal flags spelling SHIPSHAPE beside the words: get your repository shipshape.">
+<meta property="og:video" content="https://kevnev19.github.io/shipshape/assets/video/launch.mp4">
+<meta property="og:video:secure_url" content="https://kevnev19.github.io/shipshape/assets/video/launch.mp4">
+<meta property="og:video:type" content="video/mp4">
+<meta property="og:video:width" content="1920">
+<meta property="og:video:height" content="1080">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="assets/fonts/big-shoulders-stencil-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/atkinson-hyperlegible-next.woff2" as="font" type="font/woff2" crossorigin>
@@ -76,6 +81,7 @@
       <svg aria-hidden="true"><use href="#anchor"/></svg>shipshape
     </a>
     <nav class="topnav" aria-label="Sections">
+      <a href="#launch">Watch</a>
       <a href="#how">How it works</a>
       <a href="#watch">On watch</a>
       <a href="#commands">Commands</a>
@@ -120,7 +126,7 @@
             </div>
           </div>
         </div>
-        <p class="promise"><a href="#install">Full install steps</a> · <a href="https://github.com/KevNev19/shipshape">Read the source on GitHub</a></p>
+        <p class="promise"><a href="#install">Full install steps</a> · <a href="#launch">Watch the launch</a> · <a href="https://github.com/KevNev19/shipshape">Read the source on GitHub</a></p>
         <p class="promise">No expertise required · Nothing replaced without your yes · Everything explained</p>
       </div>
 
@@ -137,6 +143,41 @@
           <li><svg viewBox="0 0 60 40" aria-hidden="true"><use href="#flag-e"/></svg><span class="letter">E</span></li>
         </ol>
         <figcaption>The word itself, in the International Code of Signals.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="launch" aria-labelledby="launch-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">Watch</p>
+        <h2 id="launch-title">The launch</h2>
+        <p class="lead">Introducing shipshape: a proper software delivery process for any repository, set up in one conversation, in plain English. A plugin for Codex and Claude Code that switches on CI, a secret guard, CodeQL, Dependabot and a weekly health check, and changes nothing before you've seen the preview.</p>
+      </header>
+
+      <figure class="film">
+        <div class="film-frame">
+          <video
+            id="launch-video"
+            controls
+            playsinline
+            loop
+            muted
+            preload="metadata"
+            poster="assets/video/launch-poster.jpg"
+            width="1920"
+            height="1080"
+            aria-describedby="launch-description launch-credit"
+          >
+            <source src="assets/video/launch.webm" type="video/webm">
+            <source src="assets/video/launch.mp4" type="video/mp4">
+            <track kind="captions" src="assets/video/launch.vtt" srclang="en" label="English">
+          </video>
+        </div>
+        <figcaption>
+          <p id="launch-description">The film has no speech. Signal flags hoist to spell SHIPSHAPE, then a sample conversation sets the repository up and leaves existing files alone. The watch bill follows: secret guard, CI, secret scan, CodeQL and the Wednesday health check. It ends on the install line for Codex and Claude Code.</p>
+          <p class="credit" id="launch-credit">Music: Happy Beats / Business Moves vol. 12 by <a href="https://ende.app">Sascha Ende</a> (ende.app), <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Sound effects by <a href="https://kenney.nl">Kenney</a>, CC0.</p>
+        </figcaption>
       </figure>
     </div>
   </section>
@@ -523,6 +564,73 @@
         }
       });
     });
+  })();
+</script>
+<script>
+  // Play the launch film only while it is on screen and the visitor has
+  // not asked for reduced motion. Otherwise leave the poster, and leave
+  // play, pause, sound and fullscreen to the native controls.
+  (function () {
+    var video = document.getElementById("launch-video");
+    if (!video || !("IntersectionObserver" in window)) return;
+
+    var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    var onScreen = false;
+    var userPaused = false;
+    var userStarted = false;
+    var fromScript = false;
+
+    var motionOk = function () {
+      return !motion.matches;
+    };
+    var pauseFromScript = function () {
+      if (video.paused) return;
+      fromScript = true;
+      video.pause();
+    };
+    var playFromScript = function () {
+      if (!video.paused) return;
+      fromScript = true;
+      var pending = video.play();
+      if (pending && pending.catch) {
+        pending.catch(function () { fromScript = false; });
+      }
+    };
+
+    video.addEventListener("pause", function () {
+      if (fromScript) {
+        fromScript = false;
+        return;
+      }
+      userPaused = true;
+      userStarted = false;
+    });
+    video.addEventListener("play", function () {
+      if (fromScript) {
+        fromScript = false;
+        return;
+      }
+      userPaused = false;
+      userStarted = true;
+    });
+
+    var sync = function () {
+      if (userStarted) return;
+      if (motionOk() && onScreen && !userPaused) playFromScript();
+      else pauseFromScript();
+    };
+
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        onScreen = entry.isIntersecting && entry.intersectionRatio >= 0.6;
+        sync();
+      });
+    }, { threshold: [0, 0.6] });
+    observer.observe(video);
+
+    var onMotionChange = function () { sync(); };
+    if (motion.addEventListener) motion.addEventListener("change", onMotionChange);
+    else if (motion.addListener) motion.addListener(onMotionChange);
   })();
 </script>
 </body>
