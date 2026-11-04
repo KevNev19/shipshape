@@ -68,6 +68,7 @@ NODE_MANAGER_LOCKFILES = {
     "yarn": {"yarn.lock"},
     "bun": {"bun.lock", "bun.lockb"},
 }
+LOGIN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
 CONFIG_DEST = ".sdlc/config.json"
 STATE_DEST = ".sdlc/state.json"
 PLAN_DIGEST_SCHEMA = 1
@@ -351,9 +352,29 @@ def validate_config(config) -> list[str]:
         problems.append("owners.default must be a string")
     if "owner_repo" in repository and not isinstance(repository["owner_repo"], str):
         problems.append("repo.owner_repo must be a string")
+    problems.extend(validate_project_config(config))
     if problems:
         return problems
     return validate_node_manager_config(config)
+
+
+def validate_project_config(config: dict) -> list[str]:
+    if "project" not in config:
+        return []
+    project = config["project"]
+    if not isinstance(project, dict):
+        return ["project must be an object"]
+    problems = []
+    number = project.get("number")
+    owner = project.get("owner")
+    title = project.get("title")
+    if type(number) is not int or number < 1:
+        problems.append("project.number must be a positive integer")
+    if not isinstance(owner, str) or LOGIN_RE.fullmatch(owner) is None:
+        problems.append("project.owner must be a GitHub login")
+    if not isinstance(title, str) or not title.strip() or any(char in title for char in "\r\n"):
+        problems.append("project.title must be a single line of text")
+    return problems
 
 
 def validate_detection(detected) -> list[str]:
@@ -592,6 +613,9 @@ def entry_applies(entry: dict, config: dict) -> bool:
     # Derived conditions: collaboration = anyone besides the owner is involved.
     collaboration = config.get("profile") == "team" or config.get("workflow_style") == "pr"
     has_owner = bool(config.get("owners", {}).get("default"))
+    features = config.get("features", {})
+    if not isinstance(features, dict):
+        features = {}
     for key, expected in entry.get("when", {}).items():
         if key == "primary_language" and primary != expected:
             return False
@@ -608,6 +632,12 @@ def entry_applies(entry: dict, config: dict) -> bool:
         if key == "collaboration" and collaboration != expected:
             return False
         if key == "has_owner" and has_owner != expected:
+            return False
+        if key == "feature_on" and (
+            not isinstance(expected, str) or features.get(expected) is not True
+        ):
+            return False
+        if key == "feature_off" and isinstance(expected, str) and features.get(expected) is True:
             return False
     return True
 

@@ -120,6 +120,15 @@
       "src": "github/workflows/shipshape-doctor.yml.tmpl",
       "dest": ".github/workflows/shipshape-doctor.yml",
       "feature_flag": "scheduled_health",
+      "when": { "feature_off": "project_board" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/shipshape-doctor-project.yml.tmpl",
+      "dest": ".github/workflows/shipshape-doctor.yml",
+      "feature_flag": "scheduled_health",
+      "when": { "feature_on": "project_board" },
       "pillar": "workflows",
       "overwrite_policy": "ask-if-drifted"
     },
