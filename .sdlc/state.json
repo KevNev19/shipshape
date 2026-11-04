@@ -57,7 +57,7 @@
     ".sdlc/hooks/install.sh": {
       "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "af95459ea105bd50f699606fa8cec3766a883f38999b7e3f196ad2aa26c4c010",
+      "sha256": "8bd0fe38ddeef974870590fa0f70b59f6c28e447aa1c448cb87facd8b137dbfb",
       "template": "hooks/install.sh.tmpl"
     },
     ".sdlc/hooks/secret-guard.sh": {
@@ -75,7 +75,7 @@
     ".sdlc/scripts/doctor.py": {
       "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "69f7795f5222c0bd2ead608bcaab9e38284adf9d27cafd521c2f8f3d81797ec9",
+      "sha256": "b3be469db1b1a8915292e85254ade0511df1323ad592b1efad857ae82131d93c",
       "template": "scripts/doctor.py.tmpl"
     },
     ".sdlc/scripts/release-preflight.py": {
@@ -115,7 +115,7 @@
     "docs/sdlc/glossary.md": {
       "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "ad1a32e2efc358bf3626762f73070811cc54b576c70ebbe7ff8e281bcee04f64",
+      "sha256": "ecf919e656cadb45b03613eb4d40889a3b86495c6423d6f8dbd83b4bfeafb87d",
       "template": "docs/glossary.md.tmpl"
     },
     "docs/sdlc/harness.md": {

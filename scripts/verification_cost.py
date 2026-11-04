@@ -9,6 +9,7 @@ unknown. Uses only the standard library and emits one JSON object on stdout.
 
 import json
 import os
+import re
 import sys
 import urllib.parse
 import urllib.request
@@ -42,10 +43,49 @@ def _failure(days: int, action: str) -> dict:
         "minutes": 0,
         "merged_changes": 0,
         "minutes_per_merge": None,
+        "landed_changes": None,
+        "minutes_per_landed_change": None,
         "estimated_cost": {"status": "unknown", "currency": None, "amount": None},
         "warnings": [],
         "next_action": action,
     }
+
+
+def _landed_changes(repo: str, since_text: str, warnings: list[str]) -> int | None:
+    """Commits that reached the default branch. Unknown stays unknown.
+
+    Merged pull requests are not added on top: a merge commit is already one
+    of these commits, and a trunk push never becomes a merged pull request.
+    """
+    meta = fetch_json(f"repos/{repo}")
+    branch = meta.get("default_branch") if isinstance(meta, dict) else None
+    if (
+        not isinstance(branch, str)
+        or re.fullmatch(r"[A-Za-z0-9._/-]+", branch) is None
+        or ".." in branch.split("/")
+    ):
+        warnings.append(
+            "Default-branch commits could not be read; minutes per landed change stays unknown."
+        )
+        return None
+
+    quoted_branch = urllib.parse.quote(branch, safe="")
+    quoted_since = urllib.parse.quote(since_text, safe="")
+    count = 0
+    for page in range(1, 11):
+        data = fetch_json(
+            f"repos/{repo}/commits?sha={quoted_branch}&since={quoted_since}&per_page=100&page={page}"
+        )
+        if not isinstance(data, list):
+            warnings.append(
+                "Default-branch commits could not be read; minutes per landed change stays unknown."
+            )
+            return None
+        count += len(data)
+        if len(data) < 100:
+            return count
+    warnings.append("Default-branch commit history was truncated at 1000 commits.")
+    return count
 
 
 def summarize(repo: str, days: int, now: datetime | None = None) -> dict:
@@ -110,6 +150,7 @@ def summarize(repo: str, days: int, now: datetime | None = None) -> dict:
             warnings.append("A workflow run with incomplete timestamps was excluded from minutes.")
     minutes = round(seconds / 60)
     merged = search["total_count"]
+    landed = _landed_changes(repo, since_text, warnings)
     return {
         "ok": True,
         "window_days": days,
@@ -119,6 +160,8 @@ def summarize(repo: str, days: int, now: datetime | None = None) -> dict:
         "minutes": minutes,
         "merged_changes": merged,
         "minutes_per_merge": round(minutes / merged, 2) if merged else None,
+        "landed_changes": landed,
+        "minutes_per_landed_change": round(minutes / landed, 2) if landed else None,
         "estimated_cost": {"status": "unknown", "currency": None, "amount": None},
         "warnings": warnings,
         "next_action": "Review verification minutes and retries for avoidable CI work.",

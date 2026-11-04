@@ -34,8 +34,19 @@ from render import kit_version, load_json, load_state
 PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 RETRY_ACTIONS = ("nick-fields/retry", "nick-invision/retry", "wandalen/wretry.action")
 SHELL_LOOP_SCAN_LIMIT = 1000  # Bound naive matches to a nearby shell loop body.
-UNUSED_SETTING_MESSAGE = (
-    "Remove features.project_board; this setting has never changed what shipshape installs."
+PROJECT_BOARD_CREATE = "Run /shipshape-customize to create the board."
+PROJECT_BOARD_SCOPE_NEXT = "run `gh auth refresh -s project`"
+PROJECT_BOARD_SCOPE_DETAIL = (
+    "GitHub needs permission to manage Projects. Run `gh auth refresh -s project`."
+)
+PROJECT_BOARD_CONNECT = "Run /shipshape-customize to connect the health check to the board."
+PROJECT_LOGIN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
+PROJECT_SCOPE_MARKERS = (
+    "missing required scope",
+    "read:project",
+    "project scope",
+    "gh auth refresh",
+    "resource not accessible by integration",
 )
 TEST_RETRY_NEXT_ACTION = (
     "Remove the retry and fix or quarantine the flaky test so one green run means the test passed."
@@ -182,9 +193,122 @@ def find_test_retry_markers(text: str, test_command: str) -> list[str]:
 
 
 def unused_settings_check(config: dict) -> dict:
-    if "project_board" in config.get("features", {}):
-        return check("unused settings", WARN, UNUSED_SETTING_MESSAGE, UNUSED_SETTING_MESSAGE)
     return check("unused settings", PASS, "no unused settings")
+
+
+def project_identity(config: dict) -> tuple[str, int] | None:
+    project = config.get("project")
+    if not isinstance(project, dict):
+        return None
+    number = project.get("number")
+    owner = project.get("owner")
+    if type(number) is not int or number < 1:
+        return None
+    if not isinstance(owner, str) or PROJECT_LOGIN_RE.fullmatch(owner) is None:
+        return None
+    return owner, number
+
+
+def workflow_adds_doctor_issues(repo: Path) -> bool:
+    workflow = repo / ".github" / "workflows" / "shipshape-doctor.yml"
+    try:
+        info = workflow.lstat()
+    except (FileNotFoundError, OSError):
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        return False
+    try:
+        text = workflow.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return "projects: write" in text and "gh project item-add" in text
+
+
+def project_board_remote(owner: str, number: int) -> str:
+    try:
+        result = subprocess.run(
+            ["gh", "project", "view", str(number), "--owner", owner, "--format", "json"],
+            capture_output=True,
+            text=True,
+            timeout=GH_API_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return "unavailable"
+    if result.returncode == 0:
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return "unavailable"
+        if isinstance(payload, dict) and payload.get("number") == number:
+            return "ok"
+        return "unavailable"
+    blob = f"{result.stderr}\n{result.stdout}".casefold()
+    if any(marker in blob for marker in PROJECT_SCOPE_MARKERS):
+        return "scope"
+    if "could not resolve" in blob or "http 404" in blob or "not found" in blob:
+        return "missing"
+    return "unavailable"
+
+
+def project_board_check(repo: Path, config: dict) -> dict | None:
+    features = config.get("features", {})
+    if not isinstance(features, dict) or features.get("project_board") is not True:
+        return None
+    identity = project_identity(config)
+    if identity is None:
+        return check(
+            "project board",
+            WARN,
+            "the project board is turned on, but no board is linked yet",
+            PROJECT_BOARD_CREATE,
+        )
+    owner, number = identity
+    receives = workflow_adds_doctor_issues(repo)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        if not receives:
+            return check(
+                "project board",
+                WARN,
+                "the board number is recorded, but the weekly health check does not add its issue",
+                PROJECT_BOARD_CONNECT,
+            )
+        return check(
+            "project board",
+            PASS,
+            f"project #{number} is recorded and the health check is set to add its issue. "
+            "The built-in Actions token cannot re-check the live board.",
+        )
+    status = project_board_remote(owner, number)
+    if status == "scope":
+        return check("project board", WARN, PROJECT_BOARD_SCOPE_DETAIL, PROJECT_BOARD_SCOPE_NEXT)
+    if status == "missing":
+        return check(
+            "project board",
+            WARN,
+            f"project #{number} is recorded, but GitHub has no board with that number",
+            PROJECT_BOARD_CREATE,
+        )
+    if status != "ok":
+        return check(
+            "project board",
+            WARN,
+            "the linked board could not be checked because the GitHub command did not answer",
+            "Install and log in to GitHub's gh command, then run /shipshape-doctor again.",
+        )
+    if not receives:
+        return check(
+            "project board",
+            WARN,
+            f"project #{number} exists, but the weekly health check does not add its issue",
+            PROJECT_BOARD_CONNECT,
+        )
+    return check(
+        "project board",
+        PASS,
+        f"project #{number} exists and the health check is set to add its issue. "
+        "Setup inspection does not prove an item was added.",
+    )
 
 
 def test_retries_check(repo: Path, config: dict) -> dict:
@@ -895,6 +1019,9 @@ def setup_checks(repo: Path, config: dict, state: dict) -> list[dict]:
     checks.append(test_retries_check(repo, config))
     checks.append(test_quality_check(repo, config))
     checks.append(scheduled_health_check(repo, config.get("features", {})))
+    board = project_board_check(repo, config)
+    if board is not None:
+        checks.append(board)
 
     byte_drifted, mode_drifted, legacy_modes, missing, unverified = [], [], [], [], []
     for dest, record in state.get("files", {}).items():

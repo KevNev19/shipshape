@@ -695,7 +695,7 @@ def test_workflow_without_permissions_is_flagged(tmp_path):
     assert "deploy.yml" in check["detail"]
 
 
-def test_unused_project_board_setting_is_warn_not_fail(tmp_path):
+def test_project_board_off_is_not_an_unused_setting(tmp_path):
     repo = healthy_repo(tmp_path)
     config_path = repo / ".sdlc" / "config.json"
     config = json.loads(config_path.read_text())
@@ -704,16 +704,10 @@ def test_unused_project_board_setting_is_warn_not_fail(tmp_path):
 
     code, payload = run_script("doctor.py", repo)
     check = checks_by_name(payload, "setup")["unused settings"]
-    message = (
-        "Remove features.project_board; this setting has never changed what shipshape installs."
-    )
     assert code == 0
-    assert check == {
-        "name": "unused settings",
-        "status": "WARN",
-        "detail": message,
-        "next_action": message,
-    }
+    assert check["status"] == "PASS"
+    assert check["detail"] == "no unused settings"
+    assert "project board" not in checks_by_name(payload, "setup")
 
 
 def test_no_unused_settings_is_pass(tmp_path):

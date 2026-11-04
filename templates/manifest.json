@@ -128,6 +128,15 @@
       "src": "github/workflows/shipshape-doctor.yml.tmpl",
       "dest": ".github/workflows/shipshape-doctor.yml",
       "feature_flag": "scheduled_health",
+      "when": { "feature_off": "project_board" },
+      "pillar": "workflows",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "github/workflows/shipshape-doctor-project.yml.tmpl",
+      "dest": ".github/workflows/shipshape-doctor.yml",
+      "feature_flag": "scheduled_health",
+      "when": { "feature_on": "project_board" },
       "pillar": "workflows",
       "overwrite_policy": "ask-if-drifted"
     },
@@ -160,6 +169,22 @@
       "feature_flag": "secret_guard",
       "mode": "755",
       "pillar": "security",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "hooks/commit-msg-provenance.sh.tmpl",
+      "dest": ".sdlc/hooks/commit-msg-provenance.sh",
+      "feature_flag": "provenance_labels",
+      "mode": "755",
+      "pillar": "process",
+      "overwrite_policy": "ask-if-drifted"
+    },
+    {
+      "src": "hooks/install-provenance.sh.tmpl",
+      "dest": ".sdlc/hooks/install-provenance.sh",
+      "feature_flag": "provenance_labels",
+      "mode": "755",
+      "pillar": "process",
       "overwrite_policy": "ask-if-drifted"
     },
     {

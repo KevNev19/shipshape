@@ -15,6 +15,10 @@ def test_happy_path_aggregates_runs_and_merged_changes(monkeypatch):
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
     def fake_fetch(path):
+        if path == "repos/owner/repo":
+            return {"default_branch": "main"}
+        if "/commits?" in path:
+            return [{"sha": "a"}, {"sha": "b"}]
         if path.startswith("repos/"):
             return {
                 "workflow_runs": [
@@ -45,6 +49,8 @@ def test_happy_path_aggregates_runs_and_merged_changes(monkeypatch):
         "minutes": 20,
         "merged_changes": 2,
         "minutes_per_merge": 10,
+        "landed_changes": 2,
+        "minutes_per_landed_change": 10,
         "estimated_cost": {"status": "unknown", "currency": None, "amount": None},
         "warnings": [],
         "next_action": "Review verification minutes and retries for avoidable CI work.",
@@ -176,6 +182,61 @@ def test_run_at_exact_cutoff_is_included(monkeypatch):
 
     assert result["runs"] == 1
     assert result["minutes"] == 1
+
+
+def test_trunk_pushes_count_when_no_pull_request_merged(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    def fake_fetch(path):
+        if path == "repos/owner/repo":
+            return {"default_branch": "main"}
+        if "/commits?" in path:
+            return [{"sha": "1"}, {"sha": "2"}, {"sha": "3"}, {"sha": "4"}]
+        if path.startswith("repos/"):
+            return {
+                "workflow_runs": [
+                    {
+                        "run_attempt": 1,
+                        "run_started_at": "2026-08-12T10:00:00Z",
+                        "updated_at": "2026-08-12T10:10:00Z",
+                    }
+                ]
+            }
+        return {"total_count": 0}
+
+    monkeypatch.setattr(verification_cost, "fetch_json", fake_fetch)
+
+    result = verification_cost.summarize("owner/repo", 30, now=FIXED_NOW)
+
+    assert result["ok"] is True
+    assert result["merged_changes"] == 0
+    assert result["minutes_per_merge"] is None
+    assert result["landed_changes"] == 4
+    assert result["minutes_per_landed_change"] == 2.5
+    assert result["estimated_cost"]["status"] == "unknown"
+    assert result["warnings"] == []
+
+
+def test_unreadable_default_branch_stays_unknown(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    def fake_fetch(path):
+        if path == "repos/owner/repo":
+            return {"default_branch": "not a branch"}
+        if "/commits?" in path:
+            raise AssertionError("commits must not be read when the branch name is unusable")
+        if path.startswith("repos/"):
+            return {"workflow_runs": []}
+        return {"total_count": 0}
+
+    monkeypatch.setattr(verification_cost, "fetch_json", fake_fetch)
+
+    result = verification_cost.summarize("owner/repo", 30, now=FIXED_NOW)
+
+    assert result["ok"] is True
+    assert result["landed_changes"] is None
+    assert result["minutes_per_landed_change"] is None
+    assert result["warnings"]
 
 
 def test_run_just_outside_cutoff_is_excluded(monkeypatch):

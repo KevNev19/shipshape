@@ -40,6 +40,35 @@ approves that exact proposal, repeat the same arguments with `protect`.
   unrelated rulesets are preserved. An unfamiliar same-name rule is a refusal,
   not permission to replace it.
 
+## Project board
+
+Repository access does not include a GitHub Project (the board of issues).
+When `features.project_board` is true, follow a repository invite with a
+board invite unless the person already has that much access on the board.
+A public board already covers read access.
+
+| Repository permission | Board role | Plain words |
+|-----------------------|------------|-------------|
+| `pull`                | `READER`   | can look |
+| `push`                | `WRITER`   | can update the board |
+| `admin`               | `ADMIN`    | can also invite other people |
+
+```bash
+python3 "${SHIPSHAPE_ROOT}/scripts/project_board.py" access-plan \
+  --repo . --user <user> --permission <pull|push|admin>
+python3 "${SHIPSHAPE_ROOT}/scripts/project_board.py" access-apply \
+  --repo . --user <user> --permission <pull|push|admin>
+```
+
+Show `access-plan` first. It is read-only. After a yes, run `access-apply`
+with the same user and permission. Do not downgrade someone who already has
+a higher role, and do not remove anyone.
+
+If the JSON `error` is `missing_project_scope`, the repository change still
+stands. Say so, then the one next step: `gh auth refresh -s project`.
+If the invite itself fails, the click path is the project, Settings, Manage
+access.
+
 ## Known failure modes
 
 - Private repo on a free plan: ruleset APIs may refuse → the script
