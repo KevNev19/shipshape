@@ -26,6 +26,8 @@ The unamended "Current state," proposal, and classification paragraphs below
 are the dated 2026-08-13 snapshot, not assertions about the checkout on
 2026-09-09. Gaps 1, 3, 5, and 6 carry explicit later evidence. The historical
 roadmap at the end records sequencing rationale rather than completed work.
+The status section dated 2026-11-04 records what was later verified in the
+tree or sliced in a follow-up change.
 
 ## What the research validates
 
@@ -57,6 +59,14 @@ and [`templates/adapters/AGENTS.md.tmpl`](../../templates/adapters/AGENTS.md.tmp
 ## Gap register
 
 ### 1. Test quality is not sensed
+
+**2026-11-04 status.** Optional and off by default. `features.test_quality`
+makes doctor warn when a Python test has no recognized assertion. The warning
+never fails the scorecard and never blocks a merge. The same limits measured
+in [0003](0003-test-quality-precision-study.md) remain: helper-held assertions
+can be missed, and `assert True` still passes. Mutation testing is not part
+of this check; it stays an unstudied opt-in follow-up because it needs a
+non-stdlib tool and a measured runtime.
 
 **Gap.** The verification-centric lifecycle asks whether tests can detect a
 wrong implementation, not merely whether they execute lines. Shipshape has no
@@ -412,6 +422,13 @@ translations retain the non-engineer voice.
 
 ### 10. Verification cost is invisible
 
+**2026-11-04 status.** `scripts/verification_cost.py summarize` remains
+invoke-only. It now reports commits that reached the default branch
+(`landed_changes` and `minutes_per_landed_change`) as well as merged pull
+requests. Money stays `unknown`; the script does not guess a billing rate.
+`/shipshape-doctor` translates the JSON only when someone asks what
+verification cost. No consumer workflow or budget gate was added.
+
 **Gap.** The lifecycle treats verification as the scarce, metered activity,
 but shipshape shows health status without showing how many runs or minutes were
 spent to obtain it.
@@ -448,6 +465,16 @@ and no bundled client under ADR 0002; it writes no consumer template under ADR
 cost as a plain consequence with one next action.
 
 ### 11. Agent provenance is not labeled for consumers
+
+**2026-11-04 status.** Optional and off by default. `features.provenance_labels`
+renders `.sdlc/hooks/commit-msg-provenance.sh` and
+`.sdlc/hooks/install-provenance.sh`. The hook checks the syntax of a
+self-declared `Agent-Assisted-By: Tool Name` trailer and allows every commit
+that omits it. It does not infer authorship and it is not a safety or quality
+gate. The secret-guard installer runs that second installer only when both
+files are present. Pull-request templates also ask an optional "How was this
+made?" question whenever the working style is pull requests; that question is
+context only. Whether the label improves incident response is still unmeasured.
 
 **Gap.** Consumers receive no consistent commit or PR metadata saying that an
 agent participated. That makes incident reconstruction harder, but adding a
@@ -648,6 +675,36 @@ assumptions. Prospective work below must still be verified independently.
 3. Revisit platform-specific progressive delivery only when controlled
    deployment evidence and a first supported target exist; it remains additive
    to pre-merge review.
+
+## Status as of 2026-11-04
+
+The lists above stay the 2026-08-13 plan. This table is the later check.
+"Slice" means a separate draft change, not a behavior already on `main` at
+the time of that check.
+
+| Gap | Status before the slices | What the slice does |
+| --- | --- | --- |
+| 1. Test quality | Kit-local assertion scan only. Not a consumer gate. | Opt-in `features.test_quality` doctor warning for Python tests with no recognized assertion. It does not fail a scorecard or block a merge. Mutation testing is not included. [PR 31](https://github.com/KevNev19/shipshape/pull/31) |
+| 2. Unknown is not healthy | Settled by ADR 0006. Scheduled doctor exists. | No further change. |
+| 3. Weekly security-quality sensor | Still kit-local. Not in the consumer manifest. | Left open. Shipping it still needs an eval of omitted alerts, invented findings, and token scope. Parallel work is already on the kit-local report. |
+| 4. Findings-first review | Settled by ADR 0007 and the finding contract. | No further change. |
+| 5. Control-path coverage | Settled by ADR 0010. The guard warns and blocks the named executable settings. | No further change. |
+| 6. Review authority | Settled by ADR 0010. Ordinary docs only, no persistent auto-merge grant. | No further change. |
+| 7. Durable change intent | Settled by ADR 0009. Four-field intent file and skill exist. | No further change. |
+| 8. Test-retry warning | Done. Doctor check `test retries` warns and never fails. | No further change. |
+| 9. Merge queue | Considered and rejected for this kit's audience. | No queue was added. |
+| 10. Verification cost | Invoke-only prototype. Merged pull requests were the only denominator, so trunk pushes were invisible. Money was already unknown. | Counts commits on the default branch as well, still does not guess a price, and `/shipshape-doctor` translates the summary only on request. [PR 32](https://github.com/KevNev19/shipshape/pull/32) |
+| 11. Provenance labels | Not shipped to consumers. | Opt-in `features.provenance_labels` commit trailer `Agent-Assisted-By: Tool Name`. Unlabeled commits still succeed. The label is not a safety check. Pull-request templates ask an optional "How was this made?" question. [PR 30](https://github.com/KevNev19/shipshape/pull/30) |
+| 12. Progressive delivery | No flag, canary, or rollback artifact. | Opt-in checklist page only. No deploy workflow and no platform setting. [PR 34](https://github.com/KevNev19/shipshape/pull/34) |
+| 13. Dead `project_board` switch | Removed from the default config. Doctor warns if an old config still has the key. | No further change. GitHub Projects support is separate work (issue 14). |
+| 14. Agent sandboxing guidance | Done. `templates/security/security-explainer.md.tmpl` has "When an AI tool works here." | No further change. The guidance does not claim the kit can enforce a sandbox. |
+
+Decisions still open, and not made by these slices:
+
+- Whether the weekly security-quality report should be rendered for consumers after an eval.
+- Whether assertion-free warnings should ever block a merge, and whether mutation testing is worth its runtime.
+- Which hosting platform, if any, should get a deploy and rollback workflow.
+- Whether the optional provenance label is worth keeping once someone measures its audit value.
 
 ## ADR questions from the 2026-08-13 snapshot
 

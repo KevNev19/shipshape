@@ -542,16 +542,104 @@ def test_subprocess_client_does_not_expose_failed_response_details():
     assert str(raised.value) == "GitHub API request failed"
 
 
-def test_workflow_keeps_manual_handoff_distinct_from_review_completion():
+def _workflow_text():
     workflow = (
         Path(__file__).resolve().parent.parent
         / ".github"
         / "workflows"
         / "security-quality-report.yml"
-    ).read_text(encoding="utf-8")
+    )
+    return workflow.read_text(encoding="utf-8")
+
+
+def test_workflow_keeps_manual_handoff_distinct_from_review_completion():
+    workflow = _workflow_text()
 
     assert "assignment_status=manual_handoff" in workflow
     assert "status=manual_handoff" in workflow
     assert "Inference and review have not run" in workflow
     assert "replaceActorsForAssignable" in workflow
     assert "grant" not in workflow.casefold()
+
+
+def test_workflow_updates_one_rolling_issue_and_reads_dependabot_itself():
+    workflow = _workflow_text()
+
+    assert "vulnerability-alerts: read" in workflow
+    assert 'title="Security & quality report"' in workflow
+    assert "gh issue edit" in workflow
+    assert "Security & quality report $(date" not in workflow
+    assert "secrets.ACTIONS_PAT || github.token" not in workflow
+    assert "GH_TOKEN: ${{ github.token }}" in workflow
+    assert "ACTIONS_PAT: ${{ secrets.ACTIONS_PAT }}" in workflow
+
+
+def test_access_denied_explains_the_gap_without_keeping_the_response(tmp_path):
+    responses = base_responses()
+    secret_path = "repos/example/project/secret-scanning/alerts?state=open&per_page=100&page=1"
+    dependabot_path = "repos/example/project/dependabot/alerts?state=open&per_page=100&page=1"
+
+    class Api(FakeGitHub):
+        def get(self, path):
+            self.calls.append(path)
+            if path == secret_path:
+                raise security_report.CollectionError(
+                    "HTTP 403 private fixture material", access_denied=True
+                )
+            if path in self.errors:
+                raise security_report.CollectionError(self.errors[path])
+            return self.responses[path]
+
+    report = security_report.collect_report(
+        Api(responses, {dependabot_path: "HTTP 403 private fixture material"}),
+        "example/project",
+        tmp_path,
+        gathered_on=date(2026, 11, 4),
+        assignment_status="manual_handoff",
+    )
+
+    secret = report["raw_collection"]["sections"]["secret_scanning"]
+    dependabot = report["raw_collection"]["sections"]["dependabot"]
+    serialized = json.dumps(report)
+    assert secret["status"] == "unavailable"
+    assert secret["error"] == "GitHub API access was denied"
+    assert "ACTIONS_PAT" in report["body"]
+    assert "Secret scanning alerts" in report["body"]
+    assert dependabot["error"] == "GitHub API request failed"
+    assert "private fixture material" not in serialized
+    assert "not_run until the security-quality agent" in report["body"]
+    assert "Security & quality report" in report["body"]
+
+
+def test_denied_status_is_a_fixed_message_and_secret_scanning_can_use_a_pat(monkeypatch):
+    denied = subprocess.CompletedProcess(
+        args=[],
+        returncode=1,
+        stdout="",
+        stderr="gh: Resource not accessible by integration (HTTP 403)\nprivate fixture material",
+    )
+    with mock.patch("scripts.security_report.subprocess.run", return_value=denied):
+        with pytest.raises(security_report.CollectionError) as raised:
+            security_report.GitHubClient().get("repos/example/project/dependabot/alerts")
+
+    assert str(raised.value) == "GitHub API access was denied"
+    assert raised.value.access_denied is True
+    assert "private fixture material" not in str(raised.value)
+
+    ok = subprocess.CompletedProcess(args=[], returncode=0, stdout="[]", stderr="")
+    monkeypatch.setenv("ACTIONS_PAT", "fixture-pat-value")
+    with mock.patch("scripts.security_report.subprocess.run", return_value=ok) as run:
+        assert (
+            security_report.GitHubClient().get(
+                "repos/example/project/secret-scanning/alerts?state=open&per_page=100&page=1"
+            )
+            == []
+        )
+        code = security_report.GitHubClient().get("repos/example/project/code-scanning/alerts")
+
+    secret_call, code_call = run.call_args_list
+    assert "fixture-pat-value" not in secret_call.args[0]
+    assert secret_call.kwargs["env"]["GH_TOKEN"] == "fixture-pat-value"
+    assert secret_call.kwargs["env"]["GITHUB_TOKEN"] == "fixture-pat-value"
+    assert code_call.kwargs["env"] is None
+    assert code == []

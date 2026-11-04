@@ -96,16 +96,20 @@ live token: 137 runs, 140 attempts (3 retried runs), 103 minutes,
 The design insight: **the merged-PR denominator breaks on trunk-based
 repos.** This repository lands most work as direct pushes, so 51.5
 minutes/merge overstates per-change cost by roughly the ratio of pushes to
-PRs (~25x here). A shipped version should denominate on pushed commits to
-the default branch plus merged PRs, not merged PRs alone. Retry detection
-(3 of 137 runs) worked and is the more decision-relevant signal for the
-flake-DoS concern.
+PRs (~25x here). A 2026-11-04 slice reports commits on the default branch as
+`landed_changes` and keeps merged pull requests as a separate count. Those
+counts are not added together, because a merge commit is already a
+default-branch commit. Retry detection (3 of 137 runs) worked and is the
+more decision-relevant signal for the flake-DoS concern. Money stays unknown.
 
 ## Next steps
 
-1. Keep the current prototype kit-local and advisory. Do not turn it into a
-   full `test_quality` tool or a gate on this evidence.
+1. Keep the scanner advisory. A 2026-11-04 slice turns it on only when
+   `features.test_quality` is set, and doctor then warns instead of failing.
+   That is not a merge gate. Helper misses and meaningless assertions remain.
 2. Mutation-testing cost measurement (mutmut on a small real repo) is the
-   remaining unstudied half of open question 1.
-3. The cost prototype needs the denominator change before any further
-   piloting.
+   remaining unstudied half of open question 1. It is not shipped: it is not
+   stdlib-only, and its runtime is unmeasured.
+3. The cost prototype now denominates on default-branch commits. Further
+   piloting still has to show which of those numbers changes a decision.
+   Money stays unknown until a billing API is deliberately in scope.

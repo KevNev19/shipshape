@@ -22,8 +22,11 @@ Usage:
     python3 doctor.py <repo-path>
 
 The workflow-permissions and test-retry audits are deliberately naive text
-checks. The pre-commit audit recognizes a conservative YAML subset and never
-executes an installed hook. These checks report inspected wiring without
+checks. The test-quality check runs only when features.test_quality is on. It
+warns about Python tests with no recognized assertion, never fails the
+scorecard, does not run mutation testing, and does not prove a test can catch
+a wrong change. The pre-commit audit recognizes a conservative YAML subset and
+never executes an installed hook. These checks report inspected wiring without
 claiming that a workflow, scanner, or arbitrary dispatcher ran successfully.
 """
 
@@ -41,8 +44,19 @@ KIT_VERSION = "0.4.0"
 PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 RETRY_ACTIONS = ("nick-fields/retry", "nick-invision/retry", "wandalen/wretry.action")
 SHELL_LOOP_SCAN_LIMIT = 1000
-UNUSED_SETTING_MESSAGE = (
-    "Remove features.project_board; this setting has never changed what shipshape installs."
+PROJECT_BOARD_CREATE = "Run /shipshape-customize to create the board."
+PROJECT_BOARD_SCOPE_NEXT = "run `gh auth refresh -s project`"
+PROJECT_BOARD_SCOPE_DETAIL = (
+    "GitHub needs permission to manage Projects. Run `gh auth refresh -s project`."
+)
+PROJECT_BOARD_CONNECT = "Run /shipshape-customize to connect the health check to the board."
+PROJECT_LOGIN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
+PROJECT_SCOPE_MARKERS = (
+    "missing required scope",
+    "read:project",
+    "project scope",
+    "gh auth refresh",
+    "resource not accessible by integration",
 )
 TEST_RETRY_NEXT_ACTION = (
     "Remove the retry and fix or quarantine the flaky test so one green run means the test passed."
@@ -200,9 +214,122 @@ def find_test_retry_markers(text: str, test_command: str) -> list[str]:
 
 
 def unused_settings_check(config: dict) -> dict:
-    if "project_board" in config.get("features", {}):
-        return check("unused settings", WARN, UNUSED_SETTING_MESSAGE, UNUSED_SETTING_MESSAGE)
     return check("unused settings", PASS, "no unused settings")
+
+
+def project_identity(config: dict) -> tuple[str, int] | None:
+    project = config.get("project")
+    if not isinstance(project, dict):
+        return None
+    number = project.get("number")
+    owner = project.get("owner")
+    if type(number) is not int or number < 1:
+        return None
+    if not isinstance(owner, str) or PROJECT_LOGIN_RE.fullmatch(owner) is None:
+        return None
+    return owner, number
+
+
+def workflow_adds_doctor_issues(repo: Path) -> bool:
+    workflow = repo / ".github" / "workflows" / "shipshape-doctor.yml"
+    try:
+        info = workflow.lstat()
+    except (FileNotFoundError, OSError):
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        return False
+    try:
+        text = workflow.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return "projects: write" in text and "gh project item-add" in text
+
+
+def project_board_remote(owner: str, number: int) -> str:
+    try:
+        result = subprocess.run(
+            ["gh", "project", "view", str(number), "--owner", owner, "--format", "json"],
+            capture_output=True,
+            text=True,
+            timeout=GH_API_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return "unavailable"
+    if result.returncode == 0:
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return "unavailable"
+        if isinstance(payload, dict) and payload.get("number") == number:
+            return "ok"
+        return "unavailable"
+    blob = f"{result.stderr}\n{result.stdout}".casefold()
+    if any(marker in blob for marker in PROJECT_SCOPE_MARKERS):
+        return "scope"
+    if "could not resolve" in blob or "http 404" in blob or "not found" in blob:
+        return "missing"
+    return "unavailable"
+
+
+def project_board_check(repo: Path, config: dict) -> dict | None:
+    features = config.get("features", {})
+    if not isinstance(features, dict) or features.get("project_board") is not True:
+        return None
+    identity = project_identity(config)
+    if identity is None:
+        return check(
+            "project board",
+            WARN,
+            "the project board is turned on, but no board is linked yet",
+            PROJECT_BOARD_CREATE,
+        )
+    owner, number = identity
+    receives = workflow_adds_doctor_issues(repo)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        if not receives:
+            return check(
+                "project board",
+                WARN,
+                "the board number is recorded, but the weekly health check does not add its issue",
+                PROJECT_BOARD_CONNECT,
+            )
+        return check(
+            "project board",
+            PASS,
+            f"project #{number} is recorded and the health check is set to add its issue. "
+            "The built-in Actions token cannot re-check the live board.",
+        )
+    status = project_board_remote(owner, number)
+    if status == "scope":
+        return check("project board", WARN, PROJECT_BOARD_SCOPE_DETAIL, PROJECT_BOARD_SCOPE_NEXT)
+    if status == "missing":
+        return check(
+            "project board",
+            WARN,
+            f"project #{number} is recorded, but GitHub has no board with that number",
+            PROJECT_BOARD_CREATE,
+        )
+    if status != "ok":
+        return check(
+            "project board",
+            WARN,
+            "the linked board could not be checked because the GitHub command did not answer",
+            "Install and log in to GitHub's gh command, then run /shipshape-doctor again.",
+        )
+    if not receives:
+        return check(
+            "project board",
+            WARN,
+            f"project #{number} exists, but the weekly health check does not add its issue",
+            PROJECT_BOARD_CONNECT,
+        )
+    return check(
+        "project board",
+        PASS,
+        f"project #{number} exists and the health check is set to add its issue. "
+        "Setup inspection does not prove an item was added.",
+    )
 
 
 def test_retries_check(repo: Path, config: dict) -> dict:
@@ -222,6 +349,63 @@ def test_retries_check(repo: Path, config: dict) -> dict:
             TEST_RETRY_NEXT_ACTION,
         )
     return check("test retries", PASS, "no test retries found")
+
+
+TEST_QUALITY_OFF = "test-quality check is off"
+TEST_QUALITY_MISSING = "test-quality check is on, but the scanner script is missing"
+TEST_QUALITY_MISSING_ACTION = (
+    "Re-run /shipshape-init to restore the test-quality scanner, or turn features.test_quality off."
+)
+TEST_QUALITY_SCAN_FAILED = "test-quality scanner did not return a usable result"
+TEST_QUALITY_SCAN_ACTION = (
+    "Re-run /shipshape-doctor. If it still fails, turn features.test_quality off."
+)
+
+
+def test_quality_check(repo: Path, config: dict) -> dict:
+    """Advisory only: never FAIL, and never claim a test can catch a bad change."""
+    if not config.get("features", {}).get("test_quality", False):
+        return check("test quality", PASS, TEST_QUALITY_OFF)
+    scanner = Path(__file__).resolve().parent / "test_quality.py"
+    if not scanner.is_file():
+        return check("test quality", WARN, TEST_QUALITY_MISSING, TEST_QUALITY_MISSING_ACTION)
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(scanner), "scan", str(repo)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        payload = json.loads(completed.stdout)
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        return check("test quality", WARN, TEST_QUALITY_SCAN_FAILED, TEST_QUALITY_SCAN_ACTION)
+    findings = payload.get("assertion_free") if isinstance(payload, dict) else None
+    if not isinstance(findings, list):
+        return check("test quality", WARN, TEST_QUALITY_SCAN_FAILED, TEST_QUALITY_SCAN_ACTION)
+    if findings:
+        first = findings[0] if isinstance(findings[0], dict) else {}
+        name = first.get("test") if isinstance(first.get("test"), str) else "a test"
+        path = first.get("path") if isinstance(first.get("path"), str) else "a test file"
+        detail = (
+            f"{len(findings)} Python test(s) have no recognized assertion; "
+            f"first is {name} in {path}. This does not block a merge, does not run "
+            "mutation testing, and can miss assertions that live in helpers."
+        )
+        action = payload.get("next_action")
+        if not isinstance(action, str) or not action:
+            action = f"Strengthen {name} in {path} with a meaningful assertion."
+        return check("test quality", WARN, detail, action)
+    scanned = payload.get("tests_scanned", 0)
+    return check(
+        "test quality",
+        PASS,
+        (
+            f"no assertion-free Python tests in {scanned} scanned tests. "
+            "Assertions hidden in helpers are not flagged, meaningless assertions still "
+            "pass, and this check does not run mutation testing or block a merge."
+        ),
+    )
 
 
 def scheduled_health_check(repo: Path, features: dict) -> dict:
@@ -849,7 +1033,11 @@ def setup_checks(repo: Path, config: dict, state: dict) -> list[dict]:
         checks.append(check("automated tests (CI)", WARN, "no CI workflow found"))
 
     checks.append(test_retries_check(repo, config))
+    checks.append(test_quality_check(repo, config))
     checks.append(scheduled_health_check(repo, config.get("features", {})))
+    board = project_board_check(repo, config)
+    if board is not None:
+        checks.append(board)
 
     byte_drifted, mode_drifted, legacy_modes, missing, unverified = [], [], [], [], []
     for dest, record in state.get("files", {}).items():

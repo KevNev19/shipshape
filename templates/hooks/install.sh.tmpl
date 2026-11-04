@@ -244,6 +244,14 @@ hook_is_pre_commit_dispatcher() {
       grep -Eq '^[[:space:]]*exec[[:space:]]+"\$INSTALL_PYTHON"[[:space:]]+-mpre_commit[[:space:]]+"\$\{ARGS\[@\]\}"[[:space:]]*$' "$hook"; }
 }
 
+install_provenance_label() {
+  installer="$root/.sdlc/hooks/install-provenance.sh"
+  script="$root/.sdlc/hooks/commit-msg-provenance.sh"
+  if [ -x "$installer" ] && [ -x "$script" ]; then
+    bash "$installer"
+  fi
+}
+
 root="$(git rev-parse --show-toplevel 2>/dev/null)" || fail "run this installer inside a Git repository."
 cd "$root"
 guard="$root/.sdlc/hooks/secret-guard.sh"
@@ -280,6 +288,7 @@ if [ "$hook_kind" = "pre-commit" ]; then
   if [ ! -x "$hook" ] || [ ! -f "$config" ] || ! config_wires_guard || guard_is_skipped; then
     fail "the active pre-commit dispatcher does not verifiably wire the executable secret guard; it was not changed."
   fi
+  install_provenance_label
   echo "Existing wiring was checked statically; the supported pre-commit configuration schedules the secret guard."
   exit 0
 fi
@@ -298,6 +307,7 @@ if [ -z "$configured_hooks_path" ] && command -v pre-commit >/dev/null 2>&1 && [
   if [ ! -x "$hook" ] || ! hook_is_pre_commit_dispatcher || ! config_wires_guard; then
     fail "pre-commit returned without installing a verifiable executable secret-guard dispatcher at '$hook'."
   fi
+  install_provenance_label
   echo "Installed hooks via the pre-commit framework."
   exit 0
 fi
@@ -309,6 +319,7 @@ if [ ! -x "$hook" ] || ! hook_is_direct_guard; then
   fail "the direct secret guard could not be verified at '$hook'."
 fi
 
+install_provenance_label
 echo "Installed the secret guard as this clone's pre-commit hook."
 echo "Optional upgrade: install the pre-commit framework (pip install pre-commit)"
 echo "and re-run this script to get the full hook set."

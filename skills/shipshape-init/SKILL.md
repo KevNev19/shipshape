@@ -138,6 +138,14 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    observed. On failure, report the guard as configured but not verifiably wired
    and give the installer error as the next thing to fix.
 
+   If `.sdlc/hooks/install-provenance.sh` exists, the command above also runs
+   it. That installer only wires the optional `Agent-Assisted-By` commit
+   label. A commit with no label still succeeds. The label is not a safety
+   check. If the secret guard is off and only the label check is present, run
+   `bash .sdlc/hooks/install-provenance.sh` instead. On failure, an unrelated
+   `commit-msg` hook is left untouched; report the label check as configured
+   but not wired.
+
 8. **Preview remote protection when enabled.** Read the applied config and use
    its exact `default_branch`, `workflow_style`, `features.tiered_review`, and
    applicable CodeQL setting. Run one read-only plan with the matching route:

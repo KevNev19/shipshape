@@ -5,7 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "test_quality.py"
+ROOT = Path(__file__).resolve().parent.parent
+SCRIPT = ROOT / "scripts" / "test_quality.py"
+TEMPLATE = ROOT / "templates" / "scripts" / "test_quality.py.tmpl"
 
 
 def run_scan(repo: Path, *extra: str) -> tuple[subprocess.CompletedProcess[str], dict]:
@@ -219,3 +221,15 @@ def test_unsupported_language_is_reported_without_scanning(tmp_path):
     assert result["language"] == "go"
     assert result["unsupported"] == ["go"]
     assert result["tests_scanned"] == 0
+
+
+def test_consumer_scanner_template_matches_the_kit_scanner():
+    def code(text: str) -> str:
+        lines = [
+            line
+            for line in text.replace("{{KIT_VERSION}}", "0").splitlines()
+            if not line.startswith("#")
+        ]
+        return "\n".join(lines).strip() + "\n"
+
+    assert code(SCRIPT.read_text(encoding="utf-8")) == code(TEMPLATE.read_text(encoding="utf-8"))

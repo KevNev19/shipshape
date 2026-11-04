@@ -695,7 +695,7 @@ def test_workflow_without_permissions_is_flagged(tmp_path):
     assert "deploy.yml" in check["detail"]
 
 
-def test_unused_project_board_setting_is_warn_not_fail(tmp_path):
+def test_project_board_off_is_not_an_unused_setting(tmp_path):
     repo = healthy_repo(tmp_path)
     config_path = repo / ".sdlc" / "config.json"
     config = json.loads(config_path.read_text())
@@ -704,16 +704,10 @@ def test_unused_project_board_setting_is_warn_not_fail(tmp_path):
 
     code, payload = run_script("doctor.py", repo)
     check = checks_by_name(payload, "setup")["unused settings"]
-    message = (
-        "Remove features.project_board; this setting has never changed what shipshape installs."
-    )
     assert code == 0
-    assert check == {
-        "name": "unused settings",
-        "status": "WARN",
-        "detail": message,
-        "next_action": message,
-    }
+    assert check["status"] == "PASS"
+    assert check["detail"] == "no unused settings"
+    assert "project board" not in checks_by_name(payload, "setup")
 
 
 def test_no_unused_settings_is_pass(tmp_path):
@@ -914,6 +908,53 @@ def test_doctor_guard_check_name_avoids_sensitive_source_heuristic():
         source = path.read_text()
         assert "def guard_installation_check(" in source
         assert "secret_guard_installation_check" not in source
+
+
+def enable_test_quality(repo):
+    config_path = repo / ".sdlc" / "config.json"
+    config = json.loads(config_path.read_text())
+    config["features"]["test_quality"] = True
+    config_path.write_text(json.dumps(config))
+
+
+def test_test_quality_is_pass_when_the_feature_is_off(tmp_path):
+    repo = healthy_repo(tmp_path)
+    code, payload = run_script("doctor.py", repo)
+    check = checks_by_name(payload, "setup")["test quality"]
+    assert code == 0
+    assert check["status"] == "PASS"
+    assert check["detail"] == "test-quality check is off"
+
+
+def test_test_quality_warns_on_assertion_free_tests_and_does_not_fail(tmp_path):
+    repo = healthy_repo(tmp_path)
+    enable_test_quality(repo)
+    empty = repo / "tests" / "test_empty.py"
+    empty.write_text("def test_empty():\n    return None\n", encoding="utf-8")
+
+    code, payload = run_script("doctor.py", repo)
+    check = checks_by_name(payload, "setup")["test quality"]
+    assert code == 0
+    assert payload["ok"] is True
+    assert check["status"] == "WARN"
+    assert "test_empty" in check["detail"]
+    assert "does not block a merge" in check["detail"]
+    assert "mutation testing" in check["detail"]
+    assert "Strengthen test_empty" in check["next_action"]
+
+
+def test_test_quality_passes_when_assertions_exist_including_assert_true(tmp_path):
+    repo = healthy_repo(tmp_path)
+    enable_test_quality(repo)
+    (repo / "tests" / "test_empty.py").write_text(
+        "def test_true():\n    assert True\n", encoding="utf-8"
+    )
+
+    code, payload = run_script("doctor.py", repo)
+    check = checks_by_name(payload, "setup")["test quality"]
+    assert code == 0
+    assert check["status"] == "PASS"
+    assert "does not run mutation testing" in check["detail"]
 
 
 def test_setup_skills_bind_apply_to_the_saved_preview():
