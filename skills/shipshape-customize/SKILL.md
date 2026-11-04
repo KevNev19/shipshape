@@ -122,7 +122,39 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    activation pending. Disabling the config flag never removes existing remote
    protection; report that preserved remote state for manual review.
 
-6. **Report.** Report generated CI, CodeQL, and Dependabot as configured until
+6. **Project board, when it is on.** If `features.project_board` is not true,
+   skip this step. Preview the board before changing GitHub:
+
+   ```bash
+   python3 "${SHIPSHAPE_ROOT}/scripts/project_board.py" plan --repo .
+   ```
+
+   Say the board title, the Owner and Gate columns that would be added, and
+   how many open issues would be added. Say that columns and cards already on
+   the board stay as they are, and that "blocked by" stays written on the
+   issue. Ask for a yes, then run the same command with `apply`.
+
+   If the JSON `error` is `missing_project_scope`, stop. Tell them GitHub
+   needs permission to manage Projects (the board of issues). The one next
+   step is `gh auth refresh -s project`. Do not say the board was created.
+   If a project number came back with that error, record it anyway so the
+   next run finds the same board.
+
+   When apply returns a project number, record it with the same propose,
+   preview, and apply flow as any other config change. Start from the
+   repository as it is now, not from the earlier proposal:
+
+   ```bash
+   python3 "${SHIPSHAPE_ROOT}/scripts/render.py" set-config . \
+     --set project.number=<number> --set project.owner=<owner> \
+     --set "project.title=<title>" --output "${SHIPSHAPE_CONFIG}"
+   ```
+
+   A recorded number is how the next run finds the same board instead of
+   making a second one. Turning the feature off does not delete the board
+   or its columns.
+
+7. **Report.** Report generated CI, CodeQL, and Dependabot as configured until
    GitHub checks them live. A branch-protection config flag is intent; report
    only the observed plan/apply result as remote evidence. For trunk
    repositories, checks run after direct pushes and do not block a change before

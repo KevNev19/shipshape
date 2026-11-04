@@ -32,3 +32,7 @@
 - **Semver (semantic versioning)** — version numbers as MAJOR.MINOR.PATCH:
   bump PATCH for fixes, MINOR for new features, MAJOR for breaking changes.
 - **Tag** — a permanent label on one commit, usually marking a release.
+- **Project board** — an optional GitHub Project, a table of the open issues.
+  Shipshape can create one named after the project, add Owner and Gate
+  columns, and put open issues on it. It stays off until you ask. "Blocked
+  by" stays written on the issue.

@@ -75,7 +75,7 @@
     ".sdlc/scripts/doctor.py": {
       "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "244d016e63caee635f53da19b5fdb42164931452a1bc39a4e82cbe067de21570",
+      "sha256": "c8a17c98222b469cb4238f0e14e8bc2eff82798fdd1ef8abc4f2f27437b7e4e3",
       "template": "scripts/doctor.py.tmpl"
     },
     ".sdlc/scripts/release-preflight.py": {
@@ -115,7 +115,7 @@
     "docs/sdlc/glossary.md": {
       "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "ad1a32e2efc358bf3626762f73070811cc54b576c70ebbe7ff8e281bcee04f64",
+      "sha256": "ecf919e656cadb45b03613eb4d40889a3b86495c6423d6f8dbd83b4bfeafb87d",
       "template": "docs/glossary.md.tmpl"
     },
     "docs/sdlc/harness.md": {
