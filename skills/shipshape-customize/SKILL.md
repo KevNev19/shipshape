@@ -197,6 +197,9 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
 
 - Don't disable any security feature without stating the consequence and
   getting an explicit yes.
+- Don't treat `features.test_quality` as a merge gate. It stays off unless
+  the user asks. When on, the doctor only warns about Python tests with no
+  recognized assertion. It does not run mutation testing.
 - Don't enable tiered review without stating its consequence and getting an
   explicit yes; don't gate turning it off.
 - Don't edit managed files directly to satisfy a customization — config

@@ -17,7 +17,8 @@
     "scheduled_health": true,
     "tiered_review": false,
     "project_board": false,
-    "provenance_labels": false
+    "provenance_labels": false,
+    "test_quality": false
   },
   "commands": {
     "test": "",

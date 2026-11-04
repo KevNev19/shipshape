@@ -22,8 +22,11 @@ Usage:
     python3 doctor.py <repo-path>
 
 The workflow-permissions and test-retry audits are deliberately naive text
-checks. The pre-commit audit recognizes a conservative YAML subset and never
-executes an installed hook. These checks report inspected wiring without
+checks. The test-quality check runs only when features.test_quality is on. It
+warns about Python tests with no recognized assertion, never fails the
+scorecard, does not run mutation testing, and does not prove a test can catch
+a wrong change. The pre-commit audit recognizes a conservative YAML subset and
+never executes an installed hook. These checks report inspected wiring without
 claiming that a workflow, scanner, or arbitrary dispatcher ran successfully.
 """
 
@@ -346,6 +349,63 @@ def test_retries_check(repo: Path, config: dict) -> dict:
             TEST_RETRY_NEXT_ACTION,
         )
     return check("test retries", PASS, "no test retries found")
+
+
+TEST_QUALITY_OFF = "test-quality check is off"
+TEST_QUALITY_MISSING = "test-quality check is on, but the scanner script is missing"
+TEST_QUALITY_MISSING_ACTION = (
+    "Re-run /shipshape-init to restore the test-quality scanner, or turn features.test_quality off."
+)
+TEST_QUALITY_SCAN_FAILED = "test-quality scanner did not return a usable result"
+TEST_QUALITY_SCAN_ACTION = (
+    "Re-run /shipshape-doctor. If it still fails, turn features.test_quality off."
+)
+
+
+def test_quality_check(repo: Path, config: dict) -> dict:
+    """Advisory only: never FAIL, and never claim a test can catch a bad change."""
+    if not config.get("features", {}).get("test_quality", False):
+        return check("test quality", PASS, TEST_QUALITY_OFF)
+    scanner = Path(__file__).resolve().parent / "test_quality.py"
+    if not scanner.is_file():
+        return check("test quality", WARN, TEST_QUALITY_MISSING, TEST_QUALITY_MISSING_ACTION)
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(scanner), "scan", str(repo)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        payload = json.loads(completed.stdout)
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        return check("test quality", WARN, TEST_QUALITY_SCAN_FAILED, TEST_QUALITY_SCAN_ACTION)
+    findings = payload.get("assertion_free") if isinstance(payload, dict) else None
+    if not isinstance(findings, list):
+        return check("test quality", WARN, TEST_QUALITY_SCAN_FAILED, TEST_QUALITY_SCAN_ACTION)
+    if findings:
+        first = findings[0] if isinstance(findings[0], dict) else {}
+        name = first.get("test") if isinstance(first.get("test"), str) else "a test"
+        path = first.get("path") if isinstance(first.get("path"), str) else "a test file"
+        detail = (
+            f"{len(findings)} Python test(s) have no recognized assertion; "
+            f"first is {name} in {path}. This does not block a merge, does not run "
+            "mutation testing, and can miss assertions that live in helpers."
+        )
+        action = payload.get("next_action")
+        if not isinstance(action, str) or not action:
+            action = f"Strengthen {name} in {path} with a meaningful assertion."
+        return check("test quality", WARN, detail, action)
+    scanned = payload.get("tests_scanned", 0)
+    return check(
+        "test quality",
+        PASS,
+        (
+            f"no assertion-free Python tests in {scanned} scanned tests. "
+            "Assertions hidden in helpers are not flagged, meaningless assertions still "
+            "pass, and this check does not run mutation testing or block a merge."
+        ),
+    )
 
 
 def scheduled_health_check(repo: Path, features: dict) -> dict:
@@ -973,6 +1033,7 @@ def setup_checks(repo: Path, config: dict, state: dict) -> list[dict]:
         checks.append(check("automated tests (CI)", WARN, "no CI workflow found"))
 
     checks.append(test_retries_check(repo, config))
+    checks.append(test_quality_check(repo, config))
     checks.append(scheduled_health_check(repo, config.get("features", {})))
     board = project_board_check(repo, config)
     if board is not None:

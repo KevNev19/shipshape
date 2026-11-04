@@ -75,7 +75,7 @@
     ".sdlc/scripts/doctor.py": {
       "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "c8a17c98222b469cb4238f0e14e8bc2eff82798fdd1ef8abc4f2f27437b7e4e3",
+      "sha256": "b3be469db1b1a8915292e85254ade0511df1323ad592b1efad857ae82131d93c",
       "template": "scripts/doctor.py.tmpl"
     },
     ".sdlc/scripts/release-preflight.py": {

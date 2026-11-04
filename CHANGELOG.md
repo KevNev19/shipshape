@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   self-declared `Agent-Assisted-By: Tool Name` line and still accepts a
   commit that leaves the line off. The label is context, not a safety
   check. Pull requests also ask an optional "How was this made?" question.
+- An optional test-quality warning (`features.test_quality`). When it is
+  on, doctor warns about a Python test with no recognized assertion. The
+  warning does not fail the scorecard or block a merge, and it does not
+  run mutation testing.
 
 ### Fixed
 
