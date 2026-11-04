@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - This changelog.
+- An optional GitHub Projects board (`features.project_board`, ADR 0014).
+  It is off unless asked for. Setup only adds missing fields and open
+  issues, and the weekly health job can place its issue on the board.
 
 ### Fixed
 
