@@ -1,0 +1,43 @@
+<!--
+  What this is: a plain-language checklist for releasing a change to a small
+  group before everyone else. Shipshape does not deploy this project and
+  does not roll a release back.
+  Safe to edit: yes.
+  managed-by: shipshape v{{KIT_VERSION}}
+-->
+
+# Releasing a change a little at a time
+
+This page is a checklist. It does not deploy this project, turn a change
+on, or send people back to an older version. The automated checks, and a
+person reviewing the change, still happen first. This checklist comes after
+those. It does not replace them.
+
+## Feature flag (a switch that hides a change)
+
+Ship the change turned off. Turn it on for yourself first, then for a small
+group, then for everyone. If something goes wrong, turn the switch off. The
+previous behavior stays available until you remove it on purpose.
+
+## Canary (a small share of real use)
+
+Send the new version to a small part of real use. Watch one health check
+you chose before you started. A health check is one signal that means "this
+is working," such as errors staying low or one important page loading. If
+the check stays good, send the new version to everyone. If it goes bad,
+send everyone back to the previous version.
+
+## Write these four things down first
+
+- Who sees the change first.
+- The one health check that means the change is well.
+- Who can turn it off, and how, without writing a new code change.
+- The previous version you can return to.
+
+## What shipshape will not do yet
+
+There is no deploy workflow in this setup. A workflow that deploys, checks
+health, and returns to the previous version has to name one place the
+project runs. This page does not pick that place. Ask for that workflow
+only when you know where the project runs. Until then, follow the checklist
+above with the tools you already use.

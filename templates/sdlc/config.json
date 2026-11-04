@@ -18,7 +18,8 @@
     "tiered_review": false,
     "project_board": false,
     "provenance_labels": false,
-    "test_quality": false
+    "test_quality": false,
+    "progressive_delivery": false
   },
   "commands": {
     "test": "",

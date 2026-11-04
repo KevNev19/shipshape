@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on, doctor warns about a Python test with no recognized assertion. The
   warning does not fail the scorecard or block a merge, and it does not
   run mutation testing.
+- An optional progressive-delivery page (`features.progressive_delivery`).
+  It is a checklist for a feature flag and a canary. It does not deploy
+  the project, roll a release back, or replace review.
 
 ### Fixed
 
