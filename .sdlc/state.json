@@ -57,7 +57,7 @@
     ".sdlc/hooks/install.sh": {
       "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "af95459ea105bd50f699606fa8cec3766a883f38999b7e3f196ad2aa26c4c010",
+      "sha256": "8bd0fe38ddeef974870590fa0f70b59f6c28e447aa1c448cb87facd8b137dbfb",
       "template": "hooks/install.sh.tmpl"
     },
     ".sdlc/hooks/secret-guard.sh": {

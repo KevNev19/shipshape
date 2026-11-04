@@ -15,7 +15,8 @@
     "issue_templates": true,
     "github_agents": true,
     "scheduled_health": true,
-    "tiered_review": false
+    "tiered_review": false,
+    "provenance_labels": false
   },
   "commands": {
     "test": "",

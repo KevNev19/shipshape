@@ -449,6 +449,16 @@ cost as a plain consequence with one next action.
 
 ### 11. Agent provenance is not labeled for consumers
 
+**2026-11-04 status.** Optional and off by default. `features.provenance_labels`
+renders `.sdlc/hooks/commit-msg-provenance.sh` and
+`.sdlc/hooks/install-provenance.sh`. The hook checks the syntax of a
+self-declared `Agent-Assisted-By: Tool Name` trailer and allows every commit
+that omits it. It does not infer authorship and it is not a safety or quality
+gate. The secret-guard installer runs that second installer only when both
+files are present. Pull-request templates also ask an optional "How was this
+made?" question whenever the working style is pull requests; that question is
+context only. Whether the label improves incident response is still unmeasured.
+
 **Gap.** Consumers receive no consistent commit or PR metadata saying that an
 agent participated. That makes incident reconstruction harder, but adding a
 label risks implying more assurance than the label can carry.

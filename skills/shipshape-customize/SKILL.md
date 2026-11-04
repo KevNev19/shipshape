@@ -47,6 +47,13 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    after its exact checks and protection are verified" and require an explicit
    yes. Disabling it needs no consequence gate.
 
+   `features.provenance_labels` stays off unless the user asks. Turning it on
+   adds an optional commit label, `Agent-Assisted-By: Tool Name`, and does
+   not block a commit that omits the label. Say that the label is context
+   only, not a safety check, then require an explicit yes. After apply, run
+   `bash .sdlc/hooks/install.sh` when that installer is present, otherwise
+   `bash .sdlc/hooks/install-provenance.sh`.
+
 3. **Propose the config outside the repository.** Use a unique session
    directory and keep it through apply:
 

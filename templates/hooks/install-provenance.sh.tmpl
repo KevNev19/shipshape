@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# What this is: one-time installer for the optional commit label check.
+# Run it once per clone: bash .sdlc/hooks/install-provenance.sh
+# It follows Git's active hook directory and leaves an unrelated commit-msg
+# hook byte-for-byte unchanged.
+# Safe to edit: yes.
+# managed-by: shipshape v{{KIT_VERSION}}
+set -euo pipefail
+
+fail() {
+  echo "ERROR: $1" >&2
+  exit 1
+}
+
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || fail "run this installer inside a Git repository."
+cd "$root"
+script="$root/.sdlc/hooks/commit-msg-provenance.sh"
+[ -x "$script" ] || fail "the commit label check is missing at .sdlc/hooks/commit-msg-provenance.sh; re-run /shipshape-init."
+
+if git config --get core.hooksPath >/dev/null 2>&1; then
+  :
+else
+  config_status=$?
+  [ "$config_status" -eq 1 ] || fail "could not inspect Git's configured hook path."
+fi
+hooks_path="$(git rev-parse --git-path hooks 2>/dev/null)" || fail "could not determine Git's active hook path."
+case "$hooks_path" in
+  /*) hooks_dir="$hooks_path" ;;
+  *) hooks_dir="$root/$hooks_path" ;;
+esac
+hook="$hooks_dir/commit-msg"
+mkdir -p "$hooks_dir"
+
+if [ -e "$hook" ] || [ -L "$hook" ]; then
+  if [ "$hook" -ef "$script" ] || cmp -s "$hook" "$script"; then
+    echo "The commit label check is already installed."
+    exit 0
+  fi
+  fail "an unrelated existing commit-msg hook is active at '$hook'; it was not changed. Integrate .sdlc/hooks/commit-msg-provenance.sh manually, then re-run this installer."
+fi
+
+ln -s "$script" "$hook"
+if [ ! -x "$hook" ] || { [ ! "$hook" -ef "$script" ] && ! cmp -s "$hook" "$script"; }; then
+  fail "the commit label check could not be verified at '$hook'."
+fi
+echo "Installed the optional commit label check. Commits without Agent-Assisted-By still succeed."
