@@ -14,3 +14,6 @@ __pycache__/
 
 # Test scratch output
 tests/.scratch/
+
+# Lighthouse CI local reports
+.lighthouseci/

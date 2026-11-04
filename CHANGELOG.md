@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A launch film on the marketing site, directly under the hero, and a
+  poster in the README that links to it. The film loops muted while it is
+  on screen, and stays on the poster when the visitor prefers reduced
+  motion. Music is Happy Beats / Business Moves vol. 12 by Sascha Ende
+  (CC BY 4.0). Sound effects are by Kenney (CC0). Pull requests that
+  change the site run a Lighthouse check for performance, accessibility,
+  best practices and layout shift.
 - This changelog.
 - An optional GitHub Projects board (`features.project_board`, ADR 0014).
   It is off unless asked for. Setup only adds missing fields and open

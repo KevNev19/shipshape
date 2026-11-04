@@ -664,6 +664,40 @@ pre {
   color: var(--ink);
 }
 
+/* Launch film. Dimensions come from the video attributes and the aspect
+   ratio, so the poster and the picture occupy the same box. */
+.film {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 100%;
+}
+.film-frame {
+  border: 1px solid var(--ink);
+  background: #08131f;
+  padding: 6px;
+}
+.film-frame video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: #08131f;
+}
+.film figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 68ch;
+  font-size: 0.95rem;
+  color: var(--ink-2);
+}
+.film .credit {
+  color: var(--ink);
+}
+
 /* ---------- Course chart ---------- */
 
 .chart {

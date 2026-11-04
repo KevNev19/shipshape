@@ -25,6 +25,14 @@ plain-language questions, shows you exactly what it will create, and writes
 it on your go-ahead. Everything it writes is standard, boring, reliable
 tooling. Delete the plugin tomorrow and your setup keeps working.
 
+## Watch
+
+<a href="https://kevnev19.github.io/shipshape/#launch">
+  <img alt="Poster for the shipshape launch film. Signal flags spell SHIPSHAPE above the words: Get your repository shipshape." src="site/assets/video/launch-poster.jpg" width="100%">
+</a>
+
+The launch film is on the [website](https://kevnev19.github.io/shipshape/#launch). It has no speech. Music: *Happy Beats / Business Moves vol. 12* by [Sascha Ende](https://ende.app) (ende.app), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Sound effects by [Kenney](https://kenney.nl), CC0.
+
 ## How it works
 
 <picture>

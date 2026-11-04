@@ -1,0 +1,43 @@
+# Checks the marketing site on pull requests. Serves site/ locally and
+# fails the job if performance, accessibility, best practices or layout
+# shift drop below the budgets in lighthouserc.json. The collect server is
+# plain HTTP, so the HTTPS audit is turned off there; GitHub Pages serves
+# the deployed site over HTTPS.
+name: Lighthouse
+
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - ".github/workflows/lighthouse.yml"
+      - "lighthouserc.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lighthouse-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install Lighthouse CI
+        run: npm install --global @lhci/cli@0.16.0
+      - name: Run Lighthouse CI
+        run: |
+          if [ -x /usr/bin/google-chrome-stable ]; then
+            export CHROME_PATH=/usr/bin/google-chrome-stable
+          elif [ -x /usr/bin/google-chrome ]; then
+            export CHROME_PATH=/usr/bin/google-chrome
+          else
+            echo "Chrome was not found on the runner." >&2
+            exit 1
+          fi
+          lhci autorun
