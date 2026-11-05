@@ -1,8 +1,7 @@
 # Checks the marketing site on pull requests. Serves site/ locally and
 # fails the job if performance, accessibility, best practices or layout
 # shift drop below the budgets in lighthouserc.json. The worst of the
-# three runs is what counts. Performance is floored at 0.80: a cold run
-# on the checker has scored 0.85 while the other two scored 1. The
+# three runs is what counts, including performance at 0.90. The
 # collect server is plain HTTP, so the HTTPS audit is turned off there.
 # GitHub Pages serves the deployed site over HTTPS.
 name: Lighthouse
@@ -43,3 +42,33 @@ jobs:
             exit 1
           fi
           lhci autorun
+      - name: Print per-run metrics
+        if: always()
+        run: |
+          python3 - << 'PY'
+          import glob
+          import json
+
+          files = sorted(glob.glob(".lighthouseci/lhr-*.json"))
+          if not files:
+              raise SystemExit("no Lighthouse reports were written")
+          for path in files:
+              data = json.load(open(path))
+              audits = data["audits"]
+              perf = data["categories"]["performance"]["score"]
+              def num(name):
+                  return audits[name]["numericValue"]
+              print(
+                  "perf={perf:.2f} fcp={fcp:.0f} lcp={lcp:.0f} tbt={tbt:.0f} "
+                  "si={si:.0f} cls={cls:.4f} bytes={bytes:.0f} bench={bench}".format(
+                      perf=perf,
+                      fcp=num("first-contentful-paint"),
+                      lcp=num("largest-contentful-paint"),
+                      tbt=num("total-blocking-time"),
+                      si=num("speed-index"),
+                      cls=num("cumulative-layout-shift"),
+                      bytes=num("total-byte-weight"),
+                      bench=data.get("environment", {}).get("benchmarkIndex"),
+                  )
+              )
+          PY

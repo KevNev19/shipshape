@@ -110,8 +110,10 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
     for present in ("controls", "playsinline", "loop", "muted"):
         assert present in video, present
     assert "autoplay" not in video, "autoplay is decided in script, not forced on"
-    assert video.get("preload") == "metadata"
-    assert video.get("poster") == "assets/video/launch-poster.jpg"
+    assert video.get("preload") == "none"
+    assert "poster" not in video
+    assert video.get("data-poster") == "assets/video/launch-poster.jpg"
+    assert (SITE / "assets/video/launch-poster.jpg").is_file()
     assert video.get("width") == "1920"
     assert video.get("height") == "1080"
     assert [item.get("type") for item in parser.sources] == ["video/webm", "video/mp4"]
@@ -142,6 +144,7 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
     # Play and pause the page starts are counted apart, so one cannot clear the other.
     assert "scriptPlays" in script
     assert "scriptPauses" in script
+    assert "video.poster = posterUrl" in script
     assert "fromScript" not in script
     # Leaving the screen pauses the film even after the visitor pressed play.
     assert "if (userStarted) return" not in script
@@ -169,6 +172,7 @@ def test_lighthouse_ci_guards_site_changes():
     assert "@lhci/cli@0.16.0" in workflow
     assert '"staticDistDir": "./site"' in config
     assert '"aggregationMethod": "pessimistic"' in config
+    assert '"categories:performance": ["error", {"minScore": 0.9}]' in config
     for audit in (
         "categories:performance",
         "categories:accessibility",

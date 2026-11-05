@@ -163,8 +163,8 @@
             playsinline
             loop
             muted
-            preload="metadata"
-            poster="assets/video/launch-poster.jpg"
+            preload="none"
+            data-poster="assets/video/launch-poster.jpg"
             width="1920"
             height="1080"
             aria-describedby="launch-description launch-credit"
@@ -572,7 +572,16 @@
   // off screen. Pause, sound and fullscreen stay on the native controls.
   (function () {
     var video = document.getElementById("launch-video");
-    if (!video || !("IntersectionObserver" in window)) return;
+    if (!video) return;
+    var posterUrl = video.getAttribute("data-poster");
+    var armPoster = function () {
+      if (!posterUrl || video.getAttribute("poster")) return;
+      video.poster = posterUrl;
+    };
+    if (!("IntersectionObserver" in window)) {
+      armPoster();
+      return;
+    }
 
     var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     var onScreen = false;
@@ -629,6 +638,15 @@
       }
       playFromScript();
     };
+
+    var posterObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        armPoster();
+        posterObserver.disconnect();
+      });
+    }, { rootMargin: "400px 0px" });
+    posterObserver.observe(video);
 
     var observer = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
