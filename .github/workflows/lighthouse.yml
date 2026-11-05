@@ -34,17 +34,40 @@ jobs:
           node-version: "22"
       - name: Install Lighthouse CI
         run: npm install --global @lhci/cli@0.16.0
-      - name: Run Lighthouse CI
+      - name: Record the runner and the Chrome binary
         run: |
+          . /etc/os-release
+          echo "OS ${PRETTY_NAME}"
+          echo "KERNEL $(uname -r)"
           if [ -x /usr/bin/google-chrome-stable ]; then
-            export CHROME_PATH=/usr/bin/google-chrome-stable
+            CHROME_BIN=/usr/bin/google-chrome-stable
           elif [ -x /usr/bin/google-chrome ]; then
-            export CHROME_PATH=/usr/bin/google-chrome
+            CHROME_BIN=/usr/bin/google-chrome
           else
             echo "Chrome was not found on the runner." >&2
             exit 1
           fi
+          echo "CHROME_BIN ${CHROME_BIN}"
+          "${CHROME_BIN}" --version
+          readlink -f "${CHROME_BIN}"
+          cat > /tmp/chrome-argv-log << EOF
+          #!/bin/sh
+          log="\$GITHUB_WORKSPACE/chrome-launch.log"
+          printf 'CHROME_ARGV' >> "\$log"
+          printf ' %s' "\$@" >> "\$log"
+          printf '\\n' >> "\$log"
+          exec ${CHROME_BIN} "\$@"
+          EOF
+          sed -i 's/^          //' /tmp/chrome-argv-log
+          chmod +x /tmp/chrome-argv-log
+          echo "${CHROME_BIN}" > /tmp/chrome-bin-path
+      - name: Run Lighthouse CI
+        run: |
+          CHROME_BIN="$(cat /tmp/chrome-bin-path)"
+          export CHROME_PATH=/tmp/chrome-argv-log
           lhci autorun
+          echo "CHROME_LAUNCHES"
+          grep '^CHROME_ARGV' "$GITHUB_WORKSPACE/chrome-launch.log" || true
       - name: Print per-run metrics
         if: always()
         run: |
@@ -61,12 +84,19 @@ jobs:
               perf = data["categories"]["performance"]["score"]
               def num(name):
                   return audits[name]["numericValue"]
+              env = data.get("environment") or {}
               tasks = (audits.get("long-tasks") or {}).get("details", {}).get("items") or []
               durations = ",".join(str(round(item.get("duration", 0))) for item in tasks[:6])
+              groups = (audits.get("mainthread-work-breakdown") or {}).get("details", {}).get("items") or []
+              work = ",".join(
+                  "{0}={1:.0f}".format(item.get("groupLabel") or item.get("group"), item.get("duration") or 0)
+                  for item in groups
+              )
+              print("hostUserAgent", env.get("hostUserAgent"))
               print(
                   "perf={perf:.2f} fcp={fcp:.0f} lcp={lcp:.0f} tbt={tbt:.0f} "
                   "si={si:.0f} cls={cls:.4f} bytes={bytes:.0f} bench={bench} "
-                  "tasks={tasks}".format(
+                  "tasks={tasks} work={work}".format(
                       perf=perf,
                       fcp=num("first-contentful-paint"),
                       lcp=num("largest-contentful-paint"),
@@ -74,8 +104,9 @@ jobs:
                       si=num("speed-index"),
                       cls=num("cumulative-layout-shift"),
                       bytes=num("total-byte-weight"),
-                      bench=data.get("environment", {}).get("benchmarkIndex"),
+                      bench=env.get("benchmarkIndex"),
                       tasks=durations or "none",
+                      work=work or "none",
                   )
               )
           PY
