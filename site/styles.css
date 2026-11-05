@@ -635,10 +635,6 @@ pre {
 
 .section {
   border-top: 1px solid var(--rule);
-  /* Skip layout for sections below the first screen until they are near it.
-     The hero is not a .section, so the first paint stays the headline. */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 1000px;
 }
 .section > .wrap {
   padding-block: clamp(64px, 9vw, 120px);
@@ -678,33 +674,17 @@ pre {
   max-width: 100%;
 }
 .film-frame {
-  position: relative;
-  aspect-ratio: 16 / 9;
   border: 1px solid var(--ink);
   background: #08131f;
-  overflow: hidden;
-}
-.film-frame video,
-.film-play {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  padding: 6px;
 }
 .film-frame video {
   display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
   background: #08131f;
-}
-.film-play {
-  border: 0;
-  background: transparent;
-  color: var(--flag-white);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-.film-play[hidden] {
-  display: none;
 }
 .film figcaption {
   display: flex;

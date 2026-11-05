@@ -110,9 +110,10 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
     for present in ("controls", "playsinline", "loop", "muted"):
         assert present in video, present
     assert "autoplay" not in video, "autoplay is decided in script, not forced on"
+    launch = html.split('id="launch"', 1)[1].split('id="how"', 1)[0]
+    assert "<template" not in launch
     assert video.get("preload") == "none"
-    assert "poster" not in video
-    assert video.get("data-poster") == "assets/video/launch-poster.jpg"
+    assert video.get("poster") == "assets/video/launch-poster.jpg"
     assert (SITE / "assets/video/launch-poster.jpg").is_file()
     assert video.get("width") == "1920"
     assert video.get("height") == "1080"
@@ -144,7 +145,7 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
     # Play and pause the page starts are counted apart, so one cannot clear the other.
     assert "scriptPlays" in script
     assert "scriptPauses" in script
-    assert "video.poster = posterUrl" in script
+    assert "openPlay" in script
     assert "fromScript" not in script
     # Leaving the screen pauses the film even after the visitor pressed play.
     assert "if (userStarted) return" not in script
