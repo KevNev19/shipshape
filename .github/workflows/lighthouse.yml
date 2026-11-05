@@ -1,15 +1,20 @@
 # Checks the marketing site on pull requests. Serves site/ locally and
 # fails the job if performance, accessibility, best practices or layout
 # shift drop below the budgets in lighthouserc.json. The worst of the
-# three runs is what counts, including performance at 0.90. A blank
-# one-paragraph page on this runner, measured 2026-11-05 in run
-# 42129569023, scored 0.80, 1.00, 1.00 with first-run total blocking
-# time 892 ms.
+# three runs is what counts, including performance at 0.90.
 #
-# The comparison job measures that same cold first navigation on a
-# separate runner for a blank page and for Chrome for Testing stable.
-# It does not launch Chrome before Lighthouse. Those runs do not change
-# the budgets and do not gate this check.
+# ubuntu-latest is Ubuntu 24.04.5 with google-chrome-stable 156.0.8078.79.
+# Lighthouse 13.6.0 launches it with chrome-launcher's default flags,
+# --headless=new, and --enable-features=DevToolsWebMCPSupport. That
+# first Chrome process does not meet 0.90 on every fresh VM: run
+# 42130930549 scored 0.88, and the blank page in run 42131860416 scored
+# 0.89 with benchmarkIndex 144 and unattributable main-thread work.
+# Later processes on that same VM scored 1.00. Chrome for Testing
+# stable 157.0.8103.38, the current stable build published at
+# googlechromelabs.github.io/chrome-for-testing, scored 1.00 on the
+# first navigation of both the site and a blank page in that run.
+# This job uses that pinned browser and does not launch Chrome before
+# the audit. The budgets are unchanged.
 # The collect server is plain HTTP, so the HTTPS audit is turned off there.
 # GitHub Pages serves the deployed site over HTTPS.
 name: Lighthouse
@@ -32,6 +37,8 @@ jobs:
   lighthouse:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      CFT_VERSION: 157.0.8103.38
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -39,22 +46,20 @@ jobs:
           node-version: "22"
       - name: Install Lighthouse CI
         run: npm install --global @lhci/cli@0.16.0
-      - name: Record the runner and the Chrome binary
+      - name: Install Chrome for Testing
         run: |
+          set -eu
           . /etc/os-release
           echo "OS ${PRETTY_NAME}"
           echo "KERNEL $(uname -r)"
-          if [ -x /usr/bin/google-chrome-stable ]; then
-            CHROME_BIN=/usr/bin/google-chrome-stable
-          elif [ -x /usr/bin/google-chrome ]; then
-            CHROME_BIN=/usr/bin/google-chrome
-          else
-            echo "Chrome was not found on the runner." >&2
-            exit 1
-          fi
+          curl -fsSL -o /tmp/cft.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+          unzip -q /tmp/cft.zip -d /tmp/cft
+          CHROME_BIN=/tmp/cft/chrome-linux64/chrome
+          test -x "${CHROME_BIN}"
+          echo "CHROME_VERSION ${CFT_VERSION}"
           echo "CHROME_BIN ${CHROME_BIN}"
-          dpkg-query -W -f 'CHROME_PACKAGE ${Package} ${Version}\n' google-chrome-stable
           readlink -f "${CHROME_BIN}"
+          export CHROME_BIN
           cat > /tmp/chrome-argv-log << 'EOF'
           #!/bin/sh
           log="$GITHUB_WORKSPACE/chrome-launch.log"
@@ -72,129 +77,6 @@ jobs:
           export CHROME_PATH=/tmp/chrome-argv-log
           set +e
           lhci autorun
-          status=$?
-          set -e
-          echo "CHROME_LAUNCHES"
-          grep '^CHROME_ARGV' "$GITHUB_WORKSPACE/chrome-launch.log" || true
-          exit "$status"
-      - name: Print per-run metrics
-        if: always()
-        run: |
-          python3 - << 'PY'
-          import glob
-          import json
-
-          files = sorted(glob.glob(".lighthouseci/lhr-*.json"))
-          if not files:
-              raise SystemExit("no Lighthouse reports were written")
-          for path in files:
-              data = json.load(open(path))
-              audits = data["audits"]
-              perf = data["categories"]["performance"]["score"]
-              def num(name):
-                  return audits[name]["numericValue"]
-              env = data.get("environment") or {}
-              tasks = (audits.get("long-tasks") or {}).get("details", {}).get("items") or []
-              durations = ",".join(str(round(item.get("duration", 0))) for item in tasks[:6])
-              urls = ",".join((item.get("url") or "-") for item in tasks[:4])
-              groups = (audits.get("mainthread-work-breakdown") or {}).get("details", {}).get("items") or []
-              work = ",".join(
-                  "{0}={1:.0f}".format(item.get("groupLabel") or item.get("group"), item.get("duration") or 0)
-                  for item in groups
-              )
-              print("hostUserAgent", env.get("hostUserAgent"))
-              print(
-                  "perf={perf:.2f} fcp={fcp:.0f} lcp={lcp:.0f} tbt={tbt:.0f} "
-                  "si={si:.0f} cls={cls:.4f} bytes={bytes:.0f} bench={bench} "
-                  "tasks={tasks} urls={urls} work={work}".format(
-                      perf=perf,
-                      fcp=num("first-contentful-paint"),
-                      lcp=num("largest-contentful-paint"),
-                      tbt=num("total-blocking-time"),
-                      si=num("speed-index"),
-                      cls=num("cumulative-layout-shift"),
-                      bytes=num("total-byte-weight"),
-                      bench=env.get("benchmarkIndex"),
-                      tasks=durations or "none",
-                      urls=urls or "none",
-                      work=work or "none",
-                  )
-              )
-          PY
-
-  cold-comparison:
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - id: site-chrome-for-testing
-            page: site
-            browser: cft
-          - id: blank-runner-chrome
-            page: blank
-            browser: runner
-          - id: blank-chrome-for-testing
-            page: blank
-            browser: cft
-    name: cold ${{ matrix.id }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-      - name: Install Lighthouse CI
-        run: npm install --global @lhci/cli@0.16.0
-      - name: Cold first navigation
-        env:
-          PAGE: ${{ matrix.page }}
-          BROWSER: ${{ matrix.browser }}
-          CFT_VERSION: 157.0.8103.38
-        run: |
-          set -eu
-          . /etc/os-release
-          echo "OS ${PRETTY_NAME}"
-          echo "KERNEL $(uname -r)"
-          echo "PAGE ${PAGE}"
-          echo "BROWSER ${BROWSER}"
-          if [ "${BROWSER}" = "cft" ]; then
-            curl -fsSL -o /tmp/cft.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
-            unzip -q /tmp/cft.zip -d /tmp/cft
-            CHROME_BIN=/tmp/cft/chrome-linux64/chrome
-            echo "CHROME_VERSION ${CFT_VERSION}"
-          elif [ -x /usr/bin/google-chrome-stable ]; then
-            CHROME_BIN=/usr/bin/google-chrome-stable
-            dpkg-query -W -f 'CHROME_PACKAGE ${Package} ${Version}\n' google-chrome-stable
-          else
-            echo "Chrome was not found on the runner." >&2
-            exit 1
-          fi
-          test -x "${CHROME_BIN}"
-          echo "CHROME_BIN ${CHROME_BIN}"
-          readlink -f "${CHROME_BIN}"
-          export CHROME_BIN
-          cat > /tmp/chrome-argv-log << 'EOF'
-          #!/bin/sh
-          log="$GITHUB_WORKSPACE/chrome-launch.log"
-          printf 'CHROME_ARGV' >> "$log"
-          printf ' %s' "$@" >> "$log"
-          printf '\n' >> "$log"
-          exec "$CHROME_BIN" "$@"
-          EOF
-          sed -i 's/^          //' /tmp/chrome-argv-log
-          chmod +x /tmp/chrome-argv-log
-          export CHROME_PATH=/tmp/chrome-argv-log
-          if [ "${PAGE}" = "blank" ]; then
-            mkdir -p /tmp/blank-site
-            printf '%s\n' '<!DOCTYPE html>' '<html lang="en">' '<head><meta charset="utf-8"><title>Blank</title></head>' '<body><p>Blank.</p></body></html>' > /tmp/blank-site/index.html
-            DIST=/tmp/blank-site
-          else
-            DIST=./site
-          fi
-          set +e
-          lhci autorun --collect.staticDistDir="${DIST}"
           status=$?
           set -e
           echo "CHROME_LAUNCHES"
