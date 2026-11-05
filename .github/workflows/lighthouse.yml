@@ -58,9 +58,12 @@ jobs:
               perf = data["categories"]["performance"]["score"]
               def num(name):
                   return audits[name]["numericValue"]
+              tasks = (audits.get("long-tasks") or {}).get("details", {}).get("items") or []
+              durations = ",".join(str(round(item.get("duration", 0))) for item in tasks[:6])
               print(
                   "perf={perf:.2f} fcp={fcp:.0f} lcp={lcp:.0f} tbt={tbt:.0f} "
-                  "si={si:.0f} cls={cls:.4f} bytes={bytes:.0f} bench={bench}".format(
+                  "si={si:.0f} cls={cls:.4f} bytes={bytes:.0f} bench={bench} "
+                  "tasks={tasks}".format(
                       perf=perf,
                       fcp=num("first-contentful-paint"),
                       lcp=num("largest-contentful-paint"),
@@ -69,6 +72,7 @@ jobs:
                       cls=num("cumulative-layout-shift"),
                       bytes=num("total-byte-weight"),
                       bench=data.get("environment", {}).get("benchmarkIndex"),
+                      tasks=durations or "none",
                   )
               )
           PY

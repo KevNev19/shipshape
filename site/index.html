@@ -156,23 +156,27 @@
       </header>
 
       <figure class="film">
-        <div class="film-frame">
-          <video
-            id="launch-video"
-            controls
-            playsinline
-            loop
-            muted
-            preload="none"
-            data-poster="assets/video/launch-poster.jpg"
-            width="1920"
-            height="1080"
-            aria-describedby="launch-description launch-credit"
-          >
-            <source src="assets/video/launch.webm" type="video/webm">
-            <source src="assets/video/launch.mp4" type="video/mp4">
-            <track kind="captions" src="assets/video/launch.vtt" srclang="en" label="English">
-          </video>
+        <div class="film-frame" id="launch-stage">
+          <button class="film-play" type="button" id="launch-play">Play the launch film</button>
+          <!-- Inert until the stage is near the screen, so the first view does not start the media engine. -->
+          <template id="launch-video-template">
+            <video
+              id="launch-video"
+              controls
+              playsinline
+              loop
+              muted
+              preload="none"
+              data-poster="assets/video/launch-poster.jpg"
+              width="1920"
+              height="1080"
+              aria-describedby="launch-description launch-credit"
+            >
+              <source src="assets/video/launch.webm" type="video/webm">
+              <source src="assets/video/launch.mp4" type="video/mp4">
+              <track kind="captions" src="assets/video/launch.vtt" srclang="en" label="English">
+            </video>
+          </template>
         </div>
         <figcaption>
           <p id="launch-description">The film has no speech. Signal flags hoist to spell SHIPSHAPE, then a sample conversation sets the repository up and leaves existing files alone. The watch bill follows: secret guard, CI, secret scan, CodeQL and the Wednesday health check. It ends on the install line for Codex and Claude Code.</p>
@@ -567,22 +571,18 @@
   })();
 </script>
 <script>
-  // Play the launch film only while it is on screen and the visitor has
-  // not asked for reduced motion. A play the visitor started still pauses
-  // off screen. Pause, sound and fullscreen stay on the native controls.
+  // The film stays in a template until the stage is near the screen, so the
+  // first view does not start the media engine. It then loops muted only
+  // while on screen, unless the visitor prefers reduced motion. A play the
+  // visitor started still pauses off screen.
   (function () {
-    var video = document.getElementById("launch-video");
-    if (!video) return;
-    var posterUrl = video.getAttribute("data-poster");
-    var armPoster = function () {
-      if (!posterUrl || video.getAttribute("poster")) return;
-      video.poster = posterUrl;
-    };
-    if (!("IntersectionObserver" in window)) {
-      armPoster();
-      return;
-    }
+    var stage = document.getElementById("launch-stage");
+    var template = document.getElementById("launch-video-template");
+    var playButton = document.getElementById("launch-play");
+    if (!stage || !template) return;
 
+    var video = null;
+    var posterUrl = "";
     var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     var onScreen = false;
     var userPaused = false;
@@ -593,13 +593,17 @@
     var motionOk = function () {
       return !motion.matches;
     };
+    var armPoster = function () {
+      if (!video || !posterUrl || video.getAttribute("poster")) return;
+      video.poster = posterUrl;
+    };
     var pauseFromScript = function () {
-      if (video.paused) return;
+      if (!video || video.paused) return;
       scriptPauses += 1;
       video.pause();
     };
     var playFromScript = function () {
-      if (!video.paused || scriptPlays > 0) return;
+      if (!video || !video.paused || scriptPlays > 0) return;
       scriptPlays += 1;
       var pending = video.play();
       if (pending && pending.catch) {
@@ -608,25 +612,8 @@
         });
       }
     };
-
-    video.addEventListener("pause", function () {
-      if (scriptPauses > 0) {
-        scriptPauses -= 1;
-        return;
-      }
-      userPaused = true;
-      userStarted = false;
-    });
-    video.addEventListener("play", function () {
-      if (scriptPlays > 0) {
-        scriptPlays -= 1;
-        return;
-      }
-      userPaused = false;
-      userStarted = true;
-    });
-
     var sync = function () {
+      if (!video) return;
       if (!onScreen) {
         pauseFromScript();
         return;
@@ -638,23 +625,66 @@
       }
       playFromScript();
     };
+    var mount = function () {
+      if (video) return video;
+      var fragment = template.content.cloneNode(true);
+      video = fragment.querySelector("video");
+      if (!video) return null;
+      posterUrl = video.getAttribute("data-poster");
+      stage.insertBefore(video, playButton);
+      if (playButton) playButton.hidden = true;
+      armPoster();
+      video.addEventListener("pause", function () {
+        if (scriptPauses > 0) {
+          scriptPauses -= 1;
+          return;
+        }
+        userPaused = true;
+        userStarted = false;
+      });
+      video.addEventListener("play", function () {
+        if (scriptPlays > 0) {
+          scriptPlays -= 1;
+          return;
+        }
+        userPaused = false;
+        userStarted = true;
+      });
+      return video;
+    };
 
-    var posterObserver = new IntersectionObserver(function (entries) {
+    if (!("IntersectionObserver" in window)) {
+      mount();
+      return;
+    }
+
+    var nearObserver = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
-        armPoster();
-        posterObserver.disconnect();
+        mount();
+        nearObserver.disconnect();
       });
     }, { rootMargin: "400px 0px" });
-    posterObserver.observe(video);
+    nearObserver.observe(stage);
 
     var observer = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         onScreen = entry.isIntersecting && entry.intersectionRatio >= 0.6;
+        if (onScreen) mount();
         sync();
       });
     }, { threshold: [0, 0.6] });
-    observer.observe(video);
+    observer.observe(stage);
+
+    if (playButton) {
+      playButton.addEventListener("click", function () {
+        mount();
+        onScreen = true;
+        userPaused = false;
+        userStarted = true;
+        if (video) video.play();
+      });
+    }
 
     var onMotionChange = function () { sync(); };
     if (motion.addEventListener) motion.addEventListener("change", onMotionChange);

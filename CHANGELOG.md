@@ -38,7 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cannot hide a run that misses a budget. Performance must stay at or
   above 0.90 on every run.
 - The launch film does not fetch its poster or media file until the
-  section is near the screen, so a cold first view is not carrying them.
+  section is near the screen. The player itself stays in a template until
+  then. On the checker, the cold run's total blocking time was 973 ms
+  while the next two runs were 0 ms; the first view no longer builds the
+  player or lays out the sections below the hero.
 - The launch film pauses when it leaves the screen, including after the
   visitor pressed play. A play or pause the page starts is counted on its
   own, so the page does not treat its own pause as the visitor pausing.
