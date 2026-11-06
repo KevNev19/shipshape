@@ -65,13 +65,13 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    ```
 
    If the action is `already_covered`, say so and do not invite them again.
-   If the action is `grant`, show the same command with `access-apply`, say
-   the role in plain words (read, write, or admin), get a yes, then run it.
+   If the action is `manual`, say the role in plain words (read, write, or
+   admin) and the one next step from `next_action`. Do not run
+   `access-apply`. GitHub does not show the person's current board role,
+   so the script does not change it.
    If the JSON `error` is `missing_project_scope`, the repository invite
-   already happened. Say that. Then say the board invite needs
-   `gh auth refresh -s project`. If the command cannot invite them, relay
-   the click path: open the project, choose Settings, then Manage access,
-   and invite them there.
+   already happened. Say that. Then say the next step is
+   `gh auth refresh -s project`.
 
 5. **Report.** Say what changed and what happens next ("Sam gets an email
    invitation; access starts when they accept"). On failure, relay the

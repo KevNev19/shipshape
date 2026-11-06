@@ -25,7 +25,6 @@ OWNER_FIELD = "Owner"
 GATE_FIELD = "Gate"
 GATE_OPTIONS = ("build", "release", "pilot")
 ROLE_FOR_PERMISSION = {"pull": "READER", "push": "WRITER", "admin": "ADMIN"}
-ROLE_RANK = {"READER": 1, "WRITER": 2, "ADMIN": 3}
 SCOPE_MARKERS = (
     "missing required scope",
     "read:project",
@@ -39,6 +38,8 @@ SCOPE_MESSAGE = (
 )
 SCOPE_NEXT = "run `gh auth refresh -s project`"
 CLICK_PATH = "Open the project, choose Settings, then Manage access, and invite them there."
+PAGE_SIZE = 100
+PAGE_CAP = 20
 
 
 class BoardError(Exception):
@@ -48,12 +49,21 @@ class BoardError(Exception):
         self.code = code
 
 
-class CommandFailed(Exception):
+class CommandFailed(BoardError):
+    """A gh failure that still has a JSON payload, so callers can recover it."""
+
     def __init__(self, stdout: str, stderr: str):
-        super().__init__(stderr.strip() or stdout.strip() or "gh command failed")
         self.stdout = stdout
         self.stderr = stderr
         self.text = f"{stderr}\n{stdout}"
+        super().__init__(
+            fail(
+                "github_command_failed",
+                "GitHub's command line tool did not finish the board request.",
+                "Run `gh auth status`, then try again.",
+                detail=safe_detail(self.text),
+            )
+        )
 
 
 def scope_payload(project: dict | None = None) -> dict:
@@ -247,11 +257,74 @@ def as_projects(payload: object) -> list[dict]:
     return [item for item in payload if isinstance(item, dict)]
 
 
+def _page_or_stop(page_info: object, seen: int) -> str | None:
+    if not isinstance(page_info, dict) or page_info.get("hasNextPage") is not True:
+        return None
+    cursor = page_info.get("endCursor")
+    if not isinstance(cursor, str) or not cursor:
+        raise BoardError(
+            fail(
+                "bad_response",
+                "GitHub said another page of results exists but did not give a way to read it.",
+                "Run `gh auth status`, then try again.",
+            )
+        )
+    if seen >= PAGE_CAP:
+        raise BoardError(
+            fail(
+                "truncated",
+                "GitHub returned more results than this check will read, so nothing was changed.",
+                "Finish the remaining items by hand.",
+            )
+        )
+    return cursor
+
+
 def list_projects(owner: str) -> list[dict]:
-    payload = parse_json(
-        run_gh(["project", "list", "--owner", owner, "--limit", "100", "--format", "json"])
-    )
-    return as_projects(payload)
+    """Every open and closed project for this owner, following GraphQL pages.
+
+    ProjectV2 has no collaborators field. Listing uses projectsV2, which does.
+    """
+    query = """
+    query($login: String!, $after: String) {
+      user(login: $login) {
+        projectsV2(first: PAGE_SIZE, after: $after) {
+          pageInfo { hasNextPage endCursor }
+          nodes { number title closed url }
+        }
+      }
+      organization(login: $login) {
+        projectsV2(first: PAGE_SIZE, after: $after) {
+          pageInfo { hasNextPage endCursor }
+          nodes { number title closed url }
+        }
+      }
+    }
+    """.replace("PAGE_SIZE", str(PAGE_SIZE))
+    collected: list[dict] = []
+    cursor: str | None = None
+    seen = 0
+    while True:
+        data = graphql(query, {"login": owner, "after": cursor})
+        connection = None
+        for root in ("user", "organization"):
+            node = data.get(root)
+            if isinstance(node, dict) and isinstance(node.get("projectsV2"), dict):
+                connection = node["projectsV2"]
+                break
+        if connection is None:
+            raise BoardError(
+                fail(
+                    "bad_response",
+                    "GitHub did not return a project list for that owner.",
+                    "Run `gh auth status`, then try again.",
+                )
+            )
+        collected.extend(as_projects(connection.get("nodes")))
+        seen += 1
+        cursor = _page_or_stop(connection.get("pageInfo"), seen)
+        if cursor is None:
+            return collected
 
 
 def view_project(owner: str, number: int) -> dict | None:
@@ -352,79 +425,98 @@ def field_names(owner: str, number: int) -> list[str]:
 
 
 def item_urls(owner: str, number: int) -> set[str]:
-    payload = parse_json(
-        run_gh(
-            [
-                "project",
-                "item-list",
-                str(number),
-                "--owner",
-                owner,
-                "--limit",
-                "100",
-                "--format",
-                "json",
-            ]
-        )
-    )
-    if isinstance(payload, dict):
-        payload = payload.get("items", [])
-    if not isinstance(payload, list):
+    viewed = view_project(owner, number)
+    project_id = viewed.get("id") if isinstance(viewed, dict) else None
+    if not isinstance(project_id, str) or not project_id:
         raise BoardError(
             fail(
                 "bad_response",
-                "GitHub returned a board item list that could not be read.",
+                "GitHub showed the board but not the id needed to read its items.",
                 "Run `gh auth status`, then try again.",
             )
         )
-    urls = set()
-    for item in payload:
-        if not isinstance(item, dict):
-            continue
-        content = item.get("content")
-        url = content.get("url") if isinstance(content, dict) else item.get("url")
-        if isinstance(url, str):
-            urls.add(url.rstrip("/"))
-    return urls
+    query = """
+    query($id: ID!, $after: String) {
+      node(id: $id) {
+        ... on ProjectV2 {
+          items(first: PAGE_SIZE, after: $after) {
+            pageInfo { hasNextPage endCursor }
+            nodes { content { ... on Issue { url } } }
+          }
+        }
+      }
+    }
+    """.replace("PAGE_SIZE", str(PAGE_SIZE))
+    urls: set[str] = set()
+    cursor: str | None = None
+    seen = 0
+    while True:
+        data = graphql(query, {"id": project_id, "after": cursor})
+        node = data.get("node")
+        connection = node.get("items") if isinstance(node, dict) else None
+        if not isinstance(connection, dict):
+            raise BoardError(
+                fail(
+                    "bad_response",
+                    "GitHub returned a board item list that could not be read.",
+                    "Run `gh auth status`, then try again.",
+                )
+            )
+        for item in connection.get("nodes") or []:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            url = content.get("url") if isinstance(content, dict) else None
+            if isinstance(url, str):
+                urls.add(url.rstrip("/"))
+        seen += 1
+        cursor = _page_or_stop(connection.get("pageInfo"), seen)
+        if cursor is None:
+            return urls
 
 
 def open_issues(repository: str) -> list[tuple[int, str]]:
-    payload = parse_json(
-        run_gh(
-            [
-                "issue",
-                "list",
-                "--repo",
-                repository,
-                "--state",
-                "open",
-                "--limit",
-                "100",
-                "--json",
-                "number,url",
-            ]
-        )
-    )
-    if not isinstance(payload, list):
-        raise BoardError(
-            fail(
-                "bad_response",
-                "GitHub returned an issue list that could not be read.",
-                "Run `gh auth status`, then try again.",
+    issues: list[tuple[int, str]] = []
+    for page in range(1, PAGE_CAP + 1):
+        payload = parse_json(
+            run_gh(
+                [
+                    "api",
+                    f"repos/{repository}/issues?state=open&per_page={PAGE_SIZE}&page={page}",
+                ]
             )
         )
-    issues = []
-    for item in payload:
-        if not isinstance(item, dict) or not isinstance(item.get("url"), str):
-            continue
-        url = item["url"].rstrip("/")
-        match = ISSUE_URL_RE.search(url)
-        if match is None:
-            continue
-        number = int(match.group(1))
-        if item.get("number") == number or "number" not in item:
-            issues.append((number, url))
-    return issues
+        if not isinstance(payload, list):
+            raise BoardError(
+                fail(
+                    "bad_response",
+                    "GitHub returned an issue list that could not be read.",
+                    "Run `gh auth status`, then try again.",
+                )
+            )
+        for item in payload:
+            if not isinstance(item, dict) or "pull_request" in item:
+                continue
+            html_url = item.get("html_url")
+            raw_url = html_url if isinstance(html_url, str) else item.get("url")
+            if not isinstance(raw_url, str):
+                continue
+            url = raw_url.rstrip("/")
+            match = ISSUE_URL_RE.search(url)
+            if match is None:
+                continue
+            number = int(match.group(1))
+            if item.get("number") == number or "number" not in item:
+                issues.append((number, url))
+        if len(payload) < PAGE_SIZE:
+            return issues
+    raise BoardError(
+        fail(
+            "truncated",
+            "GitHub returned more open issues than this check will read, so nothing was added.",
+            "Add the remaining issues from the project board.",
+        )
+    )
 
 
 def issues_to_add(repository: str, present: set[str]) -> list[tuple[int, str]]:
@@ -697,15 +789,6 @@ def project_access(repo: Path, user: str, permission: str, *, mutate: bool) -> d
                 "Run /shipshape-customize to create the board.",
             )
         )
-    project_id = found.get("id")
-    if not isinstance(project_id, str) or not project_id:
-        raise BoardError(
-            fail(
-                "bad_response",
-                "GitHub showed the board but not the id needed to invite someone.",
-                CLICK_PATH,
-            )
-        )
     if found.get("public") is True and role == "READER":
         return {
             "ok": True,
@@ -714,70 +797,22 @@ def project_access(repo: Path, user: str, permission: str, *, mutate: bool) -> d
             "role": role,
             "reason": "This project is public, so looking at it needs no invite.",
         }
-    data = graphql(
-        """
-        query($id: ID!) {
-          node(id: $id) {
-            ... on ProjectV2 {
-              collaborators(first: 100) {
-                edges {
-                  role
-                  node { ... on User { login } }
-                }
-              }
-            }
-          }
-        }
-        """,
-        {"id": project_id},
-    )
-    edges = (((data.get("node") or {}).get("collaborators") or {}).get("edges")) or []
-    current = ""
-    if isinstance(edges, list):
-        for edge in edges:
-            if not isinstance(edge, dict) or not isinstance(edge.get("node"), dict):
-                continue
-            login = edge["node"].get("login")
-            if isinstance(login, str) and login.casefold() == user.casefold():
-                current = str(edge.get("role") or "")
-                break
-    if ROLE_RANK.get(current, 0) >= ROLE_RANK[role]:
-        return {
-            "ok": True,
-            "action": "already_covered",
-            "user": user,
-            "role": role,
-            "reason": f"{user} already has {current.lower()} access to the board.",
-        }
-    reason = (
-        "Repository access does not include this project board, "
-        f"so {user} needs an invite with {role.lower()} access."
-    )
-    if not mutate:
-        return {"ok": True, "action": "grant", "user": user, "role": role, "reason": reason}
-    user_data = graphql("query($login: String!) { user(login: $login) { id } }", {"login": user})
-    user_node = user_data.get("user")
-    user_id = user_node.get("id") if isinstance(user_node, dict) else None
-    if not isinstance(user_id, str) or not user_id:
-        raise BoardError(
-            fail(
-                "unknown_user",
-                f"GitHub has no user named {user}, so nobody was invited to the board.",
-                "Confirm the login, then ask again.",
-            )
-        )
-    graphql(
-        """
-        mutation($projectId: ID!, $userId: ID!, $role: ProjectV2Roles!) {
-          updateProjectV2Collaborators(input: {
-            projectId: $projectId
-            collaborators: [{userId: $userId, role: $role}]
-          }) { clientMutationId }
-        }
-        """,
-        {"projectId": project_id, "userId": user_id, "role": role},
-    )
-    return {"ok": True, "action": "granted", "user": user, "role": role, "reason": reason}
+    # ProjectV2 has no field that reads a person's current role, and
+    # updateProjectV2Collaborators would set a role even when that lowers it.
+    # Neither plan nor apply changes membership.
+    del mutate
+    return {
+        "ok": True,
+        "action": "manual",
+        "user": user,
+        "role": role,
+        "reason": (
+            "GitHub's project API does not show this person's current board role, "
+            f"so access was not changed. Invite {user} with {role.lower()} access "
+            "if they do not already have it."
+        ),
+        "next_action": CLICK_PATH,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:

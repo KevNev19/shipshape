@@ -1377,6 +1377,22 @@ def test_wrapped_code_and_quoted_skips_are_read_as_written() -> None:
     )
 
 
+def test_project_board_does_not_downgrade_or_declare_projects_write() -> None:
+    """2026-11-06: the project workflow declared projects: write, which GitHub
+    Actions rejects, and access-apply could lower a board role it could not
+    read. The workflow no longer declares that permission, membership is left
+    for a person to set, and a gh failure after create still returns the board
+    record as JSON."""
+    run_focused_pytest(
+        "tests/test_project_board.py::test_enabled_board_uses_the_project_workflow_variant",
+        "tests/test_project_board.py::test_repository_access_does_not_cover_the_board",
+        "tests/test_project_board.py::test_a_board_past_the_first_page_is_reused",
+        "tests/test_project_board.py::test_open_issues_past_the_first_page_are_added",
+        "tests/test_project_board.py::test_a_project_list_that_does_not_end_changes_nothing",
+        "tests/test_project_board.py::test_gh_failure_after_create_keeps_the_board_record",
+    )
+
+
 def test_weekly_report_restarts_the_agent_without_label_view() -> None:
     """2026-11-06: gh label view is not a command, a second week reused the
     same Copilot assignment without starting a task, overlapping runs could
@@ -1699,6 +1715,10 @@ def main() -> int:
         (
             "weekly report names a denied secret scan and one issue",
             test_weekly_report_names_a_denied_secret_scan_and_one_issue,
+        ),
+        (
+            "project board does not downgrade or declare projects write",
+            test_project_board_does_not_downgrade_or_declare_projects_write,
         ),
         (
             "weekly report restarts the agent without label view",

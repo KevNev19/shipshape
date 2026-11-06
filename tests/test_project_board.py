@@ -44,7 +44,17 @@ if os.environ.get("FAKE_GH_MODE") == "scope":
     sys.exit(1)
 
 args = sys.argv[1:]
-command = args[1] if len(args) > 1 and args[0] == "project" else args[0]
+if args[:2] == ["api", "graphql"]:
+    command = "graphql"
+elif args[0] == "api":
+    command = "api"
+elif len(args) > 1 and args[0] == "project":
+    command = args[1]
+else:
+    command = args[0]
+if os.environ.get("FAKE_GH_FAIL") and command == os.environ["FAKE_GH_FAIL"]:
+    sys.stderr.write("HTTP 500\n")
+    sys.exit(1)
 
 
 def projects_for(owner: str) -> list[dict]:
@@ -122,44 +132,112 @@ elif args[:2] == ["project", "item-add"]:
     save()
     print(json.dumps({"content": {"url": url}}))
 elif args[:2] == ["issue", "list"]:
-    repo = flag("--repo")
-    print(json.dumps(state["open_issues"].get(repo, [])))
+    sys.stderr.write("unexpected issue list; open issues are read with gh api\n")
+    sys.exit(2)
+elif args[0] == "api" and len(args) > 1 and args[1] != "graphql":
+    endpoint = args[1]
+    path, _, query = endpoint.partition("?")
+    params = dict(pair.split("=", 1) for pair in query.split("&") if "=" in pair)
+    if "/issues" not in path:
+        sys.stderr.write(f"unexpected gh api: {endpoint}\n")
+        sys.exit(2)
+    repo = path.removeprefix("repos/").split("/issues")[0]
+    page = int(params.get("page", "1"))
+    per_page = int(params.get("per_page", "100"))
+    items = state["open_issues"].get(repo, [])
+    start = (page - 1) * per_page
+    print(json.dumps(items[start : start + per_page]))
 elif args[:3] == ["api", "graphql", "--input"]:
     payload = json.loads(sys.stdin.read())
     query = payload["query"]
     variables = payload["variables"]
-    if "updateProjectV2Collaborators" in query:
-        project_id = variables["projectId"]
-        user_id = variables["userId"]
-        login = state["user_ids"].get(user_id)
-        state["collaborators"].setdefault(project_id, {})[login] = variables["role"]
-        save()
-        print(json.dumps({"data": {"updateProjectV2Collaborators": {"clientMutationId": "ok"}}}))
-    elif "user(login:" in query:
+    with calls.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(["graphql-query", query]) + "\n")
+    if "collaborators" in query or "updateProjectV2Collaborators" in query:
+        print(
+            json.dumps(
+                {
+                    "errors": [
+                        {
+                            "message": "Field 'collaborators' doesn't exist on type 'ProjectV2'",
+                        }
+                    ]
+                }
+            )
+        )
+    elif "projectsV2" in query:
         login = variables["login"]
-        user_id = state["users"].setdefault(login, f"U_{login}")
-        state["user_ids"][user_id] = login
-        save()
-        print(json.dumps({"data": {"user": {"id": user_id}}}))
-    else:
+        owned = sorted(
+            (item for item in state["projects"] if item["owner"] == login),
+            key=lambda item: item["number"],
+        )
+        after = variables.get("after")
+        start = int(after) if after else 0
+        chunk = owned[start : start + 100]
+        end = start + len(chunk)
+        stuck = state.get("projects_always_more") is True
+        has_next = stuck or end < len(owned)
+        nodes = [
+            {
+                "number": item["number"],
+                "title": item["title"],
+                "closed": item.get("closed", False),
+                "url": item.get("url", ""),
+            }
+            for item in chunk
+        ]
+        connection = {
+            "pageInfo": {"hasNextPage": has_next, "endCursor": str(end) if has_next else None},
+            "nodes": nodes,
+        }
+        user_node = connection if state.get("owner_kind", "user") == "user" else None
+        org_node = connection if state.get("owner_kind") == "organization" else None
+        if user_node is None and org_node is None:
+            user_node = connection
+        print(
+            json.dumps(
+                {
+                    "data": {
+                        "user": None if user_node is None else {"projectsV2": user_node},
+                        "organization": None if org_node is None else {"projectsV2": org_node},
+                    }
+                }
+            )
+        )
+    elif "items(first:" in query:
         project_id = variables["id"]
         project = next(item for item in state["projects"] if item["id"] == project_id)
-        edges = [
-            {"role": role, "node": {"login": login}}
-            for login, role in state["collaborators"].get(project_id, {}).items()
-        ]
+        item_key = f"{project['owner']}/{project['number']}"
+        nodes = []
+        for item in state["items"].get(item_key, []):
+            content = item.get("content") if isinstance(item, dict) else None
+            url = content.get("url") if isinstance(content, dict) else None
+            nodes.append({"content": {"url": url} if url else None})
+        after = variables.get("after")
+        start = int(after) if after else 0
+        chunk = nodes[start : start + 100]
+        end = start + len(chunk)
+        has_next = end < len(nodes)
         print(
             json.dumps(
                 {
                     "data": {
                         "node": {
-                            "public": project["public"],
-                            "collaborators": {"edges": edges},
+                            "items": {
+                                "pageInfo": {
+                                    "hasNextPage": has_next,
+                                    "endCursor": str(end) if has_next else None,
+                                },
+                                "nodes": chunk,
+                            }
                         }
                     }
                 }
             )
         )
+    else:
+        sys.stderr.write("unexpected graphql query\n")
+        sys.exit(2)
 else:
     sys.stderr.write(f"unexpected gh command: {args}\n")
     sys.exit(2)
@@ -184,7 +262,9 @@ def empty_state() -> dict:
     }
 
 
-def install_fake_gh(tmp_path, monkeypatch, state: dict | None = None, *, mode: str = ""):
+def install_fake_gh(
+    tmp_path, monkeypatch, state: dict | None = None, *, mode: str = "", fail: str = ""
+):
     root = tmp_path / "gh-state"
     root.mkdir()
     (root / "state.json").write_text(json.dumps(state or empty_state()), encoding="utf-8")
@@ -197,6 +277,7 @@ def install_fake_gh(tmp_path, monkeypatch, state: dict | None = None, *, mode: s
     prepend_to_path(monkeypatch, bin_dir)
     monkeypatch.setenv("FAKE_GH_STATE", str(root))
     monkeypatch.setenv("FAKE_GH_MODE", mode)
+    monkeypatch.setenv("FAKE_GH_FAIL", fail)
     return root
 
 
@@ -271,7 +352,9 @@ def test_enabled_board_uses_the_project_workflow_variant(tmp_path):
     assert code == 0, result
     assert "projects: write" not in plain_workflow
     assert "gh project item-add" not in plain_workflow
-    assert "projects: write" in project_workflow
+    assert "projects: write" not in project_workflow
+    assert "gh label view" not in project_workflow
+    assert "gh api " in project_workflow
     assert "gh project item-add" in project_workflow
     assert SCOPE_HINT in project_workflow
     assert "SHIPSHAPE_PROJECT_TOKEN" in project_workflow
@@ -429,15 +512,17 @@ def test_repository_access_does_not_cover_the_board(tmp_path, monkeypatch):
     saved = json.loads((root / "state.json").read_text(encoding="utf-8"))
 
     assert covered == 0, covered_payload
-    assert covered_payload["action"] == "already_covered"
+    assert covered_payload["action"] == "manual"
+    assert covered_payload["role"] == "WRITER"
     assert grant == 0, grant_payload
-    assert grant_payload["action"] == "grant"
+    assert grant_payload["action"] == "manual"
     assert grant_payload["role"] == "WRITER"
-    assert "does not include" in grant_payload["reason"]
+    assert "was not changed" in grant_payload["reason"]
     assert applied == 0, applied_payload
-    assert applied_payload["action"] == "granted"
-    assert saved["collaborators"]["PVT_4"]["sam"] == "WRITER"
-    assert saved["collaborators"]["PVT_4"]["ada"] == "WRITER"
+    assert applied_payload["action"] == "manual"
+    assert saved["collaborators"]["PVT_4"] == {"ada": "WRITER"}
+    assert all("updateProjectV2Collaborators" not in json.dumps(call) for call in calls(root))
+    assert all("collaborators(" not in json.dumps(call) for call in calls(root))
 
 
 def test_public_read_needs_no_second_invite(tmp_path, monkeypatch):
@@ -511,8 +596,9 @@ def enable_board(repo: Path, *, number: int | None = 4, workflow: bool = True) -
     if workflow:
         path = repo / ".github" / "workflows" / "shipshape-doctor.yml"
         text = path.read_text(encoding="utf-8")
-        if "projects: write" not in text:
-            text = text.replace("issues: write", "issues: write\n  projects: write", 1)
+        text = text.replace("\n  projects: write", "")
+        if "SHIPSHAPE_PROJECT_TOKEN" not in text:
+            text += "\n# SHIPSHAPE_PROJECT_TOKEN\n"
         if "gh project item-add" not in text:
             text += "\n# gh project item-add\n"
         path.write_text(text, encoding="utf-8")
@@ -665,5 +751,75 @@ def test_skills_and_glossary_explain_the_board_and_the_scope_hint():
     assert SCOPE_HINT in doctor
     assert "project board" in doctor.casefold()
     assert "access-plan" in recipes
+    assert "manual" in access
+    assert "not changed" in recipes.casefold()
     assert "**Project board**" in glossary
     assert (ROOT / "docs/adr/0014-optional-github-project-board.md").is_file()
+    assert (ROOT / "docs/adr/0015-project-board-access-and-permissions.md").is_file()
+
+
+def test_a_board_past_the_first_page_is_reused(tmp_path, monkeypatch):
+    repo = board_repo(tmp_path)
+    state = empty_state()
+    state["projects"] = [
+        {
+            "owner": "octocat",
+            "number": number,
+            "title": "hello delivery" if number == 101 else f"other {number}",
+            "id": f"PVT_{number}",
+            "url": f"https://github.com/users/octocat/projects/{number}",
+            "public": False,
+            "closed": False,
+        }
+        for number in range(1, 102)
+    ]
+    root = install_fake_gh(tmp_path, monkeypatch, state)
+
+    code, payload = run_script("project_board.py", "plan", "--repo", repo)
+
+    assert code == 0, payload
+    assert payload["action"] == "update"
+    assert payload["project"]["number"] == 101
+    assert all(call[:2] != ["project", "create"] for call in calls(root))
+
+
+def test_open_issues_past_the_first_page_are_added(tmp_path, monkeypatch):
+    repo = board_repo(tmp_path)
+    state = empty_state()
+    state["open_issues"]["octocat/hello"] = [
+        {"number": number, "url": f"https://github.com/octocat/hello/issues/{number}"}
+        for number in range(1, 102)
+    ]
+    root = install_fake_gh(tmp_path, monkeypatch, state)
+
+    code, payload = run_script("project_board.py", "apply", "--repo", repo)
+
+    assert code == 0, payload
+    assert 101 in payload["issues_added"]
+    assert any("page=2" in arg for call in calls(root) for arg in call)
+
+
+def test_a_project_list_that_does_not_end_changes_nothing(tmp_path, monkeypatch):
+    repo = board_repo(tmp_path)
+    state = empty_state()
+    state["projects_always_more"] = True
+    root = install_fake_gh(tmp_path, monkeypatch, state)
+
+    code, payload = run_script("project_board.py", "plan", "--repo", repo)
+
+    assert code == 1, payload
+    assert payload["error"] == "truncated"
+    assert all(call[:2] != ["project", "create"] for call in calls(root))
+
+
+def test_gh_failure_after_create_keeps_the_board_record(tmp_path, monkeypatch):
+    repo = board_repo(tmp_path)
+    install_fake_gh(tmp_path, monkeypatch, fail="field-list")
+
+    code, payload = run_script("project_board.py", "apply", "--repo", repo)
+
+    assert code == 1, payload
+    assert payload["error"] == "github_command_failed"
+    assert payload["project"]["number"] == 1
+    assert payload["config_set"]["project.number"] == 1
+    assert "Traceback" not in json.dumps(payload)
