@@ -220,3 +220,35 @@ def test_animejs_vendor_is_the_pinned_build():
     assert len(script.read_bytes()) == 118678
     assert "MIT License" in license_file.read_text(encoding="utf-8")
     assert "Copyright (c) 2025 Julian Garnier" in license_file.read_text(encoding="utf-8")
+
+
+def test_walkthrough_copy_matches_the_page():
+    html = (SITE / "index.html").read_text(encoding="utf-8")
+    course = html.split('id="how"', 1)[1].split('id="feel"', 1)[0]
+    headings = re.findall(r"<h3>(.*?)</h3>", course)
+    assert headings == ["Scan", "A few questions", "Preview", "Set up"]
+    watch = html.split('id="watch"', 1)[1].split('id="commands"', 1)[0]
+    duties = re.findall(r"<td>([^<]*)</td><td>([^<]*)</td>", watch.replace("\n", ""))
+    assert [name for _, name in duties] == [
+        "Secret guard",
+        "CI",
+        "Secret scan",
+        "CodeQL",
+        "Dependabot",
+        "Health check",
+        "Release",
+        "Branch rule",
+    ]
+    report = watch.split('class="scorecard"', 1)[1]
+    statuses = re.findall(r'class="status (?:fail|pass)">(.*?)</b>([^<]*)', report)
+    assert [label.strip() for _, label in statuses] == [
+        "secret guard installed",
+        "remote protection",
+        "code scanning (CodeQL)",
+        "dependency watch (Dependabot)",
+        "automated tests (CI)",
+        "managed files",
+    ]
+    assert report.index("Security") < report.index("secret guard installed")
+    assert report.index("Setup") < report.index("automated tests (CI)")
+    assert "Next: run bash .sdlc/hooks/install.sh" in report
