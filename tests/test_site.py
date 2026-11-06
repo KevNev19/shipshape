@@ -164,6 +164,16 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
     assert (video_dir / "launch.webm").read_bytes()[:4] == b"\x1a\x45\xdf\xa3"
 
 
+def test_lighthouse_floors_stay_pessimistic():
+    config = (ROOT / "lighthouserc.json").read_text(encoding="utf-8")
+    assert '"aggregationMethod": "pessimistic"' in config
+    assert '"categories:performance": ["error", {"minScore": 0.9}]' in config
+    assert '"categories:accessibility": ["error", {"minScore": 0.95}]' in config
+    assert '"categories:best-practices": ["error", {"minScore": 0.9}]' in config
+    assert '"cumulative-layout-shift": ["error", {"maxNumericValue": 0.1}]' in config
+    assert '"total-byte-weight": ["error", {"maxNumericValue": 800000}]' in config
+
+
 def test_lighthouse_ci_guards_site_changes():
     workflow = (ROOT / ".github" / "workflows" / "lighthouse.yml").read_text(encoding="utf-8")
     config = (ROOT / "lighthouserc.json").read_text(encoding="utf-8")
