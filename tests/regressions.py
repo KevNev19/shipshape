@@ -1387,6 +1387,17 @@ def test_weekly_report_restarts_the_agent_without_label_view() -> None:
     )
 
 
+def test_verification_cost_keeps_unknown_counts_unknown() -> None:
+    """2026-11-06: a non-ASCII default branch was refused, a truncated commit
+    history was reported as exactly 1000, and a failed summary still looked
+    like zero usage."""
+    run_focused_pytest(
+        "tests/test_verification_cost.py::test_non_ascii_and_plus_branch_names_are_counted",
+        "tests/test_verification_cost.py::test_truncated_commit_count_stays_unknown",
+        "tests/test_verification_cost.py::test_cost_instructions_stop_when_the_summary_failed",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1692,6 +1703,10 @@ def main() -> int:
         (
             "weekly report restarts the agent without label view",
             test_weekly_report_restarts_the_agent_without_label_view,
+        ),
+        (
+            "verification cost keeps unknown counts unknown",
+            test_verification_cost_keeps_unknown_counts_unknown,
         ),
     ]
     failures = 0
