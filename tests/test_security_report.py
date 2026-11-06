@@ -562,6 +562,37 @@ def test_workflow_keeps_manual_handoff_distinct_from_review_completion():
     assert "grant" not in workflow.casefold()
 
 
+def test_workflow_restarts_the_agent_and_checks_the_label_with_the_api():
+    workflow = _workflow_text()
+    doctor = (
+        Path(__file__).resolve().parent.parent / ".github" / "workflows" / "shipshape-doctor.yml"
+    ).read_text(encoding="utf-8")
+    template = (
+        Path(__file__).resolve().parent.parent
+        / "templates"
+        / "github"
+        / "workflows"
+        / "shipshape-doctor.yml.tmpl"
+    ).read_text(encoding="utf-8")
+
+    assert "concurrency:" in workflow
+    assert "cancel-in-progress: false" in workflow
+    assert "gh label view" not in workflow
+    assert 'gh api "repos/${REPO}/labels/${label}"' in workflow
+    assert "/agents/repos/${owner}/${name}/tasks" in workflow
+    assert "Actions," in workflow
+    assert "Read and write" in workflow
+    for text in (doctor, template):
+        assert "gh label view" not in text
+        assert "repos/${GITHUB_REPOSITORY}/labels/${label}" in text
+
+
+def test_manual_handoff_names_the_actions_permission():
+    report = security_report._assignment("manual_handoff")
+    assert "Actions" in report["detail"]
+    assert "read and write" in report["detail"]
+
+
 def test_workflow_updates_one_rolling_issue_and_reads_dependabot_itself():
     workflow = _workflow_text()
 

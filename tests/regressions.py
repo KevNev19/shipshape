@@ -1393,6 +1393,27 @@ def test_project_board_does_not_downgrade_or_declare_projects_write() -> None:
     )
 
 
+def test_weekly_report_restarts_the_agent_without_label_view() -> None:
+    """2026-11-06: gh label view is not a command, a second week reused the
+    same Copilot assignment without starting a task, overlapping runs could
+    open two issues, and the token note omitted Actions read and write."""
+    run_focused_pytest(
+        "tests/test_security_report.py::test_workflow_restarts_the_agent_and_checks_the_label_with_the_api",
+        "tests/test_security_report.py::test_manual_handoff_names_the_actions_permission",
+    )
+
+
+def test_verification_cost_keeps_unknown_counts_unknown() -> None:
+    """2026-11-06: a non-ASCII default branch was refused, a truncated commit
+    history was reported as exactly 1000, and a failed summary still looked
+    like zero usage."""
+    run_focused_pytest(
+        "tests/test_verification_cost.py::test_non_ascii_and_plus_branch_names_are_counted",
+        "tests/test_verification_cost.py::test_truncated_commit_count_stays_unknown",
+        "tests/test_verification_cost.py::test_cost_instructions_stop_when_the_summary_failed",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1698,6 +1719,14 @@ def main() -> int:
         (
             "project board does not downgrade or declare projects write",
             test_project_board_does_not_downgrade_or_declare_projects_write,
+        ),
+        (
+            "weekly report restarts the agent without label view",
+            test_weekly_report_restarts_the_agent_without_label_view,
+        ),
+        (
+            "verification cost keeps unknown counts unknown",
+            test_verification_cost_keeps_unknown_counts_unknown,
         ),
     ]
     failures = 0

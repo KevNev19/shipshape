@@ -46,7 +46,7 @@
     ".github/workflows/shipshape-doctor.yml": {
       "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "4a53e4ac7121bacd5543ca8fb74f62ce616c289a496601cbda4d8a121554f4ac",
+      "sha256": "3782970889042784a1ac57be65474ea576d86a2661709eecdeac32ae3b2fa33e",
       "template": "github/workflows/shipshape-doctor.yml.tmpl"
     },
     ".pre-commit-config.yaml": {

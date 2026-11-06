@@ -9,7 +9,6 @@ unknown. Uses only the standard library and emits one JSON object on stdout.
 
 import json
 import os
-import re
 import sys
 import urllib.parse
 import urllib.request
@@ -51,6 +50,29 @@ def _failure(days: int, action: str) -> dict:
     }
 
 
+def _branch_name_ok(branch: str) -> bool:
+    """Accept a Git branch name, including non-ASCII names and ``+``.
+
+    Rejects the characters and shapes Git itself rejects, plus ``..`` and
+    ``@{``, which change how a revision is parsed.
+    """
+    if (
+        not branch
+        or branch.startswith("/")
+        or branch.endswith("/")
+        or branch.endswith(".")
+        or branch.endswith(".lock")
+        or "//" in branch
+        or ".." in branch
+        or "@{" in branch
+    ):
+        return False
+    forbidden = "~^:?*[\\"
+    return not any(
+        character.isspace() or character in forbidden or ord(character) < 32 for character in branch
+    )
+
+
 def _landed_changes(repo: str, since_text: str, warnings: list[str]) -> int | None:
     """Commits that reached the default branch. Unknown stays unknown.
 
@@ -59,11 +81,7 @@ def _landed_changes(repo: str, since_text: str, warnings: list[str]) -> int | No
     """
     meta = fetch_json(f"repos/{repo}")
     branch = meta.get("default_branch") if isinstance(meta, dict) else None
-    if (
-        not isinstance(branch, str)
-        or re.fullmatch(r"[A-Za-z0-9._/-]+", branch) is None
-        or ".." in branch.split("/")
-    ):
+    if not isinstance(branch, str) or not _branch_name_ok(branch):
         warnings.append(
             "Default-branch commits could not be read; minutes per landed change stays unknown."
         )
@@ -85,7 +103,7 @@ def _landed_changes(repo: str, since_text: str, warnings: list[str]) -> int | No
         if len(data) < 100:
             return count
     warnings.append("Default-branch commit history was truncated at 1000 commits.")
-    return count
+    return None
 
 
 def summarize(repo: str, days: int, now: datetime | None = None) -> dict:
