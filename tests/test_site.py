@@ -1,5 +1,6 @@
 """The marketing site and the README art it feeds stay wired together."""
 
+import hashlib
 import re
 from html.parser import HTMLParser
 from pathlib import Path
@@ -195,3 +196,27 @@ def test_readme_and_site_say_review_runs_the_projects_checks():
         assert "runs your project's own checks on local work" in text
         assert "asking first on a branch someone else wrote" in text
     assert "Doctor and review only look and report" not in html
+
+
+def test_animejs_vendor_is_the_pinned_build():
+    vendor = SITE / "assets" / "vendor" / "animejs" / "4.5.0"
+    script = vendor / "anime.esm.min.js"
+    license_file = vendor / "LICENSE.md"
+    assert script.is_file()
+    assert license_file.is_file()
+    spec = (ROOT / "docs/superpowers/specs/2026-11-05-animejs-walkthrough-design.md").read_text(
+        encoding="utf-8"
+    )
+    script_sha = re.search(
+        r"anime\.esm\.min\.js` \| 118678 \| 40860 \| `([0-9a-f]{64})`",
+        spec,
+    ).group(1)
+    license_sha = re.search(
+        r"LICENSE\.md` \| 1075 \| 643 \| `([0-9a-f]{64})`",
+        spec,
+    ).group(1)
+    assert hashlib.sha256(script.read_bytes()).hexdigest() == script_sha
+    assert hashlib.sha256(license_file.read_bytes()).hexdigest() == license_sha
+    assert len(script.read_bytes()) == 118678
+    assert "MIT License" in license_file.read_text(encoding="utf-8")
+    assert "Copyright (c) 2025 Julian Garnier" in license_file.read_text(encoding="utf-8")
