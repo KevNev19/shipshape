@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+import subprocess
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -252,3 +253,13 @@ def test_walkthrough_copy_matches_the_page():
     assert report.index("Security") < report.index("secret guard installed")
     assert report.index("Setup") < report.index("automated tests (CI)")
     assert "Next: run bash .sdlc/hooks/install.sh" in report
+
+
+def test_walkthrough_gate_node_tests():
+    completed = subprocess.run(
+        ["node", "--test", "tests/walkthrough.test.mjs"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
