@@ -263,3 +263,25 @@ def test_walkthrough_gate_node_tests():
         text=True,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_walkthrough_script_is_progressive():
+    html = (SITE / "index.html").read_text(encoding="utf-8")
+    script = html.split("assets/walkthrough.mjs", 1)[1]
+    assert "prefers-reduced-motion" in script
+    assert "onScroll" not in script
+    assert "played" in script
+    assert "seenAt" in script
+    assert 'addEventListener("scroll"' in script
+    assert "Math.min(rect.height, window.innerHeight)" in script
+    assert "import(" in html
+    assert "anime.esm.min.js" in html
+    assert "https://cdn." not in html
+    assert "aria-hidden" not in script
+    # The loader sits after the commands section. Judge that section's markup,
+    # not the script that follows it.
+    commands = html.split('id="commands"', 1)[1].split("<script", 1)[0]
+    assert "<h3>Health check</h3>" in commands
+    assert "COURSE_SELECTOR" not in commands
+    assert (SITE / "assets" / "walkthrough.mjs").is_file()
+    assert (SITE / "assets" / "vendor" / "animejs" / "4.5.0" / "anime.esm.min.js").is_file()

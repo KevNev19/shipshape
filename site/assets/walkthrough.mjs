@@ -6,6 +6,15 @@ export const WATCH_ROW_SELECTOR = "#watch table.watchbill > tbody > tr";
 export const REPORT_SELECTOR =
   "#watch figure.scorecard p.group, #watch figure.scorecard li, #watch figure.scorecard p.next";
 
+// A section taller than the viewport can never put 60% of its own box on
+// screen. Count the visible slice against whichever is smaller, the section
+// or the screen, so a phone can still reach the same 60% bar.
+export function visibleRatio(height, viewportHeight, visible) {
+  const span = Math.min(height, viewportHeight);
+  if (!span) return 0;
+  return Math.max(0, visible) / span;
+}
+
 export function decide(state) {
   if (state.played || state.reduceMotion) return "stay";
   if (state.ratio < VISIBLE_RATIO) return "wait";
@@ -41,5 +50,13 @@ export function playReveal(anime, elements, duration, staggerMs) {
     el.style.transform = "translateY(8px)";
   }
   timeline.play();
+  if (typeof timeline.then === "function") {
+    timeline.then(() => {
+      for (const el of elements) {
+        el.style.opacity = "";
+        el.style.transform = "";
+      }
+    });
+  }
   return timeline;
 }

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decide, finishVisible, LATE_MS, VISIBLE_RATIO } from "../site/assets/walkthrough.mjs";
+import {
+  decide,
+  finishVisible,
+  LATE_MS,
+  playReveal,
+  VISIBLE_RATIO,
+  visibleRatio,
+} from "../site/assets/walkthrough.mjs";
 
 const base = {
   played: false,
@@ -30,6 +37,54 @@ test("skips when the section was visible for 300ms before the library", () => {
   assert.equal(decide({ ...base, libraryReady: false, now: 299 }), "wait");
   assert.equal(decide({ ...base, libraryReady: false, now: 300 }), "skip");
   assert.equal(decide({ ...base, libraryReady: true, now: 300 }), "skip");
+});
+
+test("a tall section can still count as on screen", () => {
+  assert.equal(visibleRatio(100, 800, 60) >= VISIBLE_RATIO, true);
+  assert.equal(visibleRatio(100, 800, 59) >= VISIBLE_RATIO, false);
+  assert.equal(visibleRatio(1636, 844, 844) >= VISIBLE_RATIO, true);
+  assert.equal(visibleRatio(1636, 844, 500) >= VISIBLE_RATIO, false);
+  assert.equal(visibleRatio(0, 844, 0), 0);
+});
+
+test("playReveal hides only as it starts and clears when finished", () => {
+  const el = { style: { opacity: "", transform: "" } };
+  let finished = null;
+  const timeline = {
+    add(target, params, position) {
+      assert.equal(target, elements);
+      assert.deepEqual(params.opacity, [0, 1]);
+      assert.deepEqual(params.translateY, [8, 0]);
+      assert.equal(params.duration, 450);
+      assert.equal(params.delay, "stagger-180");
+      assert.equal(position, 0);
+      return this;
+    },
+    play() {
+      return this;
+    },
+    then(callback) {
+      finished = callback;
+      return Promise.resolve();
+    },
+  };
+  const elements = [el];
+  const anime = {
+    createTimeline(options) {
+      assert.deepEqual(options, { autoplay: false });
+      return timeline;
+    },
+    stagger(ms) {
+      assert.equal(ms, 180);
+      return "stagger-180";
+    },
+  };
+  assert.equal(playReveal(anime, elements, 450, 180), timeline);
+  assert.equal(el.style.opacity, "0");
+  assert.equal(el.style.transform, "translateY(8px)");
+  finished();
+  assert.equal(el.style.opacity, "");
+  assert.equal(el.style.transform, "");
 });
 
 test("finishVisible clears inline motion and pauses", () => {

@@ -653,5 +653,197 @@
     else if (motion.addListener) motion.addListener(onMotionChange);
   })();
 </script>
+<script>
+  (function () {
+    var gateUrl = new URL("assets/walkthrough.mjs", document.baseURI).href;
+    var animeUrl = new URL("assets/vendor/animejs/4.5.0/anime.esm.min.js", document.baseURI).href;
+    var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    var surfaces = null;
+    var loading = null;
+    var gateMod = null;
+    var seenAt = { course: null, rows: null, report: null };
+    var shownWhileReduced = { course: false, rows: false, report: false };
+    var watchingScroll = false;
+
+    function targets() {
+      return {
+        course: document.getElementById("how"),
+        rows: document.querySelector("#watch table.watchbill"),
+        report: document.querySelector("#watch figure.scorecard"),
+      };
+    }
+
+    function reduceOn() { return motion.matches; }
+
+    function ratio(el, gate) {
+      if (!el) return 0;
+      var rect = el.getBoundingClientRect();
+      var visible = Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0);
+      if (gate && gate.visibleRatio) return gate.visibleRatio(rect.height, window.innerHeight, visible);
+      var span = Math.min(rect.height, window.innerHeight);
+      return span ? Math.max(0, visible) / span : 0;
+    }
+
+    function near(el) {
+      if (!el) return false;
+      var rect = el.getBoundingClientRect();
+      return rect.top < window.innerHeight + 400 && rect.bottom > -400;
+    }
+
+    function noteSeen(now) {
+      var map = targets();
+      Object.keys(map).forEach(function (key) {
+        if (seenAt[key] == null && ratio(map[key]) >= 0.6) seenAt[key] = now;
+      });
+    }
+
+    function noteReducedShown() {
+      var map = targets();
+      Object.keys(map).forEach(function (key) {
+        if (ratio(map[key]) >= 0.6) shownWhileReduced[key] = true;
+      });
+    }
+
+    function watchScroll() {
+      if (watchingScroll) return;
+      watchingScroll = true;
+      window.addEventListener("scroll", consider, { passive: true });
+      window.addEventListener("resize", consider);
+    }
+
+    function loadGate() {
+      if (loading) return loading;
+      loading = Promise.all([
+        import(gateUrl),
+        import(animeUrl),
+      ]).then(function (mods) {
+        return { gate: mods[0], anime: mods[1] };
+      });
+      loading.catch(function () { loading = Promise.resolve(null); });
+      return loading;
+    }
+
+    function ensure(mods) {
+      if (surfaces) return surfaces;
+      var how = document.getElementById("how");
+      surfaces = {
+        course: {
+          el: how,
+          nodes: Array.from(how.querySelectorAll(mods.gate.COURSE_SELECTOR)),
+          duration: 450,
+          stagger: 180,
+          played: shownWhileReduced.course,
+          timeline: null,
+          visibleSince: seenAt.course,
+        },
+        rows: {
+          el: document.querySelector("#watch table.watchbill"),
+          nodes: Array.from(document.querySelectorAll(mods.gate.WATCH_ROW_SELECTOR)),
+          duration: 280,
+          stagger: 70,
+          played: shownWhileReduced.rows,
+          timeline: null,
+          visibleSince: seenAt.rows,
+        },
+        report: {
+          el: document.querySelector("#watch figure.scorecard"),
+          nodes: Array.from(document.querySelectorAll(mods.gate.REPORT_SELECTOR)),
+          duration: 280,
+          stagger: 80,
+          played: shownWhileReduced.report,
+          timeline: null,
+          visibleSince: seenAt.report,
+        },
+      };
+      return surfaces;
+    }
+
+    function tick(mods) {
+      if (!mods) return;
+      gateMod = mods.gate;
+      var now = performance.now();
+      if (!reduceOn()) noteSeen(now);
+      Object.keys(ensure(mods)).forEach(function (key) {
+        var surface = surfaces[key];
+        if (shownWhileReduced[key]) surface.played = true;
+        var seen = ratio(surface.el, mods.gate);
+        if (seen >= mods.gate.VISIBLE_RATIO && surface.visibleSince == null) {
+          surface.visibleSince = seenAt[key] == null ? now : seenAt[key];
+        }
+        var action = mods.gate.decide({
+          played: surface.played,
+          reduceMotion: reduceOn(),
+          ratio: seen,
+          visibleSince: surface.visibleSince,
+          now: now,
+          libraryReady: true,
+        });
+        if (action === "skip") {
+          surface.played = true;
+          return;
+        }
+        if (action !== "play") return;
+        try {
+          surface.timeline = mods.gate.playReveal(
+            mods.anime,
+            surface.nodes,
+            surface.duration,
+            surface.stagger
+          );
+          surface.played = true;
+        } catch (error) {
+          mods.gate.finishVisible(null, surface.nodes);
+          surface.played = true;
+        }
+      });
+    }
+
+    function consider() {
+      if (reduceOn()) {
+        noteReducedShown();
+        return;
+      }
+      noteSeen(performance.now());
+      var how = document.getElementById("how");
+      var watch = document.getElementById("watch");
+      if (!near(how) && !near(watch)) return;
+      watchScroll();
+      loadGate().then(function (mods) { tick(mods); }).catch(function () {});
+    }
+
+    function onMotion() {
+      if (reduceOn()) noteReducedShown();
+      if (!reduceOn() || !surfaces) {
+        consider();
+        return;
+      }
+      Object.keys(surfaces).forEach(function (key) {
+        var surface = surfaces[key];
+        if (!surface.timeline) return;
+        var apply = function (gate) {
+          surface.played = gate.finishVisible(surface.timeline, surface.nodes);
+          surface.timeline = null;
+        };
+        if (gateMod) apply(gateMod);
+        else import(gateUrl).then(apply);
+      });
+    }
+
+    if ("IntersectionObserver" in window) {
+      var watcher = new IntersectionObserver(consider, {
+        rootMargin: "400px 0px",
+        threshold: [0, 0.6],
+      });
+      watcher.observe(document.getElementById("how"));
+      watcher.observe(document.getElementById("watch"));
+    } else {
+      watchScroll();
+      consider();
+    }
+    if (motion.addEventListener) motion.addEventListener("change", onMotion);
+    else if (motion.addListener) motion.addListener(onMotion);
+    watchScroll();
+  })();
+</script>
 </body>
 </html>
