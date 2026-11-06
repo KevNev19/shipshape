@@ -1377,6 +1377,17 @@ def test_wrapped_code_and_quoted_skips_are_read_as_written() -> None:
     )
 
 
+def test_verification_cost_keeps_unknown_counts_unknown() -> None:
+    """2026-11-06: a non-ASCII default branch was refused, a truncated commit
+    history was reported as exactly 1000, and a failed summary still looked
+    like zero usage."""
+    run_focused_pytest(
+        "tests/test_verification_cost.py::test_non_ascii_and_plus_branch_names_are_counted",
+        "tests/test_verification_cost.py::test_truncated_commit_count_stays_unknown",
+        "tests/test_verification_cost.py::test_cost_instructions_stop_when_the_summary_failed",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1678,6 +1689,10 @@ def main() -> int:
         (
             "weekly report names a denied secret scan and one issue",
             test_weekly_report_names_a_denied_secret_scan_and_one_issue,
+        ),
+        (
+            "verification cost keeps unknown counts unknown",
+            test_verification_cost_keeps_unknown_counts_unknown,
         ),
     ]
     failures = 0
