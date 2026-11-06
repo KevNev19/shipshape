@@ -242,7 +242,11 @@ def workflow_adds_doctor_issues(repo: Path) -> bool:
         text = workflow.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return False
-    return "projects: write" in text and "gh project item-add" in text
+    return (
+        "gh project item-add" in text
+        and "SHIPSHAPE_PROJECT_TOKEN" in text
+        and "projects: write" not in text
+    )
 
 
 def project_board_remote(owner: str, number: int) -> str:

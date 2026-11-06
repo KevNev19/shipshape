@@ -696,7 +696,7 @@ the time of that check.
 | 10. Verification cost | Invoke-only prototype. Merged pull requests were the only denominator, so trunk pushes were invisible. Money was already unknown. | Counts commits on the default branch as well, still does not guess a price, and `/shipshape-doctor` translates the summary only on request. [PR 32](https://github.com/KevNev19/shipshape/pull/32) |
 | 11. Provenance labels | Not shipped to consumers. | Opt-in `features.provenance_labels` commit trailer `Agent-Assisted-By: Tool Name`. Unlabeled commits still succeed. The label is not a safety check. Pull-request templates ask an optional "How was this made?" question. [PR 30](https://github.com/KevNev19/shipshape/pull/30) |
 | 12. Progressive delivery | No flag, canary, or rollback artifact. | Opt-in checklist page only. No deploy workflow and no platform setting. [PR 34](https://github.com/KevNev19/shipshape/pull/34) |
-| 13. Dead `project_board` switch | Removed from the default config. Doctor warns if an old config still has the key. | No further change. GitHub Projects support is separate work (issue 14). |
+| 13. Dead `project_board` switch | The key is real and defaults to false. ADR 0014 and ADR 0015. Doctor omits the check while it is off and does not warn merely because the key is present. | Optional board, off unless someone turns it on. Issue 14 stays open for anything past that opt-in board. |
 | 14. Agent sandboxing guidance | Done. `templates/security/security-explainer.md.tmpl` has "When an AI tool works here." | No further change. The guidance does not claim the kit can enforce a sandbox. |
 
 Decisions still open, and not made by these slices:

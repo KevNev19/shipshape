@@ -89,9 +89,12 @@ which `owner/repo` to summarize and stop.
 python3 "${SHIPSHAPE_ROOT}/scripts/verification_cost.py" summarize <owner/repo> --days 30
 ```
 
-Translate the JSON before any raw detail. Say the window, the number of
-runs, attempts, retried runs, and minutes. When `landed_changes` is a
-number, say minutes per landed change. Landed changes are commits that
+Translate the JSON before any raw detail. If `ok` is false, say the
+`next_action` and stop. The zero counts in that object were not measured.
+When `ok` is true, say the window, the number of runs, attempts, retried
+runs, and minutes. When `landed_changes` is a number, say minutes per
+landed change. When it is missing, say the landed count is unknown and do
+not invent a rate. Landed changes are commits that
 reached the default branch, including direct pushes. `merged_changes` counts
 merged pull requests only, so it undercounts a repository that pushes
 straight to its main branch. Do not add those two counts together.

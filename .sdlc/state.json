@@ -46,7 +46,7 @@
     ".github/workflows/shipshape-doctor.yml": {
       "kit_version": "0.4.0",
       "mode": "0644",
-      "sha256": "4a53e4ac7121bacd5543ca8fb74f62ce616c289a496601cbda4d8a121554f4ac",
+      "sha256": "3782970889042784a1ac57be65474ea576d86a2661709eecdeac32ae3b2fa33e",
       "template": "github/workflows/shipshape-doctor.yml.tmpl"
     },
     ".pre-commit-config.yaml": {
@@ -75,7 +75,7 @@
     ".sdlc/scripts/doctor.py": {
       "kit_version": "0.4.0",
       "mode": "0755",
-      "sha256": "f4a90264340c6f9bd33a7309f274df90e48b510c1f88b369dcf596bceb9fe150",
+      "sha256": "69174802abadff22d81853f3d31b6a23d51281edf90b4c52f36e65c7b27c813b",
       "template": "scripts/doctor.py.tmpl"
     },
     ".sdlc/scripts/release-preflight.py": {

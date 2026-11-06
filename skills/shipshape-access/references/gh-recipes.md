@@ -43,9 +43,9 @@ approves that exact proposal, repeat the same arguments with `protect`.
 ## Project board
 
 Repository access does not include a GitHub Project (the board of issues).
-When `features.project_board` is true, follow a repository invite with a
-board invite unless the person already has that much access on the board.
-A public board already covers read access.
+When `features.project_board` is true, a public board already covers read
+access. For any other role, access is not changed. GitHub's project API
+does not show the person's current role, and setting a role could lower it.
 
 | Repository permission | Board role | Plain words |
 |-----------------------|------------|-------------|
@@ -60,9 +60,10 @@ python3 "${SHIPSHAPE_ROOT}/scripts/project_board.py" access-apply \
   --repo . --user <user> --permission <pull|push|admin>
 ```
 
-Show `access-plan` first. It is read-only. After a yes, run `access-apply`
-with the same user and permission. Do not downgrade someone who already has
-a higher role, and do not remove anyone.
+Show `access-plan` first. It does not change membership. If the action is
+`manual`, do not run `access-apply`. Tell the person the role and the
+project Settings path. Do not lower someone's access, and do not remove
+anyone.
 
 If the JSON `error` is `missing_project_scope`, the repository change still
 stands. Say so, then the one next step: `gh auth refresh -s project`.

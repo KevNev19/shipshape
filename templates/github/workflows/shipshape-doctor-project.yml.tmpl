@@ -13,7 +13,6 @@ on:
 permissions:
   contents: read
   issues: write
-  projects: write
 
 jobs:
   health-check:
@@ -108,7 +107,7 @@ jobs:
           label="shipshape-health"
           title="shipshape health check"
           issue_error=""
-          if ! gh label view "$label" >/dev/null 2>&1; then
+          if ! gh api "repos/${GITHUB_REPOSITORY}/labels/${label}" >/dev/null 2>&1; then
             if ! gh label create "$label" --color "1D76DB" \
               --description "Shipshape scheduled health findings" >/dev/null 2>&1; then
               issue_error="the health label could not be created"
