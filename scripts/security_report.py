@@ -455,7 +455,8 @@ def _assignment(assignment_status: str) -> dict:
         detail = (
             "no agent was assigned. Set ACTIONS_PAT to a personal access token for a "
             "repository administrator who has Copilot (classic repo scope, or a "
-            "fine-grained token with Issues, Contents, and Pull requests read and write), "
+            "fine-grained token with Metadata read and Actions, Issues, Contents, "
+            "and Pull requests read and write), "
             "or hand this issue to the security-quality agent manually. "
             "Assignment is not a completed review"
         )

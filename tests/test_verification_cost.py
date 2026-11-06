@@ -239,6 +239,60 @@ def test_unreadable_default_branch_stays_unknown(monkeypatch):
     assert result["warnings"]
 
 
+def test_non_ascii_and_plus_branch_names_are_counted(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    def fake_fetch(path, branch):
+        if path == "repos/owner/repo":
+            return {"default_branch": branch}
+        if "/commits?" in path:
+            assert urllib.parse.quote(branch, safe="") in path
+            return [{"sha": "abc"}]
+        if path.startswith("repos/"):
+            return {"workflow_runs": []}
+        return {"total_count": 0}
+
+    for branch in ("développement", "release+stable"):
+        monkeypatch.setattr(
+            verification_cost,
+            "fetch_json",
+            lambda path, branch=branch: fake_fetch(path, branch),
+        )
+        result = verification_cost.summarize("owner/repo", 30, now=FIXED_NOW)
+        assert result["landed_changes"] == 1, branch
+        assert result["minutes_per_landed_change"] is None or result["minutes"] == 0
+
+
+def test_truncated_commit_count_stays_unknown(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    def fake_fetch(path):
+        if path == "repos/owner/repo":
+            return {"default_branch": "main"}
+        if "/commits?" in path:
+            return [{"sha": str(i)} for i in range(100)]
+        if path.startswith("repos/"):
+            return {"workflow_runs": []}
+        return {"total_count": 0}
+
+    monkeypatch.setattr(verification_cost, "fetch_json", fake_fetch)
+
+    result = verification_cost.summarize("owner/repo", 30, now=FIXED_NOW)
+
+    assert result["ok"] is True
+    assert result["landed_changes"] is None
+    assert result["minutes_per_landed_change"] is None
+    assert any("truncated" in warning for warning in result["warnings"])
+
+
+def test_cost_instructions_stop_when_the_summary_failed():
+    skill = (
+        Path(__file__).resolve().parent.parent / "skills" / "shipshape-doctor" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "If `ok` is false" in skill
+    assert "were not measured" in skill
+
+
 def test_run_just_outside_cutoff_is_excluded(monkeypatch):
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
     now = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)

@@ -4,7 +4,7 @@ Date: 2026-11-04
 
 ## Status
 
-Accepted
+Superseded by [ADR 0015](0015-project-board-access-and-permissions.md)
 
 ## Context
 

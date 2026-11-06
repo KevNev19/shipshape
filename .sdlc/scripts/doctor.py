@@ -242,7 +242,11 @@ def workflow_adds_doctor_issues(repo: Path) -> bool:
         text = workflow.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return False
-    return "projects: write" in text and "gh project item-add" in text
+    return (
+        "gh project item-add" in text
+        and "SHIPSHAPE_PROJECT_TOKEN" in text
+        and "projects: write" not in text
+    )
 
 
 def project_board_remote(owner: str, number: int) -> str:
@@ -396,6 +400,19 @@ def test_quality_check(repo: Path, config: dict) -> dict:
         if not isinstance(action, str) or not action:
             action = f"Strengthen {name} in {path} with a meaningful assertion."
         return check("test quality", WARN, detail, action)
+    warnings = payload.get("warnings") if isinstance(payload, dict) else None
+    if isinstance(warnings, list) and warnings:
+        first = warnings[0] if isinstance(warnings[0], dict) else {}
+        noted = first.get("path") if isinstance(first.get("path"), str) else "a test file"
+        return check(
+            "test quality",
+            WARN,
+            (
+                f"the test scan was incomplete; first note is {noted}. "
+                "This does not block a merge and is not a clean result."
+            ),
+            "Open that file, then run /shipshape-doctor again.",
+        )
     scanned = payload.get("tests_scanned", 0)
     return check(
         "test quality",
