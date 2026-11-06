@@ -1377,6 +1377,16 @@ def test_wrapped_code_and_quoted_skips_are_read_as_written() -> None:
     )
 
 
+def test_weekly_report_restarts_the_agent_without_label_view() -> None:
+    """2026-11-06: gh label view is not a command, a second week reused the
+    same Copilot assignment without starting a task, overlapping runs could
+    open two issues, and the token note omitted Actions read and write."""
+    run_focused_pytest(
+        "tests/test_security_report.py::test_workflow_restarts_the_agent_and_checks_the_label_with_the_api",
+        "tests/test_security_report.py::test_manual_handoff_names_the_actions_permission",
+    )
+
+
 def test_verification_cost_keeps_unknown_counts_unknown() -> None:
     """2026-11-06: a non-ASCII default branch was refused, a truncated commit
     history was reported as exactly 1000, and a failed summary still looked
@@ -1689,6 +1699,10 @@ def main() -> int:
         (
             "weekly report names a denied secret scan and one issue",
             test_weekly_report_names_a_denied_secret_scan_and_one_issue,
+        ),
+        (
+            "weekly report restarts the agent without label view",
+            test_weekly_report_restarts_the_agent_without_label_view,
         ),
         (
             "verification cost keeps unknown counts unknown",
