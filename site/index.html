@@ -163,7 +163,7 @@
             playsinline
             loop
             muted
-            preload="metadata"
+            preload="none"
             poster="assets/video/launch-poster.jpg"
             width="1920"
             height="1080"
@@ -567,9 +567,9 @@
   })();
 </script>
 <script>
-  // Play the launch film only while it is on screen and the visitor has
-  // not asked for reduced motion. Otherwise leave the poster, and leave
-  // play, pause, sound and fullscreen to the native controls.
+  // Loop muted only while the film is on screen, unless the visitor prefers
+  // reduced motion. A play the visitor started still pauses off screen.
+  // The video element stays in the page so it works with JavaScript off.
   (function () {
     var video = document.getElementById("launch-video");
     if (!video || !("IntersectionObserver" in window)) return;
@@ -578,47 +578,67 @@
     var onScreen = false;
     var userPaused = false;
     var userStarted = false;
-    var fromScript = false;
+    var scriptPlays = 0;
+    var scriptPauses = 0;
+    var playSerial = 0;
+    var openPlay = null;
 
     var motionOk = function () {
       return !motion.matches;
     };
     var pauseFromScript = function () {
       if (video.paused) return;
-      fromScript = true;
+      scriptPauses += 1;
       video.pause();
     };
+    var settlePlay = function (id, failed) {
+      if (!openPlay || openPlay.id !== id) return;
+      if (failed && !openPlay.sawEvent && scriptPlays > 0) scriptPlays -= 1;
+      openPlay = null;
+      sync();
+    };
     var playFromScript = function () {
-      if (!video.paused) return;
-      fromScript = true;
+      if (!video.paused || openPlay) return;
+      var id = ++playSerial;
+      openPlay = { id: id, sawEvent: false };
+      scriptPlays += 1;
       var pending = video.play();
-      if (pending && pending.catch) {
-        pending.catch(function () { fromScript = false; });
+      if (pending && pending.then) {
+        pending.then(function () { settlePlay(id, false); }, function () { settlePlay(id, true); });
+      } else {
+        openPlay = null;
       }
+    };
+    var sync = function () {
+      if (!onScreen) {
+        pauseFromScript();
+        return;
+      }
+      if (userPaused || openPlay) return;
+      if (!motionOk()) {
+        if (!userStarted) pauseFromScript();
+        return;
+      }
+      playFromScript();
     };
 
     video.addEventListener("pause", function () {
-      if (fromScript) {
-        fromScript = false;
+      if (scriptPauses > 0) {
+        scriptPauses -= 1;
         return;
       }
       userPaused = true;
       userStarted = false;
     });
     video.addEventListener("play", function () {
-      if (fromScript) {
-        fromScript = false;
+      if (openPlay) openPlay.sawEvent = true;
+      if (scriptPlays > 0) {
+        scriptPlays -= 1;
         return;
       }
       userPaused = false;
       userStarted = true;
     });
-
-    var sync = function () {
-      if (userStarted) return;
-      if (motionOk() && onScreen && !userPaused) playFromScript();
-      else pauseFromScript();
-    };
 
     var observer = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
