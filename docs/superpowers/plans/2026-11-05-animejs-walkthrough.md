@@ -57,8 +57,12 @@ def test_animejs_vendor_is_the_pinned_build():
     license_file = vendor / "LICENSE.md"
     assert script.is_file()
     assert license_file.is_file()
-    spec = (ROOT / "docs/superpowers/specs/2026-11-05-animejs-walkthrough-design.md").read_text(encoding="utf-8")
-    script_sha = re.search(r"anime\.esm\.min\.js` \| 118678 \| 40860 \| `([0-9a-f]{64})`", spec).group(1)
+    spec = (ROOT / "docs/superpowers/specs/2026-11-05-animejs-walkthrough-design.md").read_text(
+        encoding="utf-8"
+    )
+    script_sha = re.search(
+        r"anime\.esm\.min\.js` \| 118678 \| 40860 \| `([0-9a-f]{64})`", spec
+    ).group(1)
     license_sha = re.search(r"LICENSE\.md` \| 1075 \| 643 \| `([0-9a-f]{64})`", spec).group(1)
     assert hashlib.sha256(script.read_bytes()).hexdigest() == script_sha
     assert hashlib.sha256(license_file.read_bytes()).hexdigest() == license_sha
@@ -320,7 +324,7 @@ def test_walkthrough_script_is_progressive():
     assert "import(" in html
     assert "anime.esm.min.js" in html
     assert "https://cdn." not in html
-    assert 'aria-hidden' not in script
+    assert "aria-hidden" not in script
     commands = html.split('id="commands"', 1)[1]
     assert "<h3>Health check</h3>" in commands
     assert "COURSE_SELECTOR" not in commands
