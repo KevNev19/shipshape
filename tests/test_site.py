@@ -1,6 +1,8 @@
 """The marketing site and the README art it feeds stay wired together."""
 
+import hashlib
 import re
+import subprocess
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -162,6 +164,16 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
     assert (video_dir / "launch.webm").read_bytes()[:4] == b"\x1a\x45\xdf\xa3"
 
 
+def test_lighthouse_floors_stay_pessimistic():
+    config = (ROOT / "lighthouserc.json").read_text(encoding="utf-8")
+    assert '"aggregationMethod": "pessimistic"' in config
+    assert '"categories:performance": ["error", {"minScore": 0.9}]' in config
+    assert '"categories:accessibility": ["error", {"minScore": 0.95}]' in config
+    assert '"categories:best-practices": ["error", {"minScore": 0.9}]' in config
+    assert '"cumulative-layout-shift": ["error", {"maxNumericValue": 0.1}]' in config
+    assert '"total-byte-weight": ["error", {"maxNumericValue": 800000}]' in config
+
+
 def test_lighthouse_ci_guards_site_changes():
     workflow = (ROOT / ".github" / "workflows" / "lighthouse.yml").read_text(encoding="utf-8")
     config = (ROOT / "lighthouserc.json").read_text(encoding="utf-8")
@@ -195,3 +207,91 @@ def test_readme_and_site_say_review_runs_the_projects_checks():
         assert "runs your project's own checks on local work" in text
         assert "asking first on a branch someone else wrote" in text
     assert "Doctor and review only look and report" not in html
+
+
+def test_animejs_vendor_is_the_pinned_build():
+    vendor = SITE / "assets" / "vendor" / "animejs" / "4.5.0"
+    script = vendor / "anime.esm.min.js"
+    license_file = vendor / "LICENSE.md"
+    assert script.is_file()
+    assert license_file.is_file()
+    spec = (ROOT / "docs/superpowers/specs/2026-11-05-animejs-walkthrough-design.md").read_text(
+        encoding="utf-8"
+    )
+    script_sha = re.search(
+        r"anime\.esm\.min\.js` \| 118678 \| 40860 \| `([0-9a-f]{64})`",
+        spec,
+    ).group(1)
+    license_sha = re.search(
+        r"LICENSE\.md` \| 1075 \| 643 \| `([0-9a-f]{64})`",
+        spec,
+    ).group(1)
+    assert hashlib.sha256(script.read_bytes()).hexdigest() == script_sha
+    assert hashlib.sha256(license_file.read_bytes()).hexdigest() == license_sha
+    assert len(script.read_bytes()) == 118678
+    assert "MIT License" in license_file.read_text(encoding="utf-8")
+    assert "Copyright (c) 2025 Julian Garnier" in license_file.read_text(encoding="utf-8")
+
+
+def test_walkthrough_copy_matches_the_page():
+    html = (SITE / "index.html").read_text(encoding="utf-8")
+    course = html.split('id="how"', 1)[1].split('id="feel"', 1)[0]
+    headings = re.findall(r"<h3>(.*?)</h3>", course)
+    assert headings == ["Scan", "A few questions", "Preview", "Set up"]
+    watch = html.split('id="watch"', 1)[1].split('id="commands"', 1)[0]
+    duties = re.findall(r"<td>([^<]*)</td><td>([^<]*)</td>", watch.replace("\n", ""))
+    assert [name for _, name in duties] == [
+        "Secret guard",
+        "CI",
+        "Secret scan",
+        "CodeQL",
+        "Dependabot",
+        "Health check",
+        "Release",
+        "Branch rule",
+    ]
+    report = watch.split('class="scorecard"', 1)[1]
+    statuses = re.findall(r'class="status (?:fail|pass)">(.*?)</b>([^<]*)', report)
+    assert [label.strip() for _, label in statuses] == [
+        "secret guard installed",
+        "remote protection",
+        "code scanning (CodeQL)",
+        "dependency watch (Dependabot)",
+        "automated tests (CI)",
+        "managed files",
+    ]
+    assert report.index("Security") < report.index("secret guard installed")
+    assert report.index("Setup") < report.index("automated tests (CI)")
+    assert "Next: run bash .sdlc/hooks/install.sh" in report
+
+
+def test_walkthrough_gate_node_tests():
+    completed = subprocess.run(
+        ["node", "--test", "tests/walkthrough.test.mjs"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_walkthrough_script_is_progressive():
+    html = (SITE / "index.html").read_text(encoding="utf-8")
+    script = html.split("assets/walkthrough.mjs", 1)[1]
+    assert "prefers-reduced-motion" in script
+    assert "onScroll" not in script
+    assert "played" in script
+    assert "seenAt" in script
+    assert 'addEventListener("scroll"' in script
+    assert "Math.min(rect.height, window.innerHeight)" in script
+    assert "import(" in html
+    assert "anime.esm.min.js" in html
+    assert "https://cdn." not in html
+    assert "aria-hidden" not in script
+    # The loader sits after the commands section. Judge that section's markup,
+    # not the script that follows it.
+    commands = html.split('id="commands"', 1)[1].split("<script", 1)[0]
+    assert "<h3>Health check</h3>" in commands
+    assert "COURSE_SELECTOR" not in commands
+    assert (SITE / "assets" / "walkthrough.mjs").is_file()
+    assert (SITE / "assets" / "vendor" / "animejs" / "4.5.0" / "anime.esm.min.js").is_file()
