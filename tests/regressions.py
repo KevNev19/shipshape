@@ -1377,6 +1377,16 @@ def test_wrapped_code_and_quoted_skips_are_read_as_written() -> None:
     )
 
 
+def test_test_scan_keeps_warnings_and_skips_dependencies() -> None:
+    """2026-11-06: an unreadable test file was reported as PASS when no
+    assertion-free test was found, and tests inside .venv were flagged as
+    the project's own tests."""
+    run_focused_pytest(
+        "tests/test_test_quality.py::test_dependency_tests_are_not_scanned",
+        "tests/test_doctor.py::test_test_quality_warns_when_the_scan_is_incomplete",
+    )
+
+
 def main() -> int:
     checks = [
         (
@@ -1678,6 +1688,10 @@ def main() -> int:
         (
             "weekly report names a denied secret scan and one issue",
             test_weekly_report_names_a_denied_secret_scan_and_one_issue,
+        ),
+        (
+            "test scan keeps warnings and skips dependencies",
+            test_test_scan_keeps_warnings_and_skips_dependencies,
         ),
     ]
     failures = 0

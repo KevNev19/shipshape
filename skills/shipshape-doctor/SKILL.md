@@ -46,10 +46,12 @@ export SHIPSHAPE_ROOT="/absolute/path/to/the/loaded/shipshape/bundle"
    A partial setup apply is incomplete; report its pending conflicts/errors,
    rather than folding them into the harmless user-edit case.
    If a `test quality` check is present and off, say it is off and do not
-   scan the tests yourself. If it warns, say it found Python tests with no
-   recognized assertion, that the warning does not block a merge, that it
-   does not run mutation testing, and that assertions living in a helper can
-   be missed. A meaningless assertion such as `assert True` can still pass.
+   scan the tests yourself. If it warns about an incomplete scan, say which
+   file could not be read and that this is not a clean result. If it warns
+   about assertion-free tests, say it found Python tests with no recognized
+   assertion, that the warning does not block a merge, that it does not run
+   mutation testing, and that assertions living in a helper can be missed.
+   A meaningless assertion such as `assert True` can still pass.
    The `remote protection` result also checks that the privileged auto-merge
    workflow is present only for a valid tiered PR configuration; helper
    presence by itself grants no authority.

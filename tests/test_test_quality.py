@@ -191,6 +191,24 @@ def test_domain_call():
     assert [item["test"] for item in result["assertion_free"]] == ["test_domain_call"]
 
 
+def test_dependency_tests_are_not_scanned(tmp_path):
+    nested = tmp_path / ".venv" / "lib" / "python3.12" / "site-packages" / "pkg" / "tests"
+    nested.mkdir(parents=True)
+    (nested / "test_example.py").write_text(
+        "def test_example():\n    return None\n", encoding="utf-8"
+    )
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_ok.py").write_text(
+        "def test_ok():\n    assert 1 == 1\n", encoding="utf-8"
+    )
+
+    _, result = run_scan(tmp_path)
+
+    assert result["assertion_free"] == []
+    assert result["tests_scanned"] == 1
+    assert result["warnings"] == []
+
+
 def test_unparseable_file_becomes_warning(tmp_path):
     (tmp_path / "test_broken.py").write_text("def test_broken(:\n", encoding="utf-8")
 
@@ -221,6 +239,14 @@ def test_unsupported_language_is_reported_without_scanning(tmp_path):
     assert result["language"] == "go"
     assert result["unsupported"] == ["go"]
     assert result["tests_scanned"] == 0
+
+
+def test_scanner_skip_dirs_match_detect():
+    detect = (ROOT / "scripts" / "detect.py").read_text(encoding="utf-8")
+    scanner = SCRIPT.read_text(encoding="utf-8")
+    start = detect.index("SKIP_DIRS = {")
+    end = detect.index("}", start) + 1
+    assert detect[start:end] in scanner
 
 
 def test_consumer_scanner_template_matches_the_kit_scanner():

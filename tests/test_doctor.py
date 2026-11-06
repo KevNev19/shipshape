@@ -943,6 +943,23 @@ def test_test_quality_warns_on_assertion_free_tests_and_does_not_fail(tmp_path):
     assert "Strengthen test_empty" in check["next_action"]
 
 
+def test_test_quality_warns_when_the_scan_is_incomplete(tmp_path):
+    repo = healthy_repo(tmp_path)
+    enable_test_quality(repo)
+    (repo / "tests" / "test_true.py").write_text(
+        "def test_true():\n    assert True\n", encoding="utf-8"
+    )
+    (repo / "tests" / "test_bad.py").write_bytes(b"def test_bad():\n    x = '\xff'\n")
+
+    code, payload = run_script("doctor.py", repo)
+    check = checks_by_name(payload, "setup")["test quality"]
+
+    assert code == 0, payload
+    assert check["status"] == "WARN"
+    assert "incomplete" in check["detail"]
+    assert "test_bad.py" in check["detail"]
+
+
 def test_test_quality_passes_when_assertions_exist_including_assert_true(tmp_path):
     repo = healthy_repo(tmp_path)
     enable_test_quality(repo)

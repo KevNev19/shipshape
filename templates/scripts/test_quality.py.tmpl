@@ -19,15 +19,32 @@ import json
 import sys
 from pathlib import Path
 
+# Same directories scripts/detect.py refuses to walk. A consumer copy of this
+# scanner cannot import that module, so the set is repeated and tested.
+SKIP_DIRS = {
+    ".git",
+    "node_modules",
+    "venv",
+    ".venv",
+    "dist",
+    "build",
+    "__pycache__",
+    ".pytest_cache",
+    "target",
+    ".next",
+    "vendor",
+}
+
 
 def _test_files(repo: Path) -> list[Path]:
-    return [
-        path
-        for path in sorted(repo.rglob("*.py"))
-        if path.name.startswith("test_")
-        or path.name.endswith("_test.py")
-        or "tests" in path.relative_to(repo).parts[:-1]
-    ]
+    found = []
+    for path in sorted(repo.rglob("*.py")):
+        parts = path.relative_to(repo).parts[:-1]
+        if any(part in SKIP_DIRS for part in parts):
+            continue
+        if path.name.startswith("test_") or path.name.endswith("_test.py") or "tests" in parts:
+            found.append(path)
+    return found
 
 
 def _dotted_name(node: ast.AST) -> str:
