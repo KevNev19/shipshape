@@ -1,18 +1,51 @@
 WEBVTT
 
-NOTE Launch film. There is no speech. Music plays throughout.
+NOTE shipshape launch film. Voiceover by a synthetic voice (Chatterbox, Resemble AI). Music: Synthwave 4k by The Cynic Project, CC0.
 
-00:00.000 --> 00:02.800
-[Music: Happy Beats / Business Moves vol. 12 by Sascha Ende. No speech.] Signal flags hoist to spell SHIPSHAPE.
+1
+00:00.920 --> 00:02.720
+shipshape gets your repository in order,
 
-00:02.800 --> 00:05.400
-The word itself, in the International Code of Signals. Get your repository shipshape.
+2
+00:02.720 --> 00:04.524
+in one conversation.
 
-00:05.400 --> 00:12.200
-A sample conversation. You run $shipshape-init. Shipshape confirms the project, shows a plan that leaves existing files alone, and after you say go ahead, writes the files and switches on the secret guard.
+3
+00:05.320 --> 00:06.560
+Run $shipshape-init.
 
-00:12.200 --> 00:16.800
-On watch. Security is the centre of the kit, not an add-on. The watch bill lists the secret guard, CI, the secret scan, CodeQL and the Wednesday health check.
+4
+00:06.560 --> 00:07.920
+It asks a few plain questions,
 
-00:16.800 --> 00:23.000
-shipshape. Set up in one conversation, in plain English. A plugin for Codex and Claude Code, MIT licensed. /plugin marketplace add KevNev19/shipshape.
+5
+00:07.920 --> 00:08.800
+shows you the plan,
+
+6
+00:08.800 --> 00:11.214
+and changes nothing until you say go.
+
+7
+00:12.720 --> 00:13.720
+Security sits at the centre:
+
+8
+00:13.720 --> 00:15.120
+a secret guard on every commit,
+
+9
+00:15.120 --> 00:17.120
+CI, secret scanning, CodeQL,
+
+10
+00:17.120 --> 00:18.816
+and a weekly health check.
+
+11
+00:19.670 --> 00:22.290
+shipshape. A plugin for Codex and Claude Code.
+
+12
+00:22.290 --> 00:24.242
+Free, and open source.

@@ -130,14 +130,18 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
     assert track.get("srclang") == "en"
     visible = " ".join(parser.text)
     for phrase in (
-        "Happy Beats / Business Moves vol. 12",
-        "Sascha Ende",
-        "CC BY 4.0",
+        "Chatterbox",
+        "Resemble AI",
+        "Synthwave 4k",
+        "The Cynic Project",
         "Kenney",
         "CC0",
+        "MIT",
     ):
         assert phrase in visible, phrase
         assert phrase in readme, phrase
+    assert "Sascha Ende" not in visible
+    assert "Sascha Ende" not in readme
     assert 'href="https://kevnev19.github.io/shipshape/#launch"' in readme
     assert 'src="site/assets/video/launch-poster.jpg"' in readme
     assert 'property="og:video"' in html
@@ -153,7 +157,9 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
     assert "if (userStarted) return" not in script
     captions = (SITE / "assets" / "video" / "launch.vtt").read_text(encoding="utf-8")
     assert captions.startswith("WEBVTT")
-    assert "Sascha Ende" in captions
+    assert "Chatterbox" in captions
+    assert "The Cynic Project" in captions
+    assert "Sascha Ende" not in captions
 
     video_dir = SITE / "assets" / "video"
     files = [path for path in video_dir.iterdir() if path.is_file()]

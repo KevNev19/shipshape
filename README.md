@@ -31,7 +31,7 @@ tooling. Delete the plugin tomorrow and your setup keeps working.
   <img alt="Poster for the shipshape launch film. Signal flags spell SHIPSHAPE above the words: Get your repository shipshape." src="site/assets/video/launch-poster.jpg" width="100%">
 </a>
 
-The launch film is on the [website](https://kevnev19.github.io/shipshape/#launch). It has no speech. Music: *Happy Beats / Business Moves vol. 12* by [Sascha Ende](https://ende.app) (ende.app), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Sound effects by [Kenney](https://kenney.nl), CC0.
+The launch film is on the [website](https://kevnev19.github.io/shipshape/#launch). Voice: [Chatterbox](https://github.com/resemble-ai/chatterbox) by Resemble AI (synthetic, MIT). Music: “Synthwave 4k” by [The Cynic Project](https://opengameart.org/content/calm-ambient-1-synthwave-4k) (cynicmusic.com), CC0. Sound effects by [Kenney](https://kenney.nl), CC0.
 
 ## How it works
 
