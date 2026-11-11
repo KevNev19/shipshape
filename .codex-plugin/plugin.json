@@ -6,8 +6,8 @@
     "name": "KevNev19",
     "url": "https://github.com/KevNev19"
   },
-  "homepage": "https://github.com/KevNev19/shipshape",
-  "repository": "https://github.com/KevNev19/shipshape",
+  "homepage": "https://github.com/rook-hq/shipshape",
+  "repository": "https://github.com/rook-hq/shipshape",
   "license": "MIT",
   "keywords": [
     "sdlc",
@@ -28,7 +28,7 @@
       "Interactive",
       "Write"
     ],
-    "websiteURL": "https://github.com/KevNev19/shipshape",
+    "websiteURL": "https://github.com/rook-hq/shipshape",
     "defaultPrompt": [
       "Set up this repository with Shipshape.",
       "Check this repository's Shipshape health."

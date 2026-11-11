@@ -5,12 +5,12 @@
   <img alt="Signal flags spelling SHIPSHAPE beside the headline: Get your repository shipshape. A proper software delivery process for any repository, set up in one conversation, in plain English. For Codex and Claude Code. Scan, a few questions, preview, set up." src="site/assets/readme/hero-light.svg" width="100%">
 </picture>
 
-[![CI](https://github.com/KevNev19/shipshape/actions/workflows/ci.yml/badge.svg)](https://github.com/KevNev19/shipshape/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/KevNev19/shipshape/actions/workflows/codeql.yml/badge.svg)](https://github.com/KevNev19/shipshape/actions/workflows/codeql.yml)
-[![Release](https://img.shields.io/github/v/release/KevNev19/shipshape?label=release&color=1c3f94)](https://github.com/KevNev19/shipshape/releases)
+[![CI](https://github.com/rook-hq/shipshape/actions/workflows/ci.yml/badge.svg)](https://github.com/rook-hq/shipshape/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/rook-hq/shipshape/actions/workflows/codeql.yml/badge.svg)](https://github.com/rook-hq/shipshape/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/rook-hq/shipshape?label=release&color=1c3f94)](https://github.com/rook-hq/shipshape/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-1c3f94.svg)](LICENSE)
 
-**[Website](https://kevnev19.github.io/shipshape/)** · **[Get it](#get-it)** · **[Commands](#the-commands)** · **[Releases](https://github.com/KevNev19/shipshape/releases)**
+**[Website](https://rook-hq.github.io/shipshape/)** · **[Get it](#get-it)** · **[Commands](#the-commands)** · **[Releases](https://github.com/rook-hq/shipshape/releases)**
 
 </div>
 
@@ -27,11 +27,11 @@ tooling. Delete the plugin tomorrow and your setup keeps working.
 
 ## Watch
 
-<a href="https://kevnev19.github.io/shipshape/#launch">
+<a href="https://rook-hq.github.io/shipshape/#launch">
   <img alt="Poster for the shipshape launch film. Signal flags spell SHIPSHAPE above the words: Get your repository shipshape." src="site/assets/video/launch-poster.jpg" width="100%">
 </a>
 
-The launch film is on the [website](https://kevnev19.github.io/shipshape/#launch). Voice: [Chatterbox](https://github.com/resemble-ai/chatterbox) by Resemble AI (synthetic, MIT). Music: “Synthwave 4k” by [The Cynic Project](https://opengameart.org/content/calm-ambient-1-synthwave-4k) (cynicmusic.com), CC0. Sound effects by [Kenney](https://kenney.nl), CC0.
+The launch film is on the [website](https://rook-hq.github.io/shipshape/#launch). Voice: [Chatterbox](https://github.com/resemble-ai/chatterbox) by Resemble AI (synthetic, MIT). Music: “Synthwave 4k” by [The Cynic Project](https://opengameart.org/content/calm-ambient-1-synthwave-4k) (cynicmusic.com), CC0. Sound effects by [Kenney](https://kenney.nl), CC0.
 
 ## How it works
 
@@ -206,7 +206,7 @@ fixed bugs from coming back. Decisions are recorded in
 [`docs/adr/`](docs/adr/). Run the whole pipeline against a scratch repo with
 `bash tests/e2e.sh`.
 
-The [website](https://kevnev19.github.io/shipshape/) lives in
+The [website](https://rook-hq.github.io/shipshape/) lives in
 [`site/`](site/) and deploys to GitHub Pages from `main`. The art in this
 README is generated from the site's own fonts and colours by
 [`site/tools/build_readme_art.py`](site/tools/build_readme_art.py).
@@ -221,7 +221,7 @@ README is generated from the site's own fonts and colours by
 Register the published Shipshape marketplace and install it in Codex:
 
 ```bash
-codex plugin marketplace add KevNev19/shipshape
+codex plugin marketplace add rook-hq/shipshape
 codex plugin add shipshape@shipshape
 ```
 
@@ -248,12 +248,12 @@ so the skills are loaded from that checkout.
 In Claude Code, use its in-app marketplace commands:
 
 ```text
-/plugin marketplace add KevNev19/shipshape
+/plugin marketplace add rook-hq/shipshape
 /plugin install shipshape@shipshape
 /shipshape-init
 ```
 
-Replace `KevNev19/shipshape` with the checkout's absolute path to test local,
+Replace `rook-hq/shipshape` with the checkout's absolute path to test local,
 unpublished Claude Code changes.
 
 Needs `git` and Python 3.10 or newer (check with `python3 --version`). On

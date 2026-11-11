@@ -142,7 +142,7 @@ def test_launch_film_sits_below_the_hero_and_is_credited():
         assert phrase in readme, phrase
     assert "Sascha Ende" not in visible
     assert "Sascha Ende" not in readme
-    assert 'href="https://kevnev19.github.io/shipshape/#launch"' in readme
+    assert 'href="https://rook-hq.github.io/shipshape/#launch"' in readme
     assert 'src="site/assets/video/launch-poster.jpg"' in readme
     assert 'property="og:video"' in html
     script = html.split('id="launch-video"', 1)[1]
