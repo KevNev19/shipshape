@@ -4,7 +4,7 @@ description: Produces the recurring security and quality report for this reposit
 ---
 
 <!--
-  Repo-local agent for KevNev19/shipshape (not part of the shipshape kit's
+  Repo-local agent for rook-hq/shipshape (not part of the shipshape kit's
   templates). Assigned via the security-quality-report workflow's weekly
   issue, or directly with:
     gh agent-task create --custom-agent security-quality "..."

@@ -89,7 +89,7 @@ false negatives for the broader question, "can this test catch wrong code?"
 
 ## Cost-prototype smoke (gap 10)
 
-`scripts/verification_cost.py summarize KevNev19/shipshape --days 7` with a
+`scripts/verification_cost.py summarize rook-hq/shipshape --days 7` with a
 live token: 137 runs, 140 attempts (3 retried runs), 103 minutes,
 2 merged PRs, 51.5 minutes/merge; monetary cost correctly reported unknown.
 

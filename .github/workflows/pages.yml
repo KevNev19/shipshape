@@ -1,5 +1,5 @@
 # Publishes the marketing site in site/ to GitHub Pages at
-# https://kevnev19.github.io/shipshape/ whenever the site changes on main,
+# https://rook-hq.github.io/shipshape/ whenever the site changes on main,
 # or by hand from the Actions tab. One-time setup: Settings -> Pages ->
 # Build and deployment -> Source: "GitHub Actions".
 name: Pages

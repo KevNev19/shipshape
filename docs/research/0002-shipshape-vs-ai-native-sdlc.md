@@ -684,7 +684,7 @@ the time of that check.
 
 | Gap | Status before the slices | What the slice does |
 | --- | --- | --- |
-| 1. Test quality | Kit-local assertion scan only. Not a consumer gate. | Opt-in `features.test_quality` doctor warning for Python tests with no recognized assertion. It does not fail a scorecard or block a merge. Mutation testing is not included. [PR 31](https://github.com/KevNev19/shipshape/pull/31) |
+| 1. Test quality | Kit-local assertion scan only. Not a consumer gate. | Opt-in `features.test_quality` doctor warning for Python tests with no recognized assertion. It does not fail a scorecard or block a merge. Mutation testing is not included. [PR 31](https://github.com/rook-hq/shipshape/pull/31) |
 | 2. Unknown is not healthy | Settled by ADR 0006. Scheduled doctor exists. | No further change. |
 | 3. Weekly security-quality sensor | Still kit-local. Not in the consumer manifest. | Left open. Shipping it still needs an eval of omitted alerts, invented findings, and token scope. Parallel work is already on the kit-local report. |
 | 4. Findings-first review | Settled by ADR 0007 and the finding contract. | No further change. |
@@ -693,9 +693,9 @@ the time of that check.
 | 7. Durable change intent | Settled by ADR 0009. Four-field intent file and skill exist. | No further change. |
 | 8. Test-retry warning | Done. Doctor check `test retries` warns and never fails. | No further change. |
 | 9. Merge queue | Considered and rejected for this kit's audience. | No queue was added. |
-| 10. Verification cost | Invoke-only prototype. Merged pull requests were the only denominator, so trunk pushes were invisible. Money was already unknown. | Counts commits on the default branch as well, still does not guess a price, and `/shipshape-doctor` translates the summary only on request. [PR 32](https://github.com/KevNev19/shipshape/pull/32) |
-| 11. Provenance labels | Not shipped to consumers. | Opt-in `features.provenance_labels` commit trailer `Agent-Assisted-By: Tool Name`. Unlabeled commits still succeed. The label is not a safety check. Pull-request templates ask an optional "How was this made?" question. [PR 30](https://github.com/KevNev19/shipshape/pull/30) |
-| 12. Progressive delivery | No flag, canary, or rollback artifact. | Opt-in checklist page only. No deploy workflow and no platform setting. [PR 34](https://github.com/KevNev19/shipshape/pull/34) |
+| 10. Verification cost | Invoke-only prototype. Merged pull requests were the only denominator, so trunk pushes were invisible. Money was already unknown. | Counts commits on the default branch as well, still does not guess a price, and `/shipshape-doctor` translates the summary only on request. [PR 32](https://github.com/rook-hq/shipshape/pull/32) |
+| 11. Provenance labels | Not shipped to consumers. | Opt-in `features.provenance_labels` commit trailer `Agent-Assisted-By: Tool Name`. Unlabeled commits still succeed. The label is not a safety check. Pull-request templates ask an optional "How was this made?" question. [PR 30](https://github.com/rook-hq/shipshape/pull/30) |
+| 12. Progressive delivery | No flag, canary, or rollback artifact. | Opt-in checklist page only. No deploy workflow and no platform setting. [PR 34](https://github.com/rook-hq/shipshape/pull/34) |
 | 13. Dead `project_board` switch | The key is real and defaults to false. ADR 0014 and ADR 0015. Doctor omits the check while it is off and does not warn merely because the key is present. | Optional board, off unless someone turns it on. Issue 14 stays open for anything past that opt-in board. |
 | 14. Agent sandboxing guidance | Done. `templates/security/security-explainer.md.tmpl` has "When an AI tool works here." | No further change. The guidance does not claim the kit can enforce a sandbox. |
 
