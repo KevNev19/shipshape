@@ -16,7 +16,8 @@
     "release_automation": true,
     "issue_templates": true,
     "github_agents": true,
-    "scheduled_health": true
+    "scheduled_health": true,
+    "tiered_review": false
   },
   "commands": {
     "test": "python3 -m pytest tests/ -q",
@@ -34,6 +35,6 @@
     "default": ""
   },
   "repo": {
-    "owner_repo": ""
+    "owner_repo": "rook-hq/shipshape"
   }
 }

@@ -1424,6 +1424,24 @@ def test_test_scan_keeps_warnings_and_skips_dependencies() -> None:
     )
 
 
+def test_kit_config_names_remote_protection() -> None:
+    """2026-11-13: the weekly doctor failed remote protection before calling
+    GitHub because this repo's config omitted features.tiered_review and left
+    repo.owner_repo empty. Guard: the installed config names rook-hq/shipshape
+    and can derive the trunk protection request without a network call."""
+    from scripts import review_gates
+
+    config = json.loads((ROOT / ".sdlc" / "config.json").read_text(encoding="utf-8"))
+    request = review_gates.derive_protection_request(config, {".github/workflows/codeql.yml"})
+    assert request["requested"] is True
+    assert request["repo"] == "rook-hq/shipshape"
+    assert request["branch"] == "main"
+    assert request["workflow_style"] == "trunk"
+    assert request["tiered_review"] is False
+    assert request["ruleset_name"] == "Shipshape branch protection"
+    assert request["required_rule_types"] == ["deletion", "non_fast_forward"]
+
+
 def main() -> int:
     checks = [
         (
@@ -1741,6 +1759,10 @@ def main() -> int:
         (
             "test scan keeps warnings and skips dependencies",
             test_test_scan_keeps_warnings_and_skips_dependencies,
+        ),
+        (
+            "kit config names remote protection",
+            test_kit_config_names_remote_protection,
         ),
     ]
     failures = 0
